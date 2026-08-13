@@ -212,7 +212,7 @@ def make_group_keys(
     excited/suppressed analysis is about, and they would be lost from
     detection entirely. Separate for Thy1 -- but only when the manipulation is
     actually an anaesthetic: under saline there is no state change to preserve,
-    so even Thy1 should pool. See `trials.is_anesthetic`.
+    so even Thy1 should pool. The notebook's `ANESTHESIA` toggle says which.
     """
 
     if len(odor_ids) != len(states):

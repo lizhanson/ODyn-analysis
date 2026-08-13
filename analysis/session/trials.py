@@ -38,29 +38,14 @@ AFTER = "post"
 
 DEFAULT_MANIPULATION = "ketamine/xylazine"
 
-# Not a closed set; anything may be passed. These are the ones seen so far,
-# and `is_anesthetic` keys off them.
-KNOWN_MANIPULATIONS = (
-    "ketamine/xylazine",
-    "ketamine",
-    "saline",
-    "no injection",
-)
-
-ANESTHETIC_MANIPULATIONS = ("ketamine/xylazine", "ketamine")
-
-
-def is_anesthetic(manipulation: str) -> bool:
-    """
-    Whether block 1 is an anaesthetised state rather than a control.
-
-    Decides more than labelling: in Thy1-GCaMP, responses can invert under
-    ket/xyl, so odor maps must be kept separate by block or the two cancel.
-    Under saline there is no state change, so pooling is free and doubles the
-    trials behind each map.
-    """
-
-    return manipulation.strip().lower() in ANESTHETIC_MANIPULATIONS
+# Whether the second block is anaesthetised is a fact about the experiment,
+# not something to infer from a free-text label. The notebook passes it in
+# explicitly; `manipulation` is whatever the person running the session wants
+# to write down.
+#
+# The inference this replaced read `manipulation` against a list of accepted
+# spellings, so 'ketxyl' scored as not-anaesthetic and silently reclassified an
+# anaesthetised session as a control.
 
 
 def trial_table(
