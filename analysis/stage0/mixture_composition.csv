@@ -1,0 +1,41 @@
+mix_odor_id,mix_name,component_slot,component_odor_id,component_name,nominal_fraction,component_vp_mmhg,mix_vp_ratio,vp_mismatch,vp_mismatch_note,purpose
+17,alpha,A,4,1-butanol,0.6,7.78,2.2299,1,big VP mismatch,terpene + alcohol for task-switching
+17,alpha,B,10,(-) alpha pinene,0.4,3.489,2.2299,1,big VP mismatch,terpene + alcohol for task-switching
+18,alpha',A,4,1-butanol,0.4,7.78,2.2299,1,big VP mismatch,terpene + alcohol for task-switching
+18,alpha',B,10,(-) alpha pinene,0.6,3.489,2.2299,1,big VP mismatch,terpene + alcohol for task-switching
+19,beta,A,8,1-octanol,0.6,0.0794,0.0551,1,big VP mismatch,terpene + alcohol for task-switching
+19,beta,B,12,(-) limonene,0.4,1.44,0.0551,1,big VP mismatch,terpene + alcohol for task-switching
+20,beta',A,8,1-octanol,0.4,0.0794,0.0551,1,big VP mismatch,terpene + alcohol for task-switching
+20,beta',B,12,(-) limonene,0.6,1.44,0.0551,1,big VP mismatch,terpene + alcohol for task-switching
+25,gamma,A,21,ethyl butyrate,0.6,12.8,128.0,1,big VP mismatch,
+25,gamma,B,22,cyclopentanecarboxylic acid,0.4,0.1,128.0,1,big VP mismatch,
+26,gamma',A,21,ethyl butyrate,0.4,12.8,128.0,1,big VP mismatch,
+26,gamma',B,22,cyclopentanecarboxylic acid,0.6,0.1,128.0,1,big VP mismatch,
+27,delta,A,23,cinnamaldehyde,0.6,0.0289,0.0657,1,"HORRIBLE, big VP mismatch",
+27,delta,B,24,isovaleric acid,0.4,0.44,0.0657,1,"HORRIBLE, big VP mismatch",
+28,delta',A,23,cinnamaldehyde,0.4,0.0289,0.0657,1,"HORRIBLE, big VP mismatch",
+28,delta',B,24,isovaleric acid,0.6,0.44,0.0657,1,"HORRIBLE, big VP mismatch",
+31,epsilon,A,22,cyclopentanecarboxylic acid,0.6,0.1,0.4167,0,,class I mix with siimilar VP
+31,epsilon,B,30,trans-2-methyl-2-pentenoic acid,0.4,0.24,0.4167,0,,class I mix with siimilar VP
+32,epsilon',A,22,cyclopentanecarboxylic acid,0.4,0.1,0.4167,0,,class I mix with siimilar VP
+32,epsilon',B,30,trans-2-methyl-2-pentenoic acid,0.6,0.24,0.4167,0,,class I mix with siimilar VP
+33,zeta,A,11,(-) beta pinene,0.6,2.93,1.1057,0,,terpene + alcohol with similar VP
+33,zeta,B,5,1-pentanol,0.4,2.65,1.1057,0,,terpene + alcohol with similar VP
+34,zeta',A,11,(-) beta pinene,0.4,2.93,1.1057,0,,terpene + alcohol with similar VP
+34,zeta',B,5,1-pentanol,0.6,2.65,1.1057,0,,terpene + alcohol with similar VP
+37,kappa,A,10,(-) alpha pinene,0.6,3.489,0.9062,0,,terpene + ketone with similar VP
+37,kappa,B,35,2-heptanone,0.4,3.85,0.9062,0,,terpene + ketone with similar VP
+38,kappa',A,10,(-) alpha pinene,0.4,3.489,0.9062,0,,terpene + ketone with similar VP
+38,kappa',B,35,2-heptanone,0.6,3.85,0.9062,0,,terpene + ketone with similar VP
+39,lambda,A,3,acetophenone,0.6,0.397,0.2757,0,,terpene + ketone with similar VP
+39,lambda,B,12,(-) limonene,0.4,1.44,0.2757,0,,terpene + ketone with similar VP
+40,lambda',A,3,acetophenone,0.4,0.397,0.2757,0,,terpene + ketone with similar VP
+40,lambda',B,12,(-) limonene,0.6,1.44,0.2757,0,,terpene + ketone with similar VP
+41,omicron,A,21,ethyl butyrate,0.6,12.8,1.6452,0,,ester + alcohol with similar VP
+41,omicron,B,4,1-butanol,0.4,7.78,1.6452,0,,ester + alcohol with similar VP
+42,omicron',A,21,ethyl butyrate,0.4,12.8,1.6452,0,,ester + alcohol with similar VP
+42,omicron',B,4,1-butanol,0.6,7.78,1.6452,0,,ester + alcohol with similar VP
+43,rho,A,36,methyl tiglate,0.6,6.65,2.5094,0,,ester + alcohol with similar VP
+43,rho,B,5,1-pentanol,0.4,2.65,2.5094,0,,ester + alcohol with similar VP
+44,rho',A,36,methyl tiglate,0.4,6.65,2.5094,0,,ester + alcohol with similar VP
+44,rho',B,5,1-pentanol,0.6,2.65,2.5094,0,,ester + alcohol with similar VP

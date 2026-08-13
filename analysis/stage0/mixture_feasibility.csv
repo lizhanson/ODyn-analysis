@@ -1,0 +1,29 @@
+panel,mix_odor_id,mix_name,component_slot,component_odor_id,ppm_in_mix,ppm_as_single_on_panel,dose_ratio,status
+panel_7,17,alpha,A,4,44.2117,,,component not on panel
+panel_7,17,alpha,B,10,13.218,,,component not on panel
+panel_7,18,alpha',A,4,29.4745,,,component not on panel
+panel_7,18,alpha',B,10,19.8271,,,component not on panel
+panel_7,19,beta,A,8,0.4558,,,component not on panel
+panel_7,19,beta,B,12,5.5107,,,component not on panel
+panel_7,20,beta',A,8,0.3039,,,component not on panel
+panel_7,20,beta',B,12,8.2661,,,component not on panel
+panel_12,17,alpha,A,4,44.2117,,,component not on panel
+panel_12,17,alpha,B,10,13.218,,,component not on panel
+panel_12,18,alpha',A,4,29.4745,,,component not on panel
+panel_12,18,alpha',B,10,19.8271,,,component not on panel
+panel_12,19,beta,A,8,0.4558,,,component not on panel
+panel_12,19,beta,B,12,5.5107,,,component not on panel
+panel_12,20,beta',A,8,0.3039,,,component not on panel
+panel_12,20,beta',B,12,8.2661,,,component not on panel
+panel_16,17,alpha,A,4,44.2,1.0,44.2,extrapolation
+panel_16,17,alpha,B,10,13.3,1.0,13.3,extrapolation
+panel_16,18,alpha',A,4,29.4,1.0,29.4,extrapolation
+panel_16,18,alpha',B,10,19.9,1.0,19.9,extrapolation
+panel_16,31,epsilon,A,22,1.0,1.0,1.0,exact
+panel_16,31,epsilon,B,30,0.6,1.0,0.6,interpolation
+panel_16,32,epsilon',A,22,0.6,1.0,0.6,interpolation
+panel_16,32,epsilon',B,30,1.0,1.0,1.0,exact
+panel_16,39,lambda,A,3,1.0,1.0,1.0,exact
+panel_16,39,lambda,B,12,0.6,1.0,0.6,interpolation
+panel_16,40,lambda',A,3,0.6,1.0,0.6,interpolation
+panel_16,40,lambda',B,12,1.0,1.0,1.0,exact

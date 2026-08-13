@@ -1,0 +1,45 @@
+odor_id,odor_name,role,odor_class,chemical_group,chemical_class,vapor_pressure_mmhg,cas,descriptors,notes,mix_components,mix_purpose,vp_mismatch
+0,mineral oil,control,,,,,,,,,,
+1,eugenol,single,II,Aromatic,"Aromatic, biosynthetic",0.0226,97-53-0,"cloves, spicy, warm, floral",training odor,,,
+2,methyl salicylate,single,II,Aromatic,"Aromatic, biosynthetic",0.0343,119-36-8,wintergreen,training odor,,,
+3,acetophenone,single,II,Aromatic,"Aromatic, ketone",0.397,98-86-2,"orange, sweet, pungent, floral, almond",,,,
+4,1-butanol,single,,Alcohol,,7.78,71-36-3,"harsh fusel, banana, alcoholic, rancid, sweet",,,,
+5,1-pentanol,single,,Alcohol,,2.65,71-41-0,fusel-like,,,,
+6,1-hexanol,single,,Alcohol,,0.928,111-27-3,herbal,,,,
+7,1-heptanol,single,,Alcohol,,0.2163,111-70-6,,,,,
+8,1-octanol,single,,Alcohol,,0.0794,111-87-5,waxy green orange aldehydic rose mushroom citrus floral sweet fatty coconut fruity,,,,
+9,(+) alpha pinene,single,,Terpenoid,Terpene,4.75,7785-70-8,"herbal, minty",,,,
+10,(-) alpha pinene,single,,,Terpene,3.489,7785-26-4,sharp warm resinous fresh pine terpenic earthy woody,,,,
+11,(-) beta pinene,single,,,Terpene,2.93,18172-67-3,"turpentine-like, dry woody, resinous piney",,,,
+12,(-) limonene,single,,Saturated hydrocarbon,Terpene,1.44,5989-27-5,citrus,,,,
+13,(+) limonene,single,,,Terpene,1.44,5989-54-8,,,,,
+14,citral,single,,,,,5392-40-5,,,,,
+15,allyl sulfide,single,,,,,592-88-1,,,,,
+17,alpha,mix,,,,,,,big VP mismatch,1-butanol + (-) alpha pinene,terpene + alcohol for task-switching,1
+18,alpha',mix,,,,,,,big VP mismatch,1-butanol + (-) alpha pinene,terpene + alcohol for task-switching,1
+19,beta,mix,,,,,,,big VP mismatch,1-octanol + (-) limonene,terpene + alcohol for task-switching,1
+20,beta',mix,,,,,,,big VP mismatch,1-octanol + (-) limonene,terpene + alcohol for task-switching,1
+21,ethyl butyrate,single,I and II,Ester,,12.8,105-54-4,ethereal banana,,,,
+22,cyclopentanecarboxylic acid,single,I,Carboxylic Acid,,0.1,3400-45-1,,,,,
+23,cinnamaldehyde,single,I and II,Aldehyde,,0.0289,14371-10-9,"cinammon, spicy",,,,
+24,isovaleric acid,single,I,Carboxylic Acid,,0.44,503-74-2,"body odor, cheesy, rancid",,,,
+25,gamma,mix,,,,,,,big VP mismatch,ethyl butyrate + cyclopentanecarboxylic acid,,1
+26,gamma',mix,,,,,,,big VP mismatch,ethyl butyrate + cyclopentanecarboxylic acid,,1
+27,delta,mix,,,,,,,"HORRIBLE, big VP mismatch",cinnamaldehyde + isovaleric acid,,1
+28,delta',mix,,,,,,,"HORRIBLE, big VP mismatch",cinnamaldehyde + isovaleric acid,,1
+29,pyruvic acid,single,I,Carboxylic Acid,,0.968,127-17-3,sharp sour acetic caramellic,,,,
+30,trans-2-methyl-2-pentenoic acid,single,I,Carboxylic Acid,,0.24,16957-70-3,"Fruity, Woody, Strawberry",,,,
+31,epsilon,mix,,,,,,,,cyclopentanecarboxylic acid + trans-2-methyl-2-pentenoic acid,class I mix with siimilar VP,0
+32,epsilon',mix,,,,,,,,cyclopentanecarboxylic acid + trans-2-methyl-2-pentenoic acid,class I mix with siimilar VP,0
+33,zeta,mix,,,,,,,,(-) beta pinene + 1-pentanol,terpene + alcohol with similar VP,0
+34,zeta',mix,,,,,,,,(-) beta pinene + 1-pentanol,terpene + alcohol with similar VP,0
+35,2-heptanone,single,,Ketone,,3.85,110-43-0,"banana, fruity, blue cheese",,,,
+36,methyl tiglate,single,,Ester,,6.65,6622-76-0,ethereal rum,,,,
+37,kappa,mix,,,,,,,,(-) alpha pinene + 2-heptanone,terpene + ketone with similar VP,0
+38,kappa',mix,,,,,,,,(-) alpha pinene + 2-heptanone,terpene + ketone with similar VP,0
+39,lambda,mix,,,,,,,,acetophenone + (-) limonene,terpene + ketone with similar VP,0
+40,lambda',mix,,,,,,,,acetophenone + (-) limonene,terpene + ketone with similar VP,0
+41,omicron,mix,,,,,,,,ethyl butyrate + 1-butanol,ester + alcohol with similar VP,0
+42,omicron',mix,,,,,,,,ethyl butyrate + 1-butanol,ester + alcohol with similar VP,0
+43,rho,mix,,,,,,,,methyl tiglate + 1-pentanol,ester + alcohol with similar VP,0
+44,rho',mix,,,,,,,,methyl tiglate + 1-pentanol,ester + alcohol with similar VP,0

@@ -1,0 +1,31 @@
+# Scratch and working directories. Accumulators are gigabytes and rebuild
+# from the source data, so they must never be tracked.
+odyn_scratch/
+nb_work_*/
+scratchpad/
+*.dat
+
+# Local database snapshots. These are copies of the shared odyn.db taken to
+# avoid holding a SQLite lock on the share; they go stale by design and must
+# not be a second source of truth.
+*.db
+*.db-journal
+
+# Imaging data and derived arrays. These live beside the sessions on the
+# server, under processed/python/, not in version control.
+*.tif
+*.tiff
+*.h5
+*.npz
+*.mat
+*.avi
+
+# Python
+__pycache__/
+*.py[codz]
+.ipynb_checkpoints/
+*.egg-info
+
+# System / IDE
+.DS_Store
+.vscode/
