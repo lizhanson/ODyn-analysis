@@ -288,7 +288,8 @@ def snapshot_database(
 
     raise SnapshotError(
         f"Could not snapshot {source} and there is no previous copy at "
-        f"{destination}. Last error: {last_error}"
+        f"{destination}.\n  fast path: {vacuum_reason}"
+        f"\n  fallback : {last_error}"
     )
 
 
