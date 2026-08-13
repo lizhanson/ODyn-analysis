@@ -86,7 +86,6 @@ SLIDER_RANGES = {
 # as close to an existing ROI as the person clicking wants.
 MANUAL_MIN_SCALE = 0.5
 MANUAL_MAX_SCALE = 1.5
-MANUAL_THRESHOLD_DROP = 25.0
 
 
 @dataclass
@@ -266,7 +265,7 @@ def grow_seed(
     return out
 
 
-def manual_bounds(shared: dict) -> dict:
+def manual_bounds(params: dict) -> dict:
     """
     Size and threshold bounds for a hand-placed seed, relaxed from the shared
     segmentation parameters.
@@ -279,9 +278,16 @@ def manual_bounds(shared: dict) -> dict:
     thresholds only serve to overrule the person using the tool.
 
     Concretely, and measured on exp 132, where both hand-added seeds were
-    rejected: the diameter range widens to half the floor and 1.5x the
-    ceiling, and the local intensity threshold drops by 25 percentiles, since a
-    glomerulus the automatic pass missed is usually one that sat below it.
+    rejected: the diameter range widens to half the floor and 1.5x the ceiling.
+
+    **The threshold is taken as tuned, not relaxed.** `params` must be the
+    effective parameters for the odor being curated -- `params_for(key)`, so
+    per-odor overrides are included -- because that value is the judgement just
+    made while watching the segmentation update. An earlier version dropped it
+    by a fixed 25 percentiles from the shared default, which meant a threshold
+    raised to exclude a bad map was ignored the moment you clicked to add an
+    ROI, and the seed grew against a far more permissive image than the one on
+    screen.
 
     The one constraint that does not relax is disjointness -- a manual ROI
     still grows only into unclaimed pixels -- because two ROIs sharing pixels
@@ -289,9 +295,9 @@ def manual_bounds(shared: dict) -> dict:
     """
 
     return {
-        "min_diameter_px": shared["min_diameter_px"] * MANUAL_MIN_SCALE,
-        "max_diameter_px": shared["max_diameter_px"] * MANUAL_MAX_SCALE,
-        "threshold_pctl": max(0.0, shared["threshold_pctl"] - MANUAL_THRESHOLD_DROP),
+        "min_diameter_px": params["min_diameter_px"] * MANUAL_MIN_SCALE,
+        "max_diameter_px": params["max_diameter_px"] * MANUAL_MAX_SCALE,
+        "threshold_pctl": params["threshold_pctl"],
     }
 
 
@@ -548,7 +554,8 @@ class SegmentationState:
         next_id = len(remaining) + 1
         image = self.combined_image()
 
-        bounds = manual_bounds(self.shared)
+        # The odor on screen when the click happened, overrides included.
+        bounds = manual_bounds(self.params_for(self.active))
         manual_min_area = np.pi * (bounds["min_diameter_px"] / 2) ** 2
 
         for index, y, x in edits.live_seeds():
@@ -659,7 +666,7 @@ class SegmentationState:
                     float(np.pi * (self.shared["min_diameter_px"] / 2) ** 2), 1
                 ),
                 "manual_min_area_px": round(
-                    float(np.pi * (manual_bounds(self.shared)["min_diameter_px"] / 2) ** 2),
+                    float(np.pi * (manual_bounds(self.params_for(self.active))["min_diameter_px"] / 2) ** 2),
                     1,
                 ),
             },

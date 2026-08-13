@@ -369,7 +369,8 @@ class SegmentationGUI:
         if area is None:
             return
 
-        floor = int(np.pi * (manual_bounds(self.state.shared)["min_diameter_px"] / 2) ** 2)
+        bounds = manual_bounds(self.state.params_for(self.state.active))
+        floor = int(np.pi * (bounds["min_diameter_px"] / 2) ** 2)
         self._say(
             f"Seed rejected: only {area} px were free there, below the "
             f"{floor} px manual floor. The spot is most likely already inside "
