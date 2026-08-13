@@ -97,7 +97,7 @@ class SnapshotError(RuntimeError):
 
 def _vacuum_into(
     source: Path, destination: Path, *, budget_s: float
-) -> None | float:
+) -> tuple[None | float, None | str]:
     """
     Copy with `VACUUM INTO`, abandoning it if it runs past `budget_s`.
 
@@ -115,8 +115,8 @@ def _vacuum_into(
 
     try:
         live = sqlite3.connect(f"file:{source}?mode=ro", uri=True, timeout=budget_s)
-    except sqlite3.Error:
-        return None
+    except sqlite3.Error as error:
+        return None, f"could not open source: {error}"
 
     try:
         live.set_progress_handler(
@@ -124,15 +124,22 @@ def _vacuum_into(
         )
         live.execute("VACUUM INTO ?;", (str(destination),))
 
-    except sqlite3.Error:
+    except sqlite3.Error as error:
         destination.unlink(missing_ok=True)
-        return None
+        elapsed = time.time() - started
+        if "interrupt" in str(error).lower():
+            return None, (
+                f"exceeded the {budget_s:g}s lock budget after {elapsed:.0f}s; "
+                f"the share is too slow to copy {source.stat().st_size/1e6:.0f} MB "
+                f"without out-waiting a writer"
+            )
+        return None, f"{type(error).__name__}: {error}"
 
     finally:
         live.set_progress_handler(None, 0)
         live.close()
 
-    return time.time() - started
+    return time.time() - started, None
 
 
 def snapshot_database(
@@ -179,7 +186,9 @@ def snapshot_database(
         # The cost is that the lock is held continuously instead of in slices,
         # which is fine precisely because it is bounded: `LOCK_BUDGET_S` aborts
         # below the writer's patience.
-        result = _vacuum_into(source, partial, budget_s=min(budget_s, LOCK_BUDGET_S))
+        result, vacuum_reason = _vacuum_into(
+            source, partial, budget_s=min(budget_s, LOCK_BUDGET_S)
+        )
 
         if result is not None:
             partial.replace(destination)
@@ -187,6 +196,7 @@ def snapshot_database(
             return {
                 "ok": True,
                 "method": "vacuum_into",
+                "reason": None,
                 "attempts": attempt,
                 "seconds": round(result, 3),
                 "size_mb": round(size_mb, 1),
@@ -246,6 +256,12 @@ def snapshot_database(
 
         return {
             "ok": True,
+            # Every return path carries the same keys. A caller printing a
+            # result should not have to know which branch produced it -- the
+            # first version omitted `method` here and a fallback crashed the
+            # setup cell with a KeyError rather than reporting a slow share.
+            "method": "backup_api",
+            "reason": vacuum_reason,
             "attempts": attempt,
             "seconds": round(elapsed, 3),
             "size_mb": round(size_mb, 1),
@@ -262,6 +278,8 @@ def snapshot_database(
     if had_previous:
         return {
             "ok": False,
+            "method": "reused_previous",
+            "reason": vacuum_reason,
             "attempts": max_attempts,
             "reused_previous": True,
             "error": str(last_error),
@@ -290,18 +308,54 @@ def ensure_snapshot(
     destination: str | Path,
     *,
     refresh: bool = False,
+    max_age_s: float = 0.0,
     **kwargs,
 ) -> dict:
-    """Snapshot only when the live file has moved on, or when forced."""
+    """
+    Snapshot only when the live file has moved on, or when forced.
+
+    `max_age_s` accepts a copy that is younger than this even if the live
+    database has changed. Zero -- the default -- keeps the strict behaviour of
+    refreshing whenever the source moves.
+
+    It exists because "has the source changed?" is nearly always yes here: a
+    machine running motion correction writes a row per saved file, so the live
+    mtime moves constantly and every kernel restart triggers another 36 MB copy
+    over a share that is being migrated and currently cannot manage it inside
+    the lock budget. Trading a few minutes of staleness for not hammering the
+    share is usually the better deal -- but only a few minutes, since a stale
+    copy is how a session ends up resolving against `mcor_files` rows that no
+    longer reflect what has been motion-corrected.
+    """
+
+    destination = Path(destination)
+
+    if not refresh and max_age_s > 0 and destination.exists():
+        age = time.time() - destination.stat().st_mtime
+
+        if age < max_age_s:
+            return {
+                "ok": True,
+                "method": "reused_recent",
+                "reason": None,
+                "attempts": 0,
+                "seconds": 0.0,
+                "reused_previous": True,
+                "current": snapshot_is_current(source, destination),
+                "age_s": round(age, 1),
+                "size_mb": round(destination.stat().st_size / 1e6, 1),
+            }
 
     if not refresh and snapshot_is_current(source, destination):
         return {
             "ok": True,
+            "method": "reused_current",
+            "reason": None,
             "attempts": 0,
             "seconds": 0.0,
             "reused_previous": True,
             "current": True,
-            "size_mb": round(Path(destination).stat().st_size / 1e6, 1),
+            "size_mb": round(destination.stat().st_size / 1e6, 1),
         }
 
     return snapshot_database(source, destination, **kwargs)

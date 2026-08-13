@@ -32,6 +32,7 @@ class LocalGroup:
         *,
         snapshot_to: None | str | Path = None,
         refresh: bool = False,
+        max_age_s: float = 0.0,
         allow_live: bool = False,
         busy_timeout_s: float = 120.0,
     ):
@@ -58,7 +59,7 @@ class LocalGroup:
             from .snapshot import ensure_snapshot
 
             self.snapshot = ensure_snapshot(
-                self.db_path, snapshot_to, refresh=refresh
+                self.db_path, snapshot_to, refresh=refresh, max_age_s=max_age_s
             )
             self.source_path, self.db_path = self.db_path, Path(snapshot_to)
 
