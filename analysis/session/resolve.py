@@ -436,6 +436,17 @@ def _combine(parts: list, labels: list[str], *, group_id: int) -> SessionInputs:
         block["exp_id"] = part.exp_id
         tables.append(block)
 
+    # Everything per-trial must agree in length before it leaves here.
+    # `extract_traces` checks this too, but by then the failure is three
+    # frames deep in a stack that does not mention the trial table.
+    lengths = {len(paths), len(on_frames), len(off_frames), len(odors),
+               len(states), len(kept)}
+    if len(lengths) != 1:
+        raise ValueError(
+            f"exp {exp_id}: per-trial fields disagree in length ({lengths}). "
+            f"This is a bug in resolve_session, not in the data."
+        )
+
     return SessionInputs(
         # The first experiment names the session; `group_id` is what identifies
         # it, and what the output filenames are built from.
@@ -623,6 +634,7 @@ def resolve_session(
         timing_source = TIMING_DATABASE
 
     paths, on_frames, off_frames, odors, states, missing = [], [], [], [], [], []
+    kept: list[int] = []
 
     for position, row in enumerate(table.itertuples()):
         acq_id = row.acq_id
@@ -646,6 +658,7 @@ def resolve_session(
             on_frame = int(round(row.baseline_s * frame_rate))
             off_frame = int(round((row.baseline_s + row.odor_duration_s) * frame_rate))
 
+        kept.append(position)
         paths.append(path)
         on_frames.append(on_frame)
         off_frames.append(off_frame)
@@ -688,7 +701,17 @@ def resolve_session(
         excluded_acq_ids=tuple(int(a) for a in exclude_acq_ids),
         path_source=path_source,
         exp_dir=exp_dir,
-        table=table,
+        # Only the trials that produced a path.
+        #
+        # `paths`, `odor_ids` and `states` are built inside the loop above and
+        # so already skip anything without a motion-corrected file; the table
+        # was not, which left it one row longer than everything else the moment
+        # a trial was dropped. Downstream that surfaced as
+        # "Per-trial inputs have differing lengths: {160, 159}" in
+        # `extract_traces`, which reads trial_ids from the table and everything
+        # else from the lists. Latent since the missing-file fallback existed;
+        # `exclude_acq_ids` made it reachable.
+        table=table.iloc[kept].reset_index(drop=True),
         missing=missing,
     )
 
