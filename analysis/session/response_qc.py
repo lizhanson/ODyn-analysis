@@ -66,7 +66,7 @@ BASELINE_S = 1.0
 # placements on this rig; a shorter response window is a slightly optimistic
 # null, since averaging fewer frames is noisier, so the achieved rate on
 # held-out offsets is the number to read rather than the target.
-SHAM_RESPONSE_S = 2.5
+SHAM_RESPONSE_S = 2.0
 SHAM_BASELINE_S = 2.0
 
 # Fallback thresholds, used only when the null cannot be built (a pre-odor
@@ -91,7 +91,14 @@ TARGET_FPR = 0.01
 # flattened every real response to white. A fixed window in z also means two
 # sessions can be put side by side and compared, which a per-session scale
 # never allows.
-HEATMAP_LIMIT_Z = 10.0
+#
+# Asymmetric on purpose: excitation reaches far higher z than suppression ever
+# does (see Z_EXCITED/Z_SUPPRESSED above), so a symmetric +/-10 spent half its
+# range on suppression values that never occur. White is pinned to z=0 with
+# TwoSlopeNorm rather than to the midpoint of [vmin, vmax], so "no response"
+# still reads as white even though the range around it is not symmetric.
+HEATMAP_Z_MIN = -2.0
+HEATMAP_Z_MAX = 10.0
 
 # Spacing of sham windows through the pre-odor period, as a fraction of the
 # response window. Below 1 the windows overlap, which is deliberate: the pre
@@ -832,6 +839,7 @@ def _figure(
     matplotlib.use("Agg")
 
     import matplotlib.pyplot as plt
+    from matplotlib.colors import TwoSlopeNorm
 
     pooled = blocks[0]
     # Heatmaps show baseline-z, not dF/F: z is already normalised per ROI by
@@ -850,7 +858,7 @@ def _figure(
     peak = np.nanmax(np.abs(np.nan_to_num(dff)), axis=1)
     order = np.lexsort((-peak, best))
 
-    limit = HEATMAP_LIMIT_Z
+    norm = TwoSlopeNorm(vmin=HEATMAP_Z_MIN, vcenter=0.0, vmax=HEATMAP_Z_MAX)
 
     fig = plt.figure(figsize=(17, 14))
     grid = fig.add_gridspec(3, 3, height_ratios=[1.35, 1, 1], hspace=0.35, wspace=0.28)
@@ -861,7 +869,7 @@ def _figure(
 
     if trials is not None:
         _trial_heatmap(
-            fig, ax_trials, trials, order=order, keys=keys, limit=limit
+            fig, ax_trials, trials, order=order, keys=keys, norm=norm
         )
     else:
         ax_trials.axis("off")
@@ -869,7 +877,7 @@ def _figure(
     # 2. The odor average of the panel above.
     ax = fig.add_subplot(grid[1, 0])
     image = ax.imshow(
-        dff[order], aspect="auto", cmap="RdBu_r", vmin=-limit, vmax=limit,
+        dff[order], aspect="auto", cmap="RdBu_r", norm=norm,
         interpolation="nearest",
     )
     ax.set_xticks(range(len(keys)))
@@ -974,7 +982,7 @@ def _figure(
     return Path(path)
 
 
-def _trial_heatmap(fig, ax, trials: dict, *, order, keys, limit) -> None:
+def _trial_heatmap(fig, ax, trials: dict, *, order, keys, norm) -> None:
     """
     Single-trial dF/F, columns grouped by odor and split by block.
 
@@ -997,7 +1005,7 @@ def _trial_heatmap(fig, ax, trials: dict, *, order, keys, limit) -> None:
 
     image = ax.imshow(
         dff[np.ix_(order, columns)], aspect="auto", cmap="RdBu_r",
-        vmin=-limit, vmax=limit, interpolation="nearest",
+        norm=norm, interpolation="nearest",
     )
     fig.colorbar(image, ax=ax, label="baseline z", pad=0.01)
 
