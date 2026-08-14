@@ -5,7 +5,9 @@
       "Bash(grep -n \"def extract_traces\" -A 80 \"/Users/mosse/Library/CloudStorage/OneDrive-OershealthScienceUniversity/Code/Python/ODyn-analysis/analysis/session/extract.py\" 2>/dev/null *)",
       "Read(//Users/mosse/Library/CloudStorage/OneDrive-OershealthScienceUniversity/Code/Python/ODyn-analysis/analysis/session/**)",
       "Bash(python3 -c \"import json; json.load\\(open\\('analysis/Stage1_10x_segmentation.ipynb'\\)\\); print\\('valid json'\\)\")",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(git config *)",
+      "Bash(env)"
     ]
   }
 }
