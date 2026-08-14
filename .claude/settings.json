@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -)",
+      "Bash(grep -n \"def extract_traces\" -A 80 \"/Users/mosse/Library/CloudStorage/OneDrive-OershealthScienceUniversity/Code/Python/ODyn-analysis/analysis/session/extract.py\" 2>/dev/null *)",
+      "Read(//Users/mosse/Library/CloudStorage/OneDrive-OershealthScienceUniversity/Code/Python/ODyn-analysis/analysis/session/**)"
+    ]
+  }
+}

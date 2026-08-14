@@ -111,6 +111,12 @@ COLUMN_DOCS = {
     "odor_off_frame": ("Frame at which the valve closed.", "frames"),
     "extracted": ("1 if this trial produced data, 0 if it was skipped because "
                   "its window fell outside the acquisition.", "boolean"),
+    "detrend_a_fast": ("Median across ROIs of the fast component's amplitude "
+                       "for this trial. Tracks how large the acquisition-onset "
+                       "transient was; a value far from its neighbours marks a "
+                       "trial whose baseline misbehaved.", "a.u."),
+    "detrend_a_slow": ("Median across ROIs of the slow component's amplitude "
+                       "for this trial.", "a.u."),
 }
 
 
@@ -218,6 +224,7 @@ def write_session(
     group_id: int,
     mask_hash: str,
     parameters: None | dict = None,
+    detrend: None | dict = None,
 ) -> Path:
     """Write one processing round. Overwrites only a file of the same name."""
 
@@ -305,6 +312,48 @@ def write_session(
             ring.attrs["units"] = "a.u."
             ring.attrs["dimensions"] = "roi, trial, frame"
 
+        if detrend is not None and detrend.get("ok"):
+            # Detrended traces sit BESIDE the raw, never replacing them. The
+            # correction is a model with choices in it -- guard window, number
+            # of components -- and anyone should be able to redo it, or refuse
+            # it, without re-streaming the session.
+            corrected = group.create_dataset(
+                "roi_detrended", data=detrend["traces"], compression="gzip"
+            )
+            corrected.attrs["description"] = (
+                "Raw F with the fitted acquisition-onset transient subtracted: "
+                "F - a_fast*exp(-t/tau_fast) - a_slow*exp(-t/tau_slow). The "
+                "constant term is kept, so this is still fluorescence in the "
+                "same units, not a residual. See /detrend for the coefficients "
+                "and the group attributes for the time constants."
+            )
+            corrected.attrs["units"] = "a.u."
+            corrected.attrs["dimensions"] = "roi, trial, frame"
+
+            fit = f.create_group("detrend")
+            fit.attrs["description"] = (
+                "Per-ROI per-trial coefficients of the baseline model. Time "
+                "constants are estimated once from the population mean, where "
+                "they are well determined; amplitudes are fitted per ROI per "
+                "trial, which is what lets the correction track a transient "
+                "whose size drifts across a session."
+            )
+            for key in ("tau_fast_s", "tau_slow_s", "r_squared", "guard_s"):
+                if detrend.get(key) is not None:
+                    fit.attrs[key] = float(detrend[key])
+            fit.attrs["model"] = (
+                "F(t) = a_fast*exp(-t/tau_fast) + a_slow*exp(-t/tau_slow) + C"
+            )
+            for name, doc in (
+                ("a_fast", "Amplitude of the fast component, per ROI per trial."),
+                ("a_slow", "Amplitude of the slow component, per ROI per trial."),
+            ):
+                d = fit.create_dataset(name, data=np.asarray(detrend[name],
+                                                             dtype=np.float32))
+                d.attrs["description"] = doc
+                d.attrs["units"] = "a.u."
+                d.attrs["dimensions"] = "roi, trial"
+
         times = group.create_dataset("time_s", data=traces.time_s)
         times.attrs["description"] = (
             "Seconds relative to odor onset, one per frame. Negative is "
@@ -325,11 +374,21 @@ def write_session(
         _write_table(rois, traces.roi_table(labels))
 
         trials = f.create_group("trials")
+        trial_table = traces.trial_table()
+
+        if detrend is not None and detrend.get("ok"):
+            # One number per trial alongside the trial table, so a bad trial is
+            # visible in the same place as odor id and state rather than only
+            # inside a 2-D array someone has to go looking for.
+            trial_table = trial_table.copy()
+            trial_table["detrend_a_fast"] = np.nanmedian(detrend["a_fast"], axis=0)
+            trial_table["detrend_a_slow"] = np.nanmedian(detrend["a_slow"], axis=0)
+
         trials.attrs["description"] = (
             "One row per trial; every dataset here has length n_trial and "
             "shares row order with the second axis of /traces/roi."
         )
-        _write_table(trials, traces.trial_table())
+        _write_table(trials, trial_table)
 
     return path
 

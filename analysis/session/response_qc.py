@@ -56,6 +56,19 @@ import numpy as np
 # docstring on within-trial bleaching.
 BASELINE_S = 1.0
 
+# Sham window geometry, in seconds.
+#
+# The sham has to fit entirely inside the pre-odor period, and with a 4 s odor
+# and a 5 s baseline a full-length sham (4 s response + 1 s baseline) leaves
+# exactly one placement -- too few to hold any out for validation. Shortening
+# the sham response trades an exact match to the real window for the ability to
+# check the threshold on offsets it was not fitted to. 2.5 s + 2.0 s leaves 13
+# placements on this rig; a shorter response window is a slightly optimistic
+# null, since averaging fewer frames is noisier, so the achieved rate on
+# held-out offsets is the number to read rather than the target.
+SHAM_RESPONSE_S = 2.5
+SHAM_BASELINE_S = 2.0
+
 # Fallback thresholds, used only when the null cannot be built (a pre-odor
 # period too short to hold a sham window). Asymmetric, because suppression in
 # these recordings is real but reliably smaller in z than excitation -- a
@@ -70,6 +83,15 @@ Z_SUPPRESSED = -0.5
 # tail, so the two sides are calibrated independently and come out asymmetric
 # on their own rather than by assumption.
 TARGET_FPR = 0.01
+
+# Colour limits for the response heatmaps, in units of baseline z.
+#
+# Fixed, not derived from the data. A percentile-based scale is hostage to a
+# single bad trial: on group 217 one dead acquisition reached |dF/F| = 188 and
+# flattened every real response to white. A fixed window in z also means two
+# sessions can be put side by side and compared, which a per-session scale
+# never allows.
+HEATMAP_LIMIT_Z = 5.0
 
 # Spacing of sham windows through the pre-odor period, as a fraction of the
 # response window. Below 1 the windows overlap, which is deliberate: the pre
@@ -151,8 +173,15 @@ def trial_responses(
         f0[:, trial] = base_mean
 
         with np.errstate(invalid="ignore", divide="ignore"):
+            # Divide by |F0|, not F0. A signed denominator inverts dF/F
+            # wherever the baseline is negative, which is exactly what a dead
+            # detector produces: on trial 81 of group 217 every ROI had F0 of
+            # -2.5, so a genuine +460 step read as dF/F = -188 and the same
+            # trial appeared suppressed in dF/F while reading z = +317. The
+            # guard on this line checked for division by zero and missed the
+            # case that actually happens.
             dff[:, trial] = (resp_mean - base_mean) / np.where(
-                np.abs(base_mean) > 1e-9, base_mean, np.nan
+                np.abs(base_mean) > 1e-9, np.abs(base_mean), np.nan
             )
             z[:, trial] = (resp_mean - base_mean) / np.where(
                 base_sd > 1e-9, base_sd, np.nan
@@ -224,8 +253,9 @@ def sham_null(
     off = np.asarray(odor_off_frames)
     odor_ids = np.asarray(odor_ids)
 
-    span = int(np.median(off - on))
-    n_base = max(1, int(round(baseline_s * frame_rate)))
+    # Sham geometry is its own, not the real window's -- see SHAM_RESPONSE_S.
+    span = max(1, int(round(SHAM_RESPONSE_S * frame_rate)))
+    n_base = max(1, int(round(SHAM_BASELINE_S * frame_rate)))
 
     # A window fits when its response ends at or before onset and its baseline
     # still starts inside the recording.
@@ -270,6 +300,8 @@ def sham_null(
         "sham_offsets_frames": [int(s) for s in offsets],
         "n_offsets": {"fitted": len(matrices[0::2]), "held_out": len(matrices[1::2])},
         "window_frames": {"baseline": n_base, "response": span},
+        "window_s": {"baseline": SHAM_BASELINE_S, "response": SHAM_RESPONSE_S},
+        "real_response_frames": int(np.median(off - on)),
         "n_null_samples": int(fit_values.size),
         "z_excited": round(z_up, 4),
         "z_suppressed": round(z_down, 4),
@@ -293,6 +325,71 @@ def sham_null(
             "excited": _round(np.nanmean(held_out >= z_up)),
             "suppressed": _round(np.nanmean(held_out <= z_down)),
         },
+    }
+
+
+
+# Trials whose baseline F sits this many SD from the session mean are dropped.
+# Five is loose enough to keep normal trial-to-trial variation and tight enough
+# to catch a detector that was off: on group 217 the PMT-off acquisition sat
+# ~10 SD out.
+BASELINE_OUTLIER_SD = 5.0
+
+
+def baseline_outliers(
+    roi: np.ndarray,
+    *,
+    odor_on_frames: np.ndarray,
+    n_base: int,
+    threshold_sd: float = BASELINE_OUTLIER_SD,
+) -> dict:
+    """
+    Find trials whose baseline fluorescence is implausible for this session.
+
+    A trial's F0 is taken as the population mean over its own pre-odor window,
+    and compared against the mean and SD across trials. Applied iteratively:
+    one extreme trial inflates the SD enough to hide a second, so the
+    statistics are recomputed after each removal until the set is stable.
+
+    This is a stop-gap for what `mcor_files.approved` should carry -- see
+    `resolve_session(approved_only=)`. It catches only what it is looking for,
+    a wrong overall level; a trial that is mangled some other way will pass.
+    """
+
+    n_trial = roi.shape[1]
+    f0 = np.array([
+        float(np.nanmean(roi[:, k, max(int(odor_on_frames[k]) - n_base, 0):
+                              int(odor_on_frames[k])]))
+        for k in range(n_trial)
+    ])
+
+    keep = np.isfinite(f0)
+    for _ in range(n_trial):
+        mean, sd = np.nanmean(f0[keep]), np.nanstd(f0[keep])
+        if not np.isfinite(sd) or sd <= 0:
+            break
+        deviation = np.abs(f0 - mean) / sd
+        updated = keep & (deviation <= threshold_sd)
+        if updated.sum() == keep.sum():
+            break
+        keep = updated
+
+    mean, sd = np.nanmean(f0[keep]), np.nanstd(f0[keep])
+    dropped = np.flatnonzero(~keep)
+
+    return {
+        "keep": keep,
+        "f0": f0,
+        "session_mean": float(mean),
+        "session_sd": float(sd),
+        "threshold_sd": float(threshold_sd),
+        "n_dropped": int(len(dropped)),
+        "dropped": [
+            {"trial_index": int(i), "f0": round(float(f0[i]), 2),
+             "sd_from_mean": round(float(abs(f0[i] - mean) / sd), 1)
+             if sd > 0 else None}
+            for i in dropped
+        ],
     }
 
 
@@ -338,6 +435,7 @@ def response_qc(
     path: str | Path,
     *,
     baseline_s: float = BASELINE_S,
+    baseline_outlier_sd: float = BASELINE_OUTLIER_SD,
     thresholds: str = "calibrated",
     target_fpr: float = TARGET_FPR,
     per_roi_thresholds: bool = False,
@@ -392,6 +490,15 @@ def response_qc(
         roi, odor_on_frames=on_frames, odor_off_frames=off_frames,
         frame_rate=frame_rate, baseline_s=baseline_s,
     )
+
+    # Drop trials whose baseline is implausible before anything is summarised.
+    # One dead acquisition otherwise sets the colour scale, dominates every
+    # odor average it lands in, and makes all ROIs look responsive.
+    guard = baseline_outliers(
+        roi, odor_on_frames=on_frames, n_base=resp["n_baseline_frames"],
+        threshold_sd=baseline_outlier_sd,
+    )
+    usable = guard["keep"]
 
     keys = np.unique(odor_ids)
 
@@ -488,11 +595,11 @@ def response_qc(
                           "lifetime": lifetime, "population": population},
         }
 
-    blocks = [block(np.ones(len(odor_ids), dtype=bool), "pooled")]
+    blocks = [block(usable.copy(), "pooled")]
 
     if by_state:
         for code, name in enumerate(state_levels):
-            selection = states == code
+            selection = (states == code) & usable
             if selection.sum() >= len(keys):
                 blocks.append(block(selection, name))
 
@@ -507,6 +614,13 @@ def response_qc(
         "baseline_frames": resp["n_baseline_frames"],
         "roi_area_px": [int(np.min(areas)), int(np.max(areas))],
         "rois_under_10px": int((areas < 10).sum()),
+        "excluded_trials": {
+            "n": guard["n_dropped"],
+            "threshold_sd": guard["threshold_sd"],
+            "session_mean_f0": round(guard["session_mean"], 2),
+            "session_sd_f0": round(guard["session_sd"], 2),
+            "trials": guard["dropped"],
+        },
         "bleaching": bleaching(roi, on_frames, n_pre=n_pre),
         # Per-ROI arrays are dropped from the report: they are n_roi long and
         # would swamp the JSON, and the range already says what they spread.
@@ -534,8 +648,9 @@ def response_qc(
         report["figure"] = str(
             _figure(
                 f"{stem}_responseqc.png", blocks, keys, report,
-                trials={"dff": resp["dff"], "odor_ids": odor_ids,
-                        "states": states, "state_levels": state_levels},
+                trials={"dff": resp["z"], "odor_ids": odor_ids,
+                        "states": states, "state_levels": state_levels,
+                        "usable": usable},
             )
         )
         report["json"] = f"{stem}_responseqc.json"
@@ -679,7 +794,8 @@ def _flags(report: dict, pooled: dict) -> list[str]:
         out.append(
             f"Fluorescence falls {abs(bleach['within_trial_pre_pct']):.0f}% "
             f"across the pre-odor window within a trial. F0 is taken from the "
-            f"last {report['baseline_s']} s to avoid biasing dF/F negative; "
+            f"last {report['baseline_s']} s before each trial's own odor "
+            f"onset to avoid biasing dF/F negative; "
             f"anything computed off the whole pre-period will be."
         )
 
@@ -718,7 +834,10 @@ def _figure(
     import matplotlib.pyplot as plt
 
     pooled = blocks[0]
-    dff = pooled["_matrices"]["dff"]
+    # Heatmaps show baseline-z, not dF/F: z is already normalised per ROI by
+    # its own baseline noise, so a fixed +/-5 window means the same thing for
+    # a dim ROI and a bright one.
+    dff = pooled["_matrices"]["z"]
     lifetime = pooled["_matrices"]["lifetime"]
     population = pooled["_matrices"]["population"]
     responsive = pooled["_matrices"]["responsive"]
@@ -731,7 +850,7 @@ def _figure(
     peak = np.nanmax(np.abs(np.nan_to_num(dff)), axis=1)
     order = np.lexsort((-peak, best))
 
-    limit = float(np.nanpercentile(np.abs(dff), 98)) or 1.0
+    limit = HEATMAP_LIMIT_Z
 
     fig = plt.figure(figsize=(17, 14))
     grid = fig.add_gridspec(3, 3, height_ratios=[1.35, 1, 1], hspace=0.35, wspace=0.28)
@@ -756,8 +875,8 @@ def _figure(
     ax.set_xticks(range(len(keys)))
     ax.set_xticklabels([str(int(k)) for k in keys])
     ax.set_xlabel("odor id"); ax.set_ylabel("ROI (same order as above)")
-    ax.set_title("trial-averaged dF/F")
-    fig.colorbar(image, ax=ax, label="dF/F")
+    ax.set_title("trial-averaged z")
+    fig.colorbar(image, ax=ax, label="baseline z")
 
     # 3. Lifetime sparseness across glomeruli.
     ax = fig.add_subplot(grid[1, 1])
@@ -821,6 +940,13 @@ def _figure(
             f"F0 window: last {report['baseline_s']} s "
             f"({report['baseline_frames']} frames)",
             "",
+            (f"excluded {report['excluded_trials']['n']} trial(s) "
+             f"at >{report['excluded_trials']['threshold_sd']:g} SD from mean F0"
+             if report["excluded_trials"]["n"] else "no trials excluded"),
+            *[f"   trial {d['trial_index'] + 1}: F0 {d['f0']:.0f} "
+              f"({d['sd_from_mean']:.0f} SD)"
+              for d in report["excluded_trials"]["trials"][:4]],
+            "",
             f"thresholds ({report['thresholds']['source']}):",
             f"  excited    z >= {z_up:+.3f}",
             f"  suppressed z <= {z_down:+.3f}",
@@ -864,13 +990,16 @@ def _trial_heatmap(fig, ax, trials: dict, *, order, keys, limit) -> None:
     states = np.asarray(trials["states"])
     levels = trials["state_levels"]
 
-    columns = np.lexsort((np.arange(len(odor_ids)), states, odor_ids))
+    usable = trials.get("usable")
+    order_all = np.lexsort((np.arange(len(odor_ids)), states, odor_ids))
+    columns = (order_all if usable is None
+               else np.array([c for c in order_all if usable[c]]))
 
     image = ax.imshow(
         dff[np.ix_(order, columns)], aspect="auto", cmap="RdBu_r",
         vmin=-limit, vmax=limit, interpolation="nearest",
     )
-    fig.colorbar(image, ax=ax, label="dF/F", pad=0.01)
+    fig.colorbar(image, ax=ax, label="baseline z", pad=0.01)
 
     sorted_odors = odor_ids[columns]
     sorted_states = states[columns]
@@ -896,7 +1025,7 @@ def _trial_heatmap(fig, ax, trials: dict, *, order, keys, limit) -> None:
         f"{' | '.join(levels)} within an odor)"
     )
     ax.set_ylabel("ROI (sorted by preferred odor)")
-    ax.set_title("single-trial dF/F")
+    ax.set_title("single-trial z")
 
 
 def _wrap(text: str, width: int = 52) -> str:

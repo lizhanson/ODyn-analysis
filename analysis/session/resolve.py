@@ -70,6 +70,7 @@ class SessionInputs:
     timing_source: str
     path_source: str
     approved_only: bool
+    excluded_acq_ids: tuple[int, ...]
     exp_dir: Path
     table: pd.DataFrame
     missing: list[dict]
@@ -135,6 +136,7 @@ class SessionInputs:
             ],
             "n_missing": len(self.missing),
             "approved_only": self.approved_only,
+            "excluded_acq_ids": list(self.excluded_acq_ids),
         }
 
 
@@ -452,6 +454,7 @@ def _combine(parts: list, labels: list[str], *, group_id: int) -> SessionInputs:
         timing_source=first.timing_source,
         path_source=first.path_source,
         approved_only=first.approved_only,
+        excluded_acq_ids=first.excluded_acq_ids,
         # Outputs go with the first experiment, so a split session writes one
         # set of files rather than two half-sets.
         exp_dir=first.exp_dir,
@@ -467,6 +470,7 @@ def resolve_session(
     manipulation: None | str = None,
     mcor_source: None | str = None,
     approved_only: bool = False,
+    exclude_acq_ids: tuple[int, ...] = (),
 ) -> SessionInputs:
     """
     Gather one session's motion-corrected paths, odor windows, and labels.
@@ -503,6 +507,14 @@ def resolve_session(
 
     if mcor_source is not None:
         mcor = mcor[mcor.source == mcor_source]
+
+    if exclude_acq_ids:
+        # A stop-gap for per-trial QC until `approved` is settable. Keyed on
+        # acq_id rather than position, so it cannot drift if the trial table
+        # changes, and stated in the notebook where it is visible rather than
+        # buried here.
+        drop = {int(a) for a in exclude_acq_ids}
+        mcor = mcor[~mcor.acq_id.isin(drop)]
 
     if approved_only:
         # Trial-level QC, read from the database rather than re-derived here.
@@ -673,6 +685,7 @@ def resolve_session(
         states=states,
         timing_source=timing_source,
         approved_only=bool(approved_only),
+        excluded_acq_ids=tuple(int(a) for a in exclude_acq_ids),
         path_source=path_source,
         exp_dir=exp_dir,
         table=table,

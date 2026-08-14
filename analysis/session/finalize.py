@@ -68,6 +68,7 @@ def finalize_session(
     overlay_alpha: None | float = None,
     processed_on: None | str = None,
     scratch_dir: None | str | Path = None,
+    detrend: bool = True,
 ) -> dict:
     """
     Write the mask and its traces together, linked by the mask's hash.
@@ -124,6 +125,28 @@ def finalize_session(
             checkpoint_dir=checkpoint, mask_hash=digest,
         )
 
+    # Fit and subtract the acquisition-onset transient.
+    #
+    # Stored beside the raw traces, never instead of them: F0 is taken from the
+    # last second before onset, which on this rig sits at the floor of a ~10%
+    # settling transient, so everything after reads elevated and dF/F is biased
+    # positive. The model is fitted with the odor window masked out, so it
+    # cannot absorb the response -- per-ROI-odor responses correlate 0.99 with
+    # the uncorrected ones.
+    detrend_result = None
+    if extract and traces is not None and detrend:
+        from .detrend import detrend_traces
+
+        corrected, info = detrend_traces(
+            traces.roi,
+            odor_on_frames=traces.odor_on_frames,
+            odor_off_frames=traces.odor_off_frames,
+            frame_rate=traces.frame_rate,
+        )
+        if info.get("ok"):
+            info["traces"] = corrected
+            detrend_result = info
+
     # Write locally, then copy.
     #
     # Writing HDF5 straight to the share means a dropped mount leaves a
@@ -136,7 +159,7 @@ def finalize_session(
         path, scratch,
         labels=labels, traces=traces, per_group_masks=per_group_masks,
         exp_name=session.exp_name, group_id=session.group_id,
-        mask_hash=digest, parameters=parameters,
+        mask_hash=digest, parameters=parameters, detrend=detrend_result,
     )
 
     if checkpoint is not None and checkpoint.exists():
@@ -177,6 +200,10 @@ def finalize_session(
         "mask_mat": str(mat_path),
         "mask_png": None if png_path is None else str(png_path),
         "overlay_alpha": alpha,
+        "detrend": None if detrend_result is None else {
+            k: v for k, v in detrend_result.items()
+            if k not in ("traces", "a_fast", "a_slow", "fit")
+        },
         "mask_hash": digest,
         "n_rois": int(labels.max()),
         "traces": traces,
