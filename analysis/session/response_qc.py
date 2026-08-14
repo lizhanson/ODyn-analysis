@@ -91,7 +91,7 @@ TARGET_FPR = 0.01
 # flattened every real response to white. A fixed window in z also means two
 # sessions can be put side by side and compared, which a per-session scale
 # never allows.
-HEATMAP_LIMIT_Z = 5.0
+HEATMAP_LIMIT_Z = 10.0
 
 # Spacing of sham windows through the pre-odor period, as a fraction of the
 # response window. Below 1 the windows overlap, which is deliberate: the pre
