@@ -436,17 +436,6 @@ def _combine(parts: list, labels: list[str], *, group_id: int) -> SessionInputs:
         block["exp_id"] = part.exp_id
         tables.append(block)
 
-    # Everything per-trial must agree in length before it leaves here.
-    # `extract_traces` checks this too, but by then the failure is three
-    # frames deep in a stack that does not mention the trial table.
-    lengths = {len(paths), len(on_frames), len(off_frames), len(odors),
-               len(states), len(kept)}
-    if len(lengths) != 1:
-        raise ValueError(
-            f"exp {exp_id}: per-trial fields disagree in length ({lengths}). "
-            f"This is a bug in resolve_session, not in the data."
-        )
-
     return SessionInputs(
         # The first experiment names the session; `group_id` is what identifies
         # it, and what the output filenames are built from.
@@ -682,6 +671,17 @@ def resolve_session(
         # No group membership recorded: fall back to exp_id so the filename is
         # still unique and traceable.
         group_id = int(exp_id)
+
+    # Everything per-trial must agree in length before it leaves here.
+    # `extract_traces` checks this too, but by then the failure is three frames
+    # deep in a stack that never mentions the trial table.
+    lengths = {len(paths), len(on_frames), len(off_frames), len(odors),
+               len(states), len(kept)}
+    if len(lengths) != 1:
+        raise ValueError(
+            f"exp {exp_id}: per-trial fields disagree in length ({lengths}). "
+            f"This is a bug in resolve_session, not in the data."
+        )
 
     return SessionInputs(
         exp_id=int(exp_id),
