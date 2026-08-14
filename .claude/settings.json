@@ -7,7 +7,11 @@
       "Bash(python3 -c \"import json; json.load\\(open\\('analysis/Stage1_10x_segmentation.ipynb'\\)\\); print\\('valid json'\\)\")",
       "Bash(git checkout *)",
       "Bash(git config *)",
-      "Bash(env)"
+      "Bash(env)",
+      "Bash(python3 -m py_compile \"/private/tmp/claude-152989563/-Users-mosse-Library-CloudStorage-OneDrive-OregonHealth-ScienceUniversity-Code-Python-ODyn-analysis/be3a9740-bc0f-456a-8698-be7afb658c22/scratchpad/cell26_new_source.py\")",
+      "Bash(python3 -m py_compile /dev/stdin)",
+      "Bash(jupyter nbconvert *)",
+      "Bash(python3 -m py_compile /tmp/nb_full_check.py)"
     ]
   }
 }
