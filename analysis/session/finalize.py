@@ -120,6 +120,7 @@ def finalize_session(
             trial_ids=[int(v) for v in session.table.trial_id],
             odor_ids=session.odor_ids,
             states=session.states,
+            manipulation=session.manipulation,
             frame_rate=session.frame_rate,
             pre_s=pre_s, post_s=post_s, neuropil=neuropil,
             checkpoint_dir=checkpoint, mask_hash=digest,

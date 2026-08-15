@@ -44,6 +44,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+
 TIMING_FRAME_CLOCK = "frame_clock"
 TIMING_TRIGGER = "acquisition_trigger"
 TIMING_DATABASE = "database"
@@ -66,6 +67,13 @@ class SessionInputs:
     odor_off_frames: list[int]
     odor_ids: list[int]
     states: list[str]
+    # What happened between the two blocks. Travels with `states` because it
+    # is the other half of the same fact: `state` says which side of the
+    # manipulation a trial is on, and this says what the manipulation was.
+    # Splitting them means a saline control and a ketamine session are
+    # indistinguishable downstream, which is exactly the comparison the
+    # pre/post design exists to make.
+    manipulation: str
 
     timing_source: str
     path_source: str
@@ -451,6 +459,7 @@ def _combine(parts: list, labels: list[str], *, group_id: int) -> SessionInputs:
         odor_off_frames=[v for part in parts for v in part.odor_off_frames],
         odor_ids=[v for part in parts for v in part.odor_ids],
         states=[label for part, label in zip(parts, labels) for _ in part.states],
+        manipulation=first.manipulation,
         timing_source=first.timing_source,
         path_source=first.path_source,
         approved_only=first.approved_only,
@@ -696,6 +705,7 @@ def resolve_session(
         odor_off_frames=off_frames,
         odor_ids=odors,
         states=states,
+        manipulation=manipulation or DEFAULT_MANIPULATION,
         timing_source=timing_source,
         approved_only=bool(approved_only),
         excluded_acq_ids=tuple(int(a) for a in exclude_acq_ids),

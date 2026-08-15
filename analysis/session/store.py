@@ -34,6 +34,7 @@ Layout (MATLAB reads every dataset with `h5read(file, '/path')`):
     /rois/<column>             one dataset per column
     /trials/<column>           one dataset per column
     /trials/state              int8 + /trials/state_levels for the labels
+    /trials/manipulation       int8 + /trials/manipulation_levels
 
     attributes on '/': exp_name, group_id, mask_hash, frame_rate, n_pre,
                        n_odor, n_post, processed_on, and the parameters as JSON
@@ -105,6 +106,12 @@ COLUMN_DOCS = {
     "odor_id": ("Foreign key into the odyn `odors` table.", "index"),
     "state": ("Block label: pre or post the manipulation. Stored as an integer "
               "code; see state_levels for the strings.", ""),
+    "manipulation": ("What happened between the pre and post blocks -- "
+                     "'saline', 'ketamine/xylazine', 'no injection'. Stored as "
+                     "an integer code; see manipulation_levels for the "
+                     "strings. Needed to tell a control session from a treated "
+                     "one: `state` alone says which side of the manipulation a "
+                     "trial is on, not what it was.", ""),
     "odor_on_frame": ("Frame within the acquisition at which the valve opened. "
                       "Varies by a frame or two between trials, so use this for "
                       "exact alignment rather than /traces/time_s.", "frames"),

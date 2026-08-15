@@ -85,6 +85,13 @@ class Traces:
 
     skipped: list[dict]
 
+    # Belongs beside `states` -- it is the other half of the same fact, and
+    # `state` alone cannot tell a saline control from a treated session. It
+    # sits at the end only because a dataclass cannot put a defaulted field
+    # before the undefaulted ones above. Defaulted, not required, because
+    # rounds written before this existed have no value for it.
+    manipulations: np.ndarray | None = None
+
     @property
     def n_rois(self) -> int:
         return self.roi.shape[0]
@@ -161,6 +168,8 @@ class Traces:
             "trial_id": self.trial_ids,
             "odor_id": self.odor_ids,
             "state": self.states,
+            **({} if self.manipulations is None
+               else {"manipulation": self.manipulations}),
             "odor_on_frame": self.odor_on_frames,
             "odor_off_frame": self.odor_off_frames,
             "extracted": np.isfinite(self.roi[0, :, 0]),
@@ -177,6 +186,8 @@ class Traces:
             "trial_ids": self.trial_ids,
             "odor_ids": self.odor_ids,
             "states": self.states.astype("U32"),
+            **({} if self.manipulations is None
+               else {"manipulations": self.manipulations.astype("U32")}),
             "time_s": self.time_s,
         }
         if self.neuropil is not None:
@@ -263,6 +274,7 @@ def extract_traces(
     trial_ids: list[int],
     odor_ids: list[int],
     states: list[str],
+    manipulation: str | list[str] | None = None,
     frame_rate: float,
     full_acquisition: bool = True,
     pre_s: float = 2.0,
@@ -404,6 +416,10 @@ def extract_traces(
         trial_ids=np.asarray(trial_ids),
         odor_ids=np.asarray(odor_ids),
         states=np.asarray(states, dtype=object),
+        manipulations=None if manipulation is None else np.asarray(
+            manipulation if isinstance(manipulation, (list, tuple, np.ndarray))
+            else [manipulation] * len(states), dtype=object,
+        ),
         frame_rate=float(frame_rate),
         n_pre=n_pre, n_odor=n_odor, n_post=n_post,
         odor_on_frames=np.asarray(odor_on_frames),

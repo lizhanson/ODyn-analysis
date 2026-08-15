@@ -79,22 +79,10 @@ SHAM_BASELINE_S = 2.0
 Z_EXCITED = 1.5
 Z_SUPPRESSED = -0.5
 
-# Target false discovery rate: of the ROI-odor pairs called responsive, the
-# share expected to be false. Per tail, so the two sides are calibrated
-# independently and come out asymmetric on their own rather than by
-# assumption.
-#
-# This is not the same quantity as a per-comparison false-positive rate. A
-# fixed per-pair rate (the old TARGET_FPR) ignores how many pairs are being
-# tested at once -- a 60-ROI x 16-odor session runs 960 tests per tail, and at
-# a flat 1% per-pair rate that is ~9.6 expected false calls, an unknown and
-# uncontrolled share of however many calls are actually made. Benjamini-
-# Hochberg (see `_bh_threshold`) controls the share instead: it looks at how
-# many of THIS session's real ROI-odor z-scores actually clear the null, and
-# only pays the multiple-comparisons cost implied by that count, which is why
-# it is not simply the old percentile threshold under a new name -- a session
-# with little real signal gets a stricter cutoff than one with a lot.
-TARGET_FDR = 0.01
+# Share of ROI-odor pairs the null is allowed to put past each threshold. Per
+# tail, so the two sides are calibrated independently and come out asymmetric
+# on their own rather than by assumption.
+TARGET_FPR = 0.01
 
 # Colour limits for the response heatmaps, in units of baseline z.
 #
@@ -148,6 +136,41 @@ def treves_rolls(responses: np.ndarray, axis: int = -1) -> np.ndarray:
     return np.where(mean_sq > 0, raw / (1.0 - 1.0 / n), np.nan)
 
 
+# Seconds of pre-odor used to estimate the z denominator, and whether that
+# estimate is pooled across trials. Both are separate from BASELINE_S on
+# purpose: F0 and the noise estimate want different windows.
+#
+# F0 wants a window close to onset, because a baseline taken far from the odor
+# is a baseline for a different moment. The SD wants the opposite -- as many
+# frames as it can get, since it is a variance estimate and nothing else.
+# Tying them to one number meant the SD inherited F0's 1 s window: 25 frames
+# at this rig, and with the ~4-frame autocorrelation these traces have, about
+# 6 effective samples. Measured on group223, the resulting per-trial SD swings
+# with a median CV of 20% across trials of the same ROI, so the same response
+# scored differently depending on which trial it landed in.
+#
+# `None` means the whole pre-odor period. Safe only on detrended traces: on
+# raw ones the ~10% settling transient dominates the window, the SD then
+# measures the transient rather than the noise, and the null goes both wider
+# and lopsided (SD 0.434, p2.5/p97.5 of -1.15/+0.63 against -0.84/+0.82 for
+# the 1 s window). Pass sd_baseline_s=1.0 when running on raw.
+SD_BASELINE_S = None
+
+# Pooling the SD across trials, per ROI. This is what actually removes the
+# denominator as a source of trial-to-trial variance: a per-trial SD rests on
+# one window however long, while pooled it rests on every baseline frame in
+# the session -- 20,160 per ROI on group223, against 126 in a single trial.
+#
+# Note what is pooled and what is not. The frames are pre-odor, so they carry
+# no response and pooling across odors is not mixing conditions; each trial's
+# residuals are taken about that trial's own mean, so drift in level between
+# trials does not leak into the spread. What it does assume is that an ROI's
+# noise is stationary across the session, which is not free -- shot noise
+# scales with sqrt(F), and group223's baseline rises 29% first trial to last.
+# Set False where that matters more than the stability.
+POOL_SD = True
+
+
 def trial_responses(
     roi: np.ndarray,
     *,
@@ -155,6 +178,8 @@ def trial_responses(
     odor_off_frames: np.ndarray,
     frame_rate: float,
     baseline_s: float = BASELINE_S,
+    sd_baseline_s: float | None = SD_BASELINE_S,
+    pool_sd: bool = POOL_SD,
 ) -> dict:
     """
     Per-ROI, per-trial response amplitude, aligned on each trial's own onset.
@@ -163,14 +188,36 @@ def trial_responses(
     are kept: dF/F is the interpretable magnitude, z is what decides
     responsive-or-not, and they rank ROIs differently -- a dim ROI can carry a
     large dF/F on very little signal.
+
+    F0 comes from the last `baseline_s` before onset; the z denominator comes
+    from `sd_baseline_s` (default: the whole pre-odor period) pooled across
+    trials per ROI when `pool_sd`. See those constants for why the two windows
+    are not the same one.
+
+    The z here is a mean over the response window divided by the SD of
+    individual baseline *frames* -- two different units, so it is not on a
+    "null SD of 1" scale; it measures about 0.4 on this rig. That is
+    deliberately unchanged, so thresholds calibrated against it keep meaning
+    what they meant. `responders.trial_calls` is the version whose null SD is
+    1 by construction.
     """
 
     n_roi, n_trial, n_frame = roi.shape
     n_base = max(1, int(round(baseline_s * frame_rate)))
+    n_sd = (None if sd_baseline_s is None
+            else max(1, int(round(sd_baseline_s * frame_rate))))
 
     dff = np.full((n_roi, n_trial), np.nan)
     z = np.full((n_roi, n_trial), np.nan)
     f0 = np.full((n_roi, n_trial), np.nan)
+
+    numerator = np.full((n_roi, n_trial), np.nan)
+    per_trial_sd = np.full((n_roi, n_trial), np.nan)
+    window_frames = np.zeros(n_trial, dtype=int)
+
+    # Residuals about each trial's own mean, so the pooled estimate below is a
+    # within-trial spread and not that plus the drift in level between trials.
+    residuals = []
 
     for trial in range(n_trial):
         on = int(odor_on_frames[trial])
@@ -185,9 +232,18 @@ def trial_responses(
         if base.shape[1] == 0 or resp.shape[1] == 0:
             continue
 
+        window = (roi[:, trial, :on] if n_sd is None
+                  else roi[:, trial, max(on - n_sd, 0):on])
+
+        if window.shape[1] >= 2:
+            per_trial_sd[:, trial] = np.nanstd(window, axis=1)
+            window_frames[trial] = window.shape[1]
+            residuals.append(window - np.nanmean(window, axis=1, keepdims=True))
+
         base_mean = np.nanmean(base, axis=1)
-        base_sd = np.nanstd(base, axis=1)
+        base_sd = per_trial_sd[:, trial]
         resp_mean = np.nanmean(resp, axis=1)
+        numerator[:, trial] = resp_mean - base_mean
 
         f0[:, trial] = base_mean
 
@@ -202,11 +258,38 @@ def trial_responses(
             dff[:, trial] = (resp_mean - base_mean) / np.where(
                 np.abs(base_mean) > 1e-9, np.abs(base_mean), np.nan
             )
-            z[:, trial] = (resp_mean - base_mean) / np.where(
-                base_sd > 1e-9, base_sd, np.nan
-            )
 
-    return {"dff": dff, "z": z, "f0": f0, "n_baseline_frames": n_base}
+    if pool_sd and residuals:
+        # One SD per ROI over every baseline frame in the session. ddof is not
+        # worth chasing: the sample is thousands of frames per ROI.
+        pooled = np.sqrt(np.nanmean(
+            np.concatenate(residuals, axis=1) ** 2, axis=1
+        ))
+        sd = np.repeat(pooled[:, None], n_trial, axis=1)
+    else:
+        sd = per_trial_sd
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        z = numerator / np.where(sd > 1e-9, sd, np.nan)
+
+    n_window = (int(np.median(window_frames[window_frames > 0]))
+                if (window_frames > 0).any() else 0)
+    pooled_used = bool(pool_sd and residuals)
+
+    return {
+        "dff": dff,
+        "z": z,
+        "f0": f0,
+        "n_baseline_frames": n_base,
+        # Frames per trial in the SD window, and the total behind each ROI's
+        # estimate. Kept apart because they differ by the trial count when
+        # pooling, and reporting only the first reads as if the SD rested on
+        # one window when it rests on all of them.
+        "n_sd_frames_per_trial": n_window,
+        "n_sd_frames_total": n_window * len(residuals) if pooled_used else n_window,
+        "sd_pooled": pooled_used,
+        "baseline_sd": sd[:, 0] if pooled_used else per_trial_sd,
+    }
 
 
 def sham_null(
@@ -217,18 +300,20 @@ def sham_null(
     odor_ids: np.ndarray,
     frame_rate: float,
     baseline_s: float,
-    target_fdr: float = TARGET_FDR,
+    target_fpr: float = TARGET_FPR,
     step_fraction: float = SHAM_STEP_FRACTION,
 ) -> dict:
     """
-    Build this session's null for the response statistic.
+    Build this session's null for the response statistic, and read the
+    thresholds off it.
 
-    This builds the null only -- it does not pick a threshold. A threshold
-    is a joint function of the null AND the real data (how many of THIS
-    session's ROI-odor pairs actually look like signal), and that comparison
-    differs by block (pooled vs. pre vs. post use different trials), so it
-    happens in `response_qc`'s `_bh_threshold`, once per block, against the
-    pooled null values and per-ROI percentiles returned here.
+    The thresholds should be outputs, not inputs. A number like 1.5 carries an
+    implied false-positive rate that depends on trial count, baseline length,
+    bleaching, and how noisy these particular ROIs are -- none of which a
+    z table knows, and all of which differ between sessions. Reading the
+    threshold off the session's own null makes the *rate* the thing that is
+    fixed and comparable, which is what anyone actually wants held constant
+    when comparing two experiments.
 
     Two ingredients:
 
@@ -250,21 +335,20 @@ def sham_null(
     delivered in blocks and baseline F falls ~40% across a session, so trials
     of one odor share a position in time and their mean is genuinely more
     variable than a mean over trials drawn from everywhere. On exp 132 the
-    shuffled null put a naive 1%-per-tail threshold at +0.22, which then fired
-    on 6.9% of sham ROI-odor pairs against a 1% target. Keeping the real
-    grouping costs samples and gets the width right.
+    shuffled null put `z_excited` at +0.22, which then fired on 6.9% of sham
+    ROI-odor pairs against a 1% target. Keeping the real grouping costs
+    samples and gets the width right.
 
     **Held-out validation.** Because the windows overlap, the sample count
-    overstates how much independent information there is, so `held_out_values`
-    is kept separate from `null_values`: a threshold calibrated on one and
-    checked on the other, so a gap between them is visible rather than hidden
-    inside the sample count.
+    overstates how much independent information there is, so `achieved_fpr` is
+    measured on offsets the threshold was not fitted to. That number, not the
+    sample count, is what says whether the calibration holds.
 
-    A per-ROI percentile null is also returned for the (legacy, opt-in)
-    per-ROI threshold mode in `response_qc`. That mode still uses a fixed
-    per-pair percentile rather than BH, because a per-ROI FDR correction needs
-    far more samples per ROI than a pre-odor period typically holds -- see
-    `per_roi.reliable`.
+    The two tails are calibrated separately, so asymmetry emerges from the
+    data rather than being assumed. Both a pooled threshold (one pair of
+    numbers for the session) and per-ROI thresholds are returned; per-ROI is
+    stricter on noisy ROIs and more sensitive on quiet ones, at the cost of a
+    threshold that no longer means one thing across the figure.
     """
 
     on = np.asarray(odor_on_frames)
@@ -283,26 +367,7 @@ def sham_null(
     offsets = list(range(earliest, latest + 1, step))
 
     if len(offsets) < 2:
-        # Numbers, not just a verdict: "too short" alone does not say whether
-        # trimming SHAM_RESPONSE_S/SHAM_BASELINE_S a bit more would fix it or
-        # whether the session is nowhere close. `on.min()` is the earliest
-        # odor onset across every trial, so a single trial with a short
-        # pre-odor window can starve the whole session's null even when most
-        # trials have plenty of room -- worth checking before shrinking the
-        # sham geometry further.
-        available_s = float(on.min()) / frame_rate
-        required_s = (span + step + n_base) / frame_rate
-        return {
-            "available": False,
-            "reason": (
-                f"pre-odor period too short: {available_s:.2f} s available "
-                f"before the earliest odor onset (frame {int(on.min())} of "
-                f"trial {int(np.argmin(on))}), need >= {required_s:.2f} s for "
-                f"SHAM_RESPONSE_S={SHAM_RESPONSE_S:g} + "
-                f"SHAM_BASELINE_S={SHAM_BASELINE_S:g} plus room for a second, "
-                f"held-out offset"
-            ),
-        }
+        return {"available": False, "reason": "pre-odor period too short"}
 
     keys = np.unique(odor_ids)
 
@@ -321,32 +386,27 @@ def sham_null(
     fit = np.concatenate(matrices[0::2], axis=1)
     held_out = np.concatenate(matrices[1::2], axis=1)
 
-    fit_values = fit[np.isfinite(fit)]
-    held_out_values = held_out[np.isfinite(held_out)]
+    low = 100.0 * target_fpr
+    high = 100.0 * (1.0 - target_fpr)
 
-    # Per-ROI percentile null, for the legacy opt-in per-ROI threshold mode
-    # only -- see the docstring. Not used by the pooled BH path below.
-    low = 100.0 * target_fdr
-    high = 100.0 * (1.0 - target_fdr)
+    fit_values = fit[np.isfinite(fit)]
+    z_up = float(np.percentile(fit_values, high))
+    z_down = float(np.percentile(fit_values, low))
+
     per_roi_excited = np.nanpercentile(fit, high, axis=1)
     per_roi_suppressed = np.nanpercentile(fit, low, axis=1)
 
     return {
         "available": True,
-        "target_fdr": target_fdr,
+        "target_fpr": target_fpr,
         "sham_offsets_frames": [int(s) for s in offsets],
         "n_offsets": {"fitted": len(matrices[0::2]), "held_out": len(matrices[1::2])},
         "window_frames": {"baseline": n_base, "response": span},
         "window_s": {"baseline": SHAM_BASELINE_S, "response": SHAM_RESPONSE_S},
         "real_response_frames": int(np.median(off - on)),
         "n_null_samples": int(fit_values.size),
-        # The pooled null itself, not a threshold -- `response_qc` turns this
-        # into a per-block BH-FDR threshold against that block's own real
-        # z-scores. `held_out_values` comes from offsets the fit set did not
-        # use, so the achieved rate reported alongside a chosen threshold is
-        # an honest check rather than the same data checking itself.
-        "null_values": fit_values,
-        "held_out_values": held_out_values,
+        "z_excited": round(z_up, 4),
+        "z_suppressed": round(z_down, 4),
         "per_roi": {
             "z_excited": per_roi_excited,
             "z_suppressed": per_roi_suppressed,
@@ -355,107 +415,20 @@ def sham_null(
             # rather than extrapolated. Below ~5 expected samples beyond the
             # threshold, the "1st percentile" of a row is essentially its
             # minimum, which is a different and much more permissive quantity.
-            "reliable": bool(fit.shape[1] * target_fdr >= 5),
+            "reliable": bool(fit.shape[1] * target_fpr >= 5),
             "excited_range": [_round(np.nanmin(per_roi_excited)),
                               _round(np.nanmax(per_roi_excited))],
             "suppressed_range": [_round(np.nanmin(per_roi_suppressed)),
                                  _round(np.nanmax(per_roi_suppressed))],
         },
+        # On offsets the thresholds were never fitted to. This is the number
+        # that says whether the calibration holds.
+        "achieved_fpr": {
+            "excited": _round(np.nanmean(held_out >= z_up)),
+            "suppressed": _round(np.nanmean(held_out <= z_down)),
+        },
     }
 
-
-
-def _bh_threshold(
-    observed: np.ndarray, null_pool: np.ndarray, *, tail: str, q: float,
-) -> tuple[float, dict]:
-    """
-    Benjamini-Hochberg threshold, in the observed statistic's own units.
-
-    `observed` is one family of tests -- every (ROI, odor) pair in one block
-    of one session. `null_pool` is the session's sham null (`null_values` from
-    `sham_null`), pooled across ROIs and offsets.
-
-    Each observed value gets an empirical one-sided p-value against the null:
-    the fraction of null samples at least as extreme, with a +1 in numerator
-    and denominator (Storey's correction) so a value more extreme than every
-    null sample gets p = 1/(n_null+1) rather than a false p = 0. BH is then
-    applied across the family -- sort p ascending, find the largest rank k
-    with p_(k) <= (k/m)*q -- to get a p-value cutoff that controls the
-    expected false-discovery share at q, given how many of these m tests
-    actually look like signal.
-
-    The threshold is reported back in z, not p, so callers can keep comparing
-    new values against it with a plain >=/<=: the smallest observed value
-    still called significant (tail="upper") or the largest (tail="lower"),
-    since p is monotonic in the observed value within one tail.
-
-    Returns `(inf, ...)` / `(-inf, ...)` with zero discoveries when nothing in
-    `observed` clears the null at all -- not zero, since a threshold nothing
-    can cross is the correct (if useless) representation of "no signal here",
-    and callers already treat `z >= inf` as "never".
-
-    An empirical p-value is bounded below by `1/(n_null+1)`: no null sample
-    means no evidence of anything rarer than that, no matter how extreme the
-    observed value is. BH needs its single most significant p to clear `q/m`
-    for any discovery to survive at all, so whenever `1/(n_null+1) > q/m` this
-    call is structurally incapable of finding a discovery -- not because there
-    is no signal, but because the null is too small to say so. `stats["underpowered"]`
-    flags this so a 0-discovery block can be told apart from "genuinely no
-    response"; deliberately not worked around by extrapolating a parametric
-    tail onto the null, since that would substitute an assumption about the
-    null's shape for the thing this whole calibration exists to avoid.
-    """
-
-    values = np.asarray(observed, dtype=np.float64).ravel()
-    v = values[np.isfinite(values)]
-    m = v.size
-
-    boundary = np.inf if tail == "upper" else -np.inf
-    stats = {
-        "n_tests": int(m), "n_discoveries": 0, "p_cutoff": None,
-        "min_p": None, "underpowered": True,
-    }
-
-    pool = np.asarray(null_pool, dtype=np.float64)
-    pool = pool[np.isfinite(pool)]
-    n_null = pool.size
-
-    if m == 0 or n_null == 0:
-        return boundary, stats
-
-    min_p = 1.0 / (n_null + 1.0)
-    stats["min_p"] = min_p
-    stats["underpowered"] = bool(min_p > q / m)
-
-    sorted_null = np.sort(pool)
-
-    if tail == "upper":
-        # Count of null samples >= v, per observed value.
-        counts = n_null - np.searchsorted(sorted_null, v, side="left")
-    elif tail == "lower":
-        # Count of null samples <= v, per observed value.
-        counts = np.searchsorted(sorted_null, v, side="right")
-    else:
-        raise ValueError(f"tail must be 'upper' or 'lower', got {tail!r}.")
-
-    p = (counts + 1.0) / (n_null + 1.0)
-
-    order = np.argsort(p)
-    p_sorted = p[order]
-    ranks = np.arange(1, m + 1)
-    passing = p_sorted <= (ranks / m) * q
-
-    if not passing.any():
-        return boundary, stats
-
-    k = int(np.max(np.flatnonzero(passing))) + 1
-    p_cutoff = float(p_sorted[k - 1])
-    significant = p <= p_cutoff
-
-    boundary = float(v[significant].min() if tail == "upper" else v[significant].max())
-    stats["n_discoveries"] = int(significant.sum())
-    stats["p_cutoff"] = p_cutoff
-    return boundary, stats
 
 
 # Trials whose baseline F sits this many SD from the session mean are dropped.
@@ -565,8 +538,10 @@ def response_qc(
     *,
     baseline_s: float = BASELINE_S,
     baseline_outlier_sd: float = BASELINE_OUTLIER_SD,
+    per_trial: bool = True,
+    deglobal: str | None = "pc1",
     thresholds: str = "calibrated",
-    target_fdr: float = TARGET_FDR,
+    target_fpr: float = TARGET_FPR,
     per_roi_thresholds: bool = False,
     z_excited: float = Z_EXCITED,
     z_suppressed: float = Z_SUPPRESSED,
@@ -576,25 +551,28 @@ def response_qc(
     """
     Sparsity and health metrics for one processed round.
 
-    `thresholds="calibrated"` (the default) sets the two z thresholds by
-    Benjamini-Hochberg against this session's own null, at a target false
-    discovery rate of `target_fdr` per tail -- see `sham_null` and
-    `_bh_threshold`. Because BH weighs the threshold against how many of a
-    block's own ROI-odor pairs look like signal, pooled and by-state blocks
-    each get their own threshold even though they share one null.
+    `thresholds="calibrated"` (the default) reads the two z thresholds off
+    this session's own null at `target_fpr` per tail -- see `sham_null`.
     `"fixed"` uses `z_excited`/`z_suppressed` as given, which is what to pass
     when several sessions must share one threshold rather than one error rate.
 
-    `per_roi_thresholds` calibrates each ROI separately instead of pooling,
-    using a fixed per-pair percentile rather than BH (a per-ROI FDR
-    correction needs more samples per ROI than a pre-odor period usually
-    holds). More accurate per ROI, but the reported threshold stops being a
-    single number, so it is off by default.
+    `per_roi_thresholds` calibrates each ROI separately instead of pooling.
+    More accurate per ROI, but the reported threshold stops being a single
+    number, so it is off by default.
 
     Writes `<stem>_responseqc.png` and `.json` beside the round when `save`,
     and returns the metrics. `by_state` also reports each block separately,
     which is the comparison the manipulation is about.
     """
+
+    if per_trial:
+        # The per-trial path supersedes the sham null for deciding responsive.
+        # See `responders` for why: the sham null's resolution is capped by the
+        # offset count, and this one is not capped at all.
+        return _per_trial_report(
+            path, deglobal=deglobal, save=save,
+            baseline_outlier_sd=baseline_outlier_sd,
+        )
 
     if thresholds not in ("calibrated", "fixed"):
         raise ValueError(
@@ -640,56 +618,33 @@ def response_qc(
     null = sham_null(
         roi, odor_on_frames=on_frames, odor_off_frames=off_frames,
         odor_ids=odor_ids, frame_rate=frame_rate, baseline_s=baseline_s,
-        target_fdr=target_fdr,
+        target_fpr=target_fpr,
     )
 
-    # This decides the MODE only -- it does not depend on which block, so it
-    # is decided once. The actual threshold VALUES are computed per block
-    # below, because BH weighs the threshold against how many of that block's
-    # own real ROI-odor pairs look like signal, and pooled/pre/post are
-    # different sets of trials with different answers to that question.
+    # Thresholds come off the null unless asked for fixed ones, or unless the
+    # null could not be built -- in which case the constants are used and the
+    # report says so rather than silently reporting a calibrated rate.
     threshold_source = thresholds
     per_roi_used = False
 
     if thresholds == "calibrated" and null["available"]:
         if per_roi_thresholds and null["per_roi"]["reliable"]:
+            up = null["per_roi"]["z_excited"][:, None]
+            down = null["per_roi"]["z_suppressed"][:, None]
             per_roi_used = True
-            threshold_source = "calibrated per ROI (percentile)"
-        elif per_roi_thresholds:
-            threshold_source = "calibrated pooled (per-ROI unreliable, BH-FDR)"
+            threshold_source = "calibrated per ROI"
         else:
-            threshold_source = "calibrated pooled (BH-FDR)"
+            up, down = null["z_excited"], null["z_suppressed"]
+            if per_roi_thresholds:
+                threshold_source = "calibrated pooled (per-ROI unreliable)"
     else:
         if thresholds == "calibrated":
             threshold_source = "fixed (null unavailable)"
+        up, down = z_excited, z_suppressed
 
     def block(selection: np.ndarray, name: str) -> dict:
         dff = _by_odor(resp["dff"][:, selection], odor_ids[selection], keys)
         z = _by_odor(resp["z"][:, selection], odor_ids[selection], keys)
-
-        fdr = None
-        if threshold_source.startswith("fixed"):
-            up, down = z_excited, z_suppressed
-        elif per_roi_used:
-            up = null["per_roi"]["z_excited"][:, None]
-            down = null["per_roi"]["z_suppressed"][:, None]
-        else:
-            up, up_stats = _bh_threshold(
-                z, null["null_values"], tail="upper", q=target_fdr
-            )
-            down, down_stats = _bh_threshold(
-                z, null["null_values"], tail="lower", q=target_fdr
-            )
-            # On offsets the threshold was never fitted to -- this is the
-            # number that says whether the calibration holds, same role as
-            # the old `achieved_fpr` but checked against a threshold that is
-            # now block-specific rather than one number for the session.
-            held = null["held_out_values"]
-            fdr = {
-                "target": target_fdr,
-                "excited": {**up_stats, "achieved_null_rate": _round(np.mean(held >= up))},
-                "suppressed": {**down_stats, "achieved_null_rate": _round(np.mean(held <= down))},
-            }
 
         excited = z >= up
         suppressed = z <= down
@@ -718,7 +673,6 @@ def response_qc(
                 "z_excited": _threshold_value(up),
                 "z_suppressed": _threshold_value(down),
                 "threshold_source": threshold_source,
-                "fdr": fdr,
                 # Count-based population sparsity: of all ROIs, how many did
                 # this odor drive.
                 "fraction_of_rois_per_odor": {
@@ -781,25 +735,17 @@ def response_qc(
             "trials": guard["dropped"],
         },
         "bleaching": bleaching(roi, on_frames, n_pre=n_pre),
-        # Per-ROI and raw null arrays are dropped from the report: they are
-        # n_roi (or n_null_samples) long and would swamp the JSON; the ranges
-        # and counts already say what they spread, and the arrays themselves
-        # only ever needed to exist in memory for `_bh_threshold` above.
-        "sham": {
-            k: v for k, v in null.items()
-            if k not in ("per_roi", "null_values", "held_out_values")
-        },
+        # Per-ROI arrays are dropped from the report: they are n_roi long and
+        # would swamp the JSON, and the range already says what they spread.
+        "sham": {k: v for k, v in null.items() if k != "per_roi"},
         "sham_per_roi_range": null.get("per_roi", {}).get("excited_range"),
         "sham_samples_per_roi": null.get("per_roi", {}).get("samples_per_roi"),
         "thresholds": {
             "source": threshold_source,
             "per_roi": per_roi_used,
             "per_roi_requested": bool(per_roi_thresholds),
-            # The pooled block's threshold, as the session-level headline
-            # number; pre/post (and per-ROI, when used) can differ -- see
-            # report["blocks"][name]["responsive"] for each block's own.
-            "z_excited": blocks[0]["responsive"]["z_excited"],
-            "z_suppressed": blocks[0]["responsive"]["z_suppressed"],
+            "z_excited": _threshold_value(up),
+            "z_suppressed": _threshold_value(down),
         },
         "blocks": {b["name"]: {k: v for k, v in b.items() if k != "_matrices"}
                    for b in blocks},
@@ -833,22 +779,13 @@ def _null_line(report: dict) -> str:
     if not sham.get("available"):
         return f"  (not calibrated: {sham.get('reason', 'unknown')})"
 
-    # `fdr` is None when the pooled block used per-ROI or fixed thresholds
-    # instead of BH -- those do not have a single achieved-rate number.
-    fdr = report["blocks"]["pooled"]["responsive"].get("fdr")
-    if fdr is None:
-        return f"  from {sham['n_null_samples']:,} null samples"
+    achieved = sham["achieved_fpr"]
 
-    excited, suppressed = fdr["excited"], fdr["suppressed"]
-    underpowered = excited["underpowered"] or suppressed["underpowered"]
     return (
         f"  from {sham['n_null_samples']:,} null samples at "
-        f"{fdr['target']:.0%} FDR/tail; "
-        f"{excited['n_discoveries']}/{excited['n_tests']} excited, "
-        f"{suppressed['n_discoveries']}/{suppressed['n_tests']} suppressed; "
-        f"held-out null rate {_pct(excited['achieved_null_rate']).strip()} / "
-        f"{_pct(suppressed['achieved_null_rate']).strip()}"
-        + ("  [UNDERPOWERED -- see flags]" if underpowered else "")
+        f"{sham['target_fpr']:.0%}/tail; achieved "
+        f"{_pct(achieved['excited']).strip()} / "
+        f"{_pct(achieved['suppressed']).strip()}"
     )
 
 
@@ -926,7 +863,7 @@ def _flags(report: dict, pooled: dict) -> list[str]:
         out.append(
             f"Per-ROI thresholds were requested but the null has only "
             f"{report.get('sham_samples_per_roi', 'too few')} samples per ROI "
-            f"to place a {sham.get('target_fdr', 0):.0%} percentile, so the "
+            f"to place a {sham.get('target_fpr', 0):.0%} percentile, so the "
             f"pooled threshold was used instead. Per-ROI needs a longer "
             f"pre-odor period or more odors."
         )
@@ -934,63 +871,35 @@ def _flags(report: dict, pooled: dict) -> list[str]:
     if not sham.get("available"):
         out.append(
             f"Thresholds could not be calibrated ({sham.get('reason', 'unknown')}), "
-            f"so the fixed fallbacks were used. Their false-discovery rate on "
+            f"so the fixed fallbacks were used. Their false-positive rate on "
             f"this session is unknown."
         )
-    elif responsive.get("fdr") is not None:
-        fdr = responsive["fdr"]
-
+    else:
         # Calibrated on one set of sham offsets, checked on another. A gap
         # means the null does not generalise across the pre-odor period --
         # usually because it is not flat, so no single threshold describes it.
         for sign in ("excited", "suppressed"):
-            achieved = fdr[sign]["achieved_null_rate"]
-            target = fdr["target"]
+            achieved = sham["achieved_fpr"][sign]
+            target = sham["target_fpr"]
 
             if achieved is not None and achieved > 3 * target:
                 out.append(
                     f"The {sign} threshold was calibrated for a {target:.0%} "
-                    f"target FDR but the held-out null still crosses it at "
-                    f"{achieved:.1%}. The pre-odor period is not stationary, "
-                    f"so treat the {sign} counts as an upper bound."
+                    f"false-positive rate but lands at {achieved:.1%} on "
+                    f"held-out sham windows. The pre-odor period is not "
+                    f"stationary, so treat the {sign} counts as an upper bound."
                 )
 
-        # An empirical p-value cannot resolve anything rarer than 1/(n_null+1),
-        # so BH needs its single best p to clear target_fdr/n_tests for ANY
-        # discovery to survive -- a session can fail that purely because the
-        # null is small, with no bearing on whether there is real signal. Flag
-        # this explicitly so a 0-discovery block reads as "undetermined"
-        # rather than silently as "no response".
-        underpowered = any(fdr[sign]["underpowered"] for sign in ("excited", "suppressed"))
-        if underpowered:
-            worst = min(
-                (fdr[sign]["min_p"] for sign in ("excited", "suppressed")
-                 if fdr[sign]["min_p"] is not None),
-                default=None,
-            )
+        observed = [
+            v for v in pooled["responsive"]["fraction_of_rois_per_odor"].values()
+            if v is not None
+        ]
+        if observed and max(observed) < 4 * sham["target_fpr"]:
             out.append(
-                f"The null has only {sham['n_null_samples']} samples, too few "
-                f"to resolve a p-value below {worst:.1e} if it exists -- BH at "
-                f"{fdr['target']:.0%} FDR over up to {max(fdr['excited']['n_tests'], fdr['suppressed']['n_tests'])} "
-                f"tests needs p <= {fdr['target'] / max(fdr['excited']['n_tests'], fdr['suppressed']['n_tests'], 1):.1e} "
-                f"for even the single most extreme pair, so this block cannot "
-                f"call anything responsive no matter how strong the signal. A "
-                f"0-discovery count here means 'undetermined', not 'no "
-                f"response' -- a longer pre-odor period (more sham offsets) or "
-                f"fewer simultaneous tests (e.g. per-state blocks) would help."
-            )
-
-        # Unlike a fixed per-pair rate, BH does not flag ~target_fdr of pairs
-        # unconditionally -- a session with nothing real should clear ~zero
-        # ROI-odor pairs, not a rate hovering near the target. Only meaningful
-        # when the null actually had the resolution to find something.
-        n_discoveries = fdr["excited"]["n_discoveries"] + fdr["suppressed"]["n_discoveries"]
-        n_tests = fdr["excited"]["n_tests"] + fdr["suppressed"]["n_tests"]
-        if n_tests and n_discoveries == 0 and not underpowered:
-            out.append(
-                f"No ROI-odor pair survived BH-FDR calibration at "
-                f"{fdr['target']:.0%}: this session has no response BH can "
-                f"distinguish from the pre-odor null."
+                f"No odor drives more than {max(observed):.1%} of ROIs, barely "
+                f"above the {sham['target_fpr']:.0%} the thresholds allow by "
+                f"construction. This session has close to no detectable "
+                f"response."
             )
 
     bleach = report["bleaching"]
@@ -1237,3 +1146,192 @@ def _wrap(text: str, width: int = 52) -> str:
     import textwrap
 
     return "\n  ".join(textwrap.wrap(text, width))
+
+
+def _per_trial_report(
+    path,
+    *,
+    deglobal: str | None = "pc1",
+    baseline_outlier_sd: float = BASELINE_OUTLIER_SD,
+    save: bool = True,
+) -> dict:
+    """
+    The QC report with responsiveness decided per trial rather than per pair.
+
+    Health diagnostics are unchanged and still come from here -- bleaching,
+    baseline-outlier trials, ROI areas. What moves is the responsive/not
+    decision and the figure, both of which come from `responders`.
+
+    The two halves answer different questions and both are still wanted: the
+    health numbers say whether the traces are worth reading at all, and the
+    per-trial calls say what they contain. A session can pass one and fail the
+    other, which is the whole reason this file exists alongside `qc.py`.
+    """
+
+    from .h5io import open_h5
+    from .responders import response_figure
+
+    path = Path(path)
+
+    with open_h5(path) as f:
+        roi = f["traces/roi"][:]
+        on_frames = f["trials/odor_on_frame"][:]
+        areas = f["rois/area_px"][:]
+        n_pre = int(f.attrs["n_pre"])
+        frame_rate = float(f.attrs["frame_rate"])
+        exp_name = str(f.attrs["exp_name"])
+        mask_digest = str(f.attrs["mask_hash"])
+
+    stem = path.with_suffix("")
+    n_base = max(1, int(round(BASELINE_S * frame_rate)))
+
+    guard = baseline_outliers(
+        roi, odor_on_frames=on_frames, n_base=n_base,
+        threshold_sd=baseline_outlier_sd,
+    )
+
+    figure = response_figure(
+        path, deglobal=deglobal, save=save,
+        out_path=f"{stem}_responseqc.png",
+    )
+
+    calls, sparsity = figure["calls"], figure["sparsity"]
+    check, levels = figure["split_half"], figure["levels"]
+
+    def block(name: str) -> dict:
+        s = sparsity[name]
+        return {
+            "excited_per_odor": {int(k): _round(v) for k, v in
+                                 zip(s["odor_ids"], s["excited"]["mean"])},
+            "excited_sem_per_odor": {int(k): _round(v) for k, v in
+                                     zip(s["odor_ids"], s["excited"]["sem"])},
+            "suppressed_per_odor": {int(k): _round(v) for k, v in
+                                    zip(s["odor_ids"], s["suppressed"]["mean"])},
+            "suppressed_sem_per_odor": {int(k): _round(v) for k, v in
+                                        zip(s["odor_ids"], s["suppressed"]["sem"])},
+            "excited_median": _round(np.nanmedian(s["excited"]["mean"])),
+            "suppressed_median": _round(np.nanmedian(s["suppressed"]["mean"])),
+            "lifetime_sparseness_median": _round(np.nanmedian(figure["lifetime"][name])),
+            "n_trials": int(s["excited"]["n_trials"].sum()),
+        }
+
+    report = {
+        "file": path.name,
+        "exp_name": exp_name,
+        "mask_hash": mask_digest,
+        "n_rois": int(roi.shape[0]),
+        "n_odors": len(sparsity["pooled"]["odor_ids"]),
+        "odor_ids": sparsity["pooled"]["odor_ids"],
+        "method": "per-trial",
+        "trace_source": figure["trace_source"],
+        # None on rounds written before the field existed. Grouping sessions
+        # by this is what separates the manipulation from time in session.
+        "manipulation": figure["manipulation"],
+        "deglobal": deglobal,
+        "window_frames": calls["window_frames"],
+        "roi_area_px": [int(np.min(areas)), int(np.max(areas))],
+        "rois_under_10px": int((areas < 10).sum()),
+        "excluded_trials": {
+            "n": guard["n_dropped"],
+            "threshold_sd": guard["threshold_sd"],
+            "session_mean_f0": round(guard["session_mean"], 2),
+            "session_sd_f0": round(guard["session_sd"], 2),
+            "trials": guard["dropped"],
+        },
+        "bleaching": bleaching(roi, on_frames, n_pre=n_pre),
+        "thresholds": {
+            "target_fdr": calls["target_fdr"],
+            "z_excited": _round(calls["z_excited_threshold"]),
+            "z_suppressed": _round(calls["z_suppressed_threshold"]),
+            "estimated_fdr_excited": calls["thresholds"]["excited"]["estimated_fdr"],
+            "estimated_fdr_suppressed": calls["thresholds"]["suppressed"]["estimated_fdr"],
+        },
+        "chance": sparsity["pooled"]["chance"],
+        # Rerun of the identical test where no odor was delivered. Not a
+        # correction -- if this is far from zero the counts are not usable.
+        "control": {
+            "false_positive_rate": check["false_positive_rate"],
+            "kurtosis": check["kurtosis"],
+            "n_tests": check["n_tests"],
+        },
+        "blocks": {name: block(name) for name in ["pooled", *levels]},
+        "block_order": levels,
+    }
+
+    report["flags"] = _per_trial_flags(report)
+
+    if save:
+        Path(f"{stem}_responseqc.json").write_text(
+            json.dumps(report, indent=2, default=str)
+        )
+        report["json"] = f"{stem}_responseqc.json"
+        report["figure"] = figure["figure"]
+
+    return report
+
+
+def _per_trial_flags(report: dict) -> list[str]:
+    """Plain statements of what looks wrong, or an empty list."""
+
+    out = []
+    pooled = report["blocks"]["pooled"]
+    thresholds = report["thresholds"]
+
+    excited = [v for v in pooled["excited_per_odor"].values() if v is not None]
+    if excited and max(excited) > 0.8:
+        out.append(
+            f"One odor drove {max(excited):.0%} of glomeruli. Dense activation "
+            f"is real at high concentration, but check it against motion and "
+            f"a z-shift before reading it as odor coding."
+        )
+
+    if thresholds["z_suppressed"] is None or not np.isfinite(
+        thresholds["z_suppressed"] or np.nan
+    ):
+        out.append(
+            "No suppression threshold reaches the target FDR: the suppressed "
+            "tail is not separable from the pre-odor control on this session. "
+            "The suppressed counts are 'undetermined', not zero."
+        )
+
+    if report.get("manipulation") is None:
+        out.append(
+            "No manipulation label in this round, so pre/post cannot be told "
+            "apart from a saline control downstream. Re-run the round to "
+            "record it."
+        )
+
+    control = report["control"]["false_positive_rate"]
+    if control is not None and control > 0.02:
+        out.append(
+            f"The split-half control calls {control:.1%} of a set whose truth "
+            f"is zero. The pre-odor window is not behaving like a null, so "
+            f"treat both counts as upper bounds."
+        )
+
+    tiny = report.get("rois_under_10px", 0)
+    if tiny:
+        out.append(
+            f"{tiny} ROI(s) are under 10 px. A footprint that small is not a "
+            f"glomerulus; its trace is a single pixel's noise wearing the same "
+            f"shape as a real one."
+        )
+
+    bleach = report["bleaching"]
+    if bleach["within_trial_pre_pct"] < -5:
+        out.append(
+            f"Fluorescence falls {abs(bleach['within_trial_pre_pct']):.0f}% "
+            f"across the pre-odor window within a trial, on the raw traces. "
+            f"The per-trial calls run on the detrended ones where this is "
+            f"corrected, so this is a note on the round, not on the counts."
+        )
+
+    if abs(bleach["across_session_pct"]) > 25:
+        out.append(
+            f"Baseline F moves {bleach['across_session_pct']:+.0f}% from the "
+            f"first acquisition to the last. Each trial is referenced to its "
+            f"own pre-odor window so the counts absorb this, but any pre/post "
+            f"comparison is also a comparison across that drift."
+        )
+
+    return out
