@@ -29,3 +29,6 @@ __pycache__/
 # System / IDE
 .DS_Store
 .vscode/
+
+# Claude related
+.claude
