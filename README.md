@@ -14,6 +14,7 @@ analysis/
   session/      session assembly: resolve, sync, z-scores, extraction, QC
   seg_10x/      10x glomerular segmentation: watershed, merge, curation GUI
   seg_20x/      20x soma/process segmentation, ordered curation, ROI grouping
+  seg_20x/grouping.py   soma-anchored ROI groups from gap + trace correlation
   stage0/       odor and mixture tables (data-independent)
   Stage1_10x_segmentation.ipynb    the working record/ trial and error
   Stage1_20x_segmentation.ipynb    approved-mcor 20x workflow for VS Code
@@ -63,3 +64,21 @@ One self-describing HDF5 per processing round, beside the session:
 
 The mask's content hash is recorded in the traces, so `verify()` can say whether
 a set of traces still belongs to the mask beside it.
+
+**A 20x round is one HDF5 bundle.** `Segmentation20xState.save` writes the curated
+masks, the detector output they were curated from, the reference images, the
+parameters, the recorded edits, the ROI table, and the groups into a single
+`.h5`. Resuming reads the stored labels rather than running the detectors
+again: every group is keyed by label id, so a scikit-image that returns the
+same ROIs in a different order would silently reassign which cell is in which
+group. Replaying the edits on the stored labels must reproduce the stored
+curated masks or the load is refused.
+
+**20x ROI groups can be derived rather than drawn.** `seg_20x/grouping.py`
+agglomerates ROIs by nearest-pixel gap and trace correlation, strongest link
+first, under one constraint: at most one soma per group. Processes need not
+reach a soma -- a neurite chain whose parent is out of plane is still a group --
+but no process is placed in a group holding two somas, and the refused link is
+reported. Run `proximity_correlation_profile` first: an ROI abutting a soma
+shares signal with it through the PSF, so correlation that decays to nothing
+within a micron or two means the links are adjacency.
