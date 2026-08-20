@@ -13,8 +13,10 @@ Work in progress!
 analysis/
   session/      session assembly: resolve, sync, z-scores, extraction, QC
   seg_10x/      10x glomerular segmentation: watershed, merge, curation GUI
+  seg_20x/      20x soma/process segmentation, ordered curation, ROI grouping
   stage0/       odor and mixture tables (data-independent)
   Stage1_10x_segmentation.ipynb    the working record/ trial and error
+  Stage1_20x_segmentation.ipynb    approved-mcor 20x workflow for VS Code
 ```
 
 ## Running it
