@@ -449,5 +449,29 @@ def read_session(path: str | Path) -> dict:
 
 
 def find_rounds(output_dir: str | Path, *, stage: str = STAGE) -> list[Path]:
-    """Every processing round in a session folder, newest last."""
-    return sorted(Path(output_dir).glob(f"group*_{stage}_*.h5"))
+    """Every processing round in a session folder, newest last.
+
+    Side products can also be HDF5 and intentionally share the round naming
+    stem. A portable 20x mask bundle, for example, has ``masks/soma`` and
+    ``masks/process`` but no final ``masks/labels``. Identify rounds by their
+    schema rather than by the broad filename glob alone.
+    """
+    from .h5io import open_h5
+
+    rounds = []
+    for path in sorted(Path(output_dir).glob(f"group*_{stage}_*.h5")):
+        # Published portable bundles are deliberately named side products.
+        # Reject them without opening HDF5: on a remote mount, even inspecting
+        # a multi-megabyte bundle can take much longer than listing its name.
+        if f"_20x_masks_{stage}_" in path.name:
+            continue
+        try:
+            with open_h5(path) as handle:
+                if "masks/labels" in handle:
+                    rounds.append(path)
+        except (OSError, KeyError):
+            # An unrelated or incomplete HDF5 is not a session round. The
+            # finalized writer uses a .partial suffix until its copy is safe,
+            # but tolerate older files that did not have that protection.
+            continue
+    return rounds
