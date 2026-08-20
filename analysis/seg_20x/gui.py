@@ -32,11 +32,13 @@ def _overlay(somas, processes=None, selected=(), alpha=145):
 class Segmentation20xGUI:
     def __init__(self, state: Segmentation20xState, save_path: str | Path):
         self.state = state
-        # Notebook autoreload can leave a live state created by an older code
-        # version. Add newly introduced defaults without changing any values
-        # the user has already tuned. Segmentation20xState.load performs the
-        # same merge for checkpoints loaded in a fresh kernel.
+        # Notebook autoreload can leave a live state created by an older code version.
         self.state.soma_params = {**SOMA_DEFAULTS, **self.state.soma_params}
+        # A live notebook can hold the pre-DoG segmentation module while
+        # autoreload has already replaced this GUI class. Do not rely on the
+        # imported defaults alone: migrate that mixed-version state explicitly.
+        self.state.soma_params.setdefault("dog_threshold", 0.12)
+        self.state.soma_params.setdefault("dog_sigma_ratio", 1.4)
         self.state.process_params = {**PROCESS_DEFAULTS, **self.state.process_params}
         self.save_path = Path(save_path)
         self.vertices = []
@@ -75,7 +77,7 @@ class Segmentation20xGUI:
 
         self.soma_sliders={}
         for name,title,start,end,step in (
-            ("log_threshold","soma: LoG threshold",.01,.40,.01),
+            ("dog_threshold","soma: DoG threshold",.01,.40,.01),
             ("growth_threshold_pctl","soma: growth percentile",30,95,1),
             ("min_diameter_px","soma: min diameter px",2,20,1),
             ("max_diameter_px","soma: max diameter px",10,50,1),
@@ -178,7 +180,7 @@ class Segmentation20xGUI:
     def _clear_selection(self):self.state.selected.clear();self._refresh("Selection cleared")
     def _save(self):
         path=self.state.save(self.save_path)
-        self._refresh(f"Saved checkpoint plus portable {path.with_suffix('.h5').name}")
+        self._refresh(f"Saved portable bundle {path.name}")
     def _say(self,message):self.detail.text=message
 
     def _refresh(self,message=""):

@@ -1,49 +1,4 @@
-"""
-Fixed-footprint trace extraction: the actual output of Stage 1.
-
-One mask, applied unchanged to every acquisition. Detection happened once on
-the pooled data, so the same pixels are read in both blocks -- which is what
-makes a within-unit pre/post comparison mean anything. Re-detecting per block
-would give two ROI sets that have to be matched afterwards, and any matching
-error would land squarely on the effect being measured.
-
-Output is `(n_rois, n_trials, n_frames)` covering the **whole acquisition** --
-the entire pre-odor period, the odor, and everything after it (about 5 s, 4 s
-and 11 s on a typical session). Nothing is cropped.
-
-Windowing here would be a decision made too early. A window has to be chosen
-before anyone has seen a trace, and it silently forecloses questions later:
-slow post-odor dynamics, drift across the baseline, whether the response has
-returned by the end of the trial. The whole acquisition is cheap -- 137 ROIs x
-180 trials x 301 frames is 30 MB -- so there is nothing to buy by cutting it.
-
-Odor onset varies by a frame or two between trials, so `odor_on_frame` is
-recorded per trial and alignment is a downstream choice rather than something
-baked into the array. `time_s` is provided against the median onset for
-convenience; exact per-trial alignment uses the recorded onsets.
-
-Raw fluorescence, deliberately. dF/F and baseline-z are Stage 3 decisions --
-this stage should not bake in a normalisation that a later step then has to
-undo or work around.
-
-Neuropil is measured but not subtracted. The annulus around each ROI -- a 3 px
-gap then a 12 px ring, with every other ROI's pixels removed -- is returned
-alongside the ROI trace so a correction can be applied later with a coefficient
-chosen against the data, rather than a factor fixed here that would be
-invisible downstream.
-
-Treat it as diagnostic at 10x. The correction assumes the surround is
-out-of-focus neuropil, which holds for 20x somata; on a dense glomerular field
-the rings instead fill the inter-glomerular space (median 671 px of ring per
-771 px of ROI on exp 132), which is a different thing. It is measured because
-measuring is cheap and discarding it later is easy; applying it here would not
-be.
-
-Output is written as a file plus two tables, which is the shape the database
-will eventually take: `rois` and `trials` are rows, and the trace array is too
-large for SQLite so it is referenced by path, exactly as `outputs` already
-does for other artefacts.
-"""
+"""Fixed-footprint trace extraction: the actual output of Stage 1."""
 
 from __future__ import annotations
 
@@ -85,11 +40,6 @@ class Traces:
 
     skipped: list[dict]
 
-    # Belongs beside `states` -- it is the other half of the same fact, and
-    # `state` alone cannot tell a saline control from a treated session. It
-    # sits at the end only because a dataclass cannot put a defaulted field
-    # before the undefaulted ones above. Defaulted, not required, because
-    # rounds written before this existed have no value for it.
     manipulations: np.ndarray | None = None
     # Motion-corrected file each trial came from. Carried so QC can name the
     # acquisition to re-examine rather than printing a trial index that then
@@ -121,12 +71,7 @@ class Traces:
         }
 
     def roi_table(self, labels: None | np.ndarray = None):
-        """
-        One row per ROI. Rows, not arrays -- this is what goes in a database.
-
-        `labels` adds centroids, which need the mask and are worth having for
-        matching ROIs between sessions later.
-        """
+        """One row per ROI."""
 
         import pandas as pd
 
@@ -147,12 +92,6 @@ class Traces:
             rows["centroid_y"] = np.round([c[0] for c in centroids], 1)
             rows["centroid_x"] = np.round([c[1] for c in centroids], 1)
 
-        # Per-ROI summary over the whole session, so a bad ROI is visible in
-        # the table without loading the array.
-        #
-        # `n_trials_finite` used to live here and was dropped: trials are
-        # skipped whole, so it was identical for every ROI and duplicated the
-        # trials table's `extracted` column. These three genuinely vary per ROI.
         pre = self.roi[:, :, : self.n_pre]
         baseline = np.nanmean(pre, axis=(1, 2))
         rows["baseline_fluorescence"] = np.round(baseline, 2)
@@ -218,14 +157,7 @@ class Traces:
 def neuropil_rings(
     labels: np.ndarray, *, inner_px: int = 3, outer_px: int = 12
 ) -> np.ndarray:
-    """
-    An annulus around each ROI, excluding every ROI's pixels.
-
-    `inner_px` leaves a gap so the ring does not sample the ROI's own blurred
-    edge; `outer_px` sets its width. Pixels belonging to any ROI are removed
-    from every ring, so a neighbouring glomerulus never contributes to another's
-    background estimate.
-    """
+    """An annulus around each ROI, excluding every ROI's pixels."""
 
     from scipy.ndimage import binary_dilation
 
@@ -247,14 +179,7 @@ def neuropil_rings(
 
 
 def _weight_matrix(labels: np.ndarray, roi_ids: np.ndarray):
-    """
-    Sparse (n_rois, n_pixels) matrix whose rows average an ROI's pixels.
-
-    A matrix product over the flattened movie extracts every ROI for every
-    frame in one operation, rather than looping ROIs per frame -- which at 64
-    ROIs x 175 frames x 180 trials is the difference between seconds and
-    minutes.
-    """
+    """Sparse (n_rois, n_pixels) matrix whose rows average an ROI's pixels."""
 
     from scipy.sparse import csr_matrix
 
@@ -297,21 +222,7 @@ def extract_traces(
     mask_hash: str = "",
     progress: bool = True,
 ) -> Traces:
-    """
-    Stream the session once, applying one mask to every acquisition.
-
-    `full_acquisition=True` (the default) keeps every frame. Set it False and
-    `pre_s`/`post_s` cut a window anchored on each trial's own onset -- only
-    worth doing when memory genuinely forces it, since cropping here discards
-    data that cannot be recovered without re-streaming the session.
-
-    `checkpoint_dir` makes the run resumable: each trial is written to a local
-    memory-mapped file as it completes, and a re-run skips what is already
-    there. On a share that drops -- which this one does, mid-migration -- that
-    is the difference between losing an hour and losing a minute. Pass
-    `mask_hash` with it so a changed mask invalidates the checkpoint instead of
-    stitching together trials measured from different ROIs.
-    """
+    """Stream the session once, applying one mask to every acquisition."""
 
     if labels.max() < 1:
         raise ValueError("The mask contains no ROIs.")

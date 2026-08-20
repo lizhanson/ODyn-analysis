@@ -1,25 +1,4 @@
-"""
-Read the behavior sync H5 and recover true imaging frame times.
-
-The rig records six analog channels at 5 kHz for the whole session, spanning
-both olfactometer programs (see `record_behavior.py` on the rig). Two of them
-are clocks, and they are what make everything else alignable:
-
-    2pFrameSync      high during a frame, low during flyback
-    cameraFrameSync  Mako exposure strobe, one pulse per behavior-camera frame
-
-Frame times taken from this clock are exact. The alternative -- `acq_start`
-plus `frame_index / frame_rate` -- accumulates error, because `frame_rate` is
-nominal and `acq_start` has its own jitter. Since a session is 224 separate
-~20 s acquisitions rather than one continuous movie, that error does not
-average out; it recurs per acquisition.
-
-The other channels are data rather than clocks:
-
-    odorPulse        valve command, high during delivery (NOT a PID trace)
-    respiration[:,0] raw thermocouple  [:,1] filtered, cutoffs in filter_changes
-    encoder[:,2]     velocity in cm/s, already computed on the rig
-"""
+"""Read the behavior sync H5 and recover true imaging frame times."""
 
 from __future__ import annotations
 
@@ -59,16 +38,7 @@ class SyncFile:
 
 
 def open_sync(path: str | Path) -> SyncFile:
-    """
-    Read header attributes without loading any channel data.
-
-    `n_samples` is derived from a channel's length when the attribute is
-    absent. Files written by the June 2026 rig code carry `rate_hz` and
-    `start_time` but not `n_samples`, and refusing them over a number that is
-    sitting in plain view -- every channel has exactly that many samples --
-    would rule out those sessions for no reason. The shape is read from the
-    dataset header, so nothing is loaded to get it.
-    """
+    """Read header attributes without loading any channel data."""
 
     path = Path(path)
 
@@ -121,12 +91,7 @@ def frame_onset_samples(
     channel: str = "2pFrameSync",
     min_interval_s: float = MIN_FRAME_INTERVAL_S,
 ) -> np.ndarray:
-    """
-    Sample index of every imaging frame onset in the session.
-
-    Debounced: edges closer together than `min_interval_s` are treated as one,
-    since a real inter-frame interval is at least ~20 ms.
-    """
+    """Sample index of every imaging frame onset in the session."""
 
     edges = rising_edges(read_channel(sync, channel))
 
@@ -149,15 +114,7 @@ def group_frames_into_acquisitions(
     rate_hz: int,
     gap_s: float = 2.0,
 ) -> list[np.ndarray]:
-    """
-    Split a session's frame onsets into per-acquisition blocks.
-
-    In `loop` mode the scope fires a short acquisition every
-    `loop_acq_interval_s`, so the frame clock is silent between them. Any
-    inter-frame gap far longer than one frame period is an acquisition
-    boundary; `gap_s` only has to sit between the frame period (<= ~80 ms)
-    and the loop interval (~10 s).
-    """
+    """Split a session's frame onsets into per-acquisition blocks."""
 
     if frame_samples.size == 0:
         return []
@@ -193,43 +150,7 @@ def odor_frame_alignment(
     rate_hz: int,
     align: str = "nearest",
 ) -> list[None | OdorAlignment]:
-    """
-    Anchor each acquisition's odor onset to a frame -- odor time zero.
-
-    Both the frame clock and the valve pulse come from the same 5 kHz
-    recording, so this is ground truth: it needs no assumption about frame
-    rate, baseline length, or agreement between the ScanImage and olfactometer
-    clocks, which differ by ~1.24 s (see `h5_to_trial_ms`).
-
-    `align` sets the convention when the valve edge falls inside a frame:
-
-        nearest   whichever frame onset is closest in time (default).
-        contains  the frame being acquired when the valve opened. Odor frame 0
-                  straddles the edge, so it is part baseline.
-        next      the first frame beginning at or after the edge. Frame 0 is
-                  wholly during odor, at the cost of discarding up to one
-                  frame of response.
-
-    `nearest` is the default because it halves the worst-case error (half a
-    frame period rather than a whole one) and, more importantly, makes that
-    error symmetric. `contains` places odor time zero systematically late by
-    half a period on average, and the size of that bias scales with the frame
-    period -- which varies from 21 ms at 47.7 Hz to 78 ms at 12.9 Hz across
-    these sessions, so it would not cancel when comparing them.
-
-    Alignment cannot be finer than one frame period, so the residual is
-    returned rather than silently dropped; it is a lower bound on timing error
-    for anything downstream.
-
-    Not included in any of this is the valve-to-nose transit delay. `odorPulse`
-    is the valve command, and odor takes time to reach the animal -- plausibly
-    larger than these residuals, and unmeasured here since there is no PID
-    channel. It is constant within a rig configuration, so it does not distort
-    comparisons between sessions or states, but response latencies measured
-    from this zero are overestimates by that amount.
-
-    Returns one entry per block, None where no pulse falls inside it.
-    """
+    """Anchor each acquisition's odor onset to a frame -- odor time zero."""
 
     if align not in ("contains", "next", "nearest"):
         raise ValueError(
@@ -306,13 +227,7 @@ def pulse_intervals(
     rate_hz: int,
     threshold_v: float = LOGIC_THRESHOLD_V,
 ) -> np.ndarray:
-    """
-    Return (onset_s, offset_s) for every high pulse in `signal`.
-
-    Used on `odorPulse` to recover valve open/close directly from the
-    recording, independent of what the olfactometer wrote to its event file.
-    Comparing the two is the Stage 1 odor-alignment check.
-    """
+    """Return (onset_s, offset_s) for every high pulse in `signal`."""
 
     high = (signal > threshold_v).astype(np.int8)
     change = np.diff(high)

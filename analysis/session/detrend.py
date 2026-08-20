@@ -1,77 +1,9 @@
-"""
-Remove the instrumental decay at the start of each acquisition.
-
-Every acquisition opens with a fast exponential fall in fluorescence -- 665 to
-604 a.u. over the first four seconds on group 217, ~10% -- which settles just
-as the odor arrives. It is instrumental, not physiological: the laser is
-unblanked at acquisition start and the detector settles.
-
-It matters because F0 is taken from the last second before odor onset, which
-is exactly the floor of that decay. Everything after is then compared against a
-trough, so the whole post-odor period reads 5-8% elevated and never appears to
-return to baseline. On group 217 that made all 112 ROIs "responsive".
-
-Moving the F0 window does not help: every earlier window sits higher on the
-curve and biases dF/F the other way. There is no unbiased window on a decaying
-baseline, so the decay itself has to go.
-
-**Two components, not one.** Fitting a single exponential to the pre-odor
-period alone made things worse: it lands on an asymptote of 592 while the trace
-actually settles near 648, so subtracting it lowered F0 and *widened* the
-apparent post-odor elevation, from +7.4% to +9.3%. A fit that only ever sees
-the first five seconds cannot know where the trace ends up.
-
-So the model is
-
-    F(t) = A_fast * exp(-t / tau_fast) + A_slow * exp(-t / tau_slow) + C
-
-fitted across the *whole* acquisition with the odor window and its aftermath
-masked out, so both components and the true asymptote are constrained. `t` is
-in frames from acquisition start, since the transient is locked to the
-acquisition rather than to the odor. Both exponential terms are subtracted;
-`C` is kept, because subtracting the entire fit would leave a zero-mean
-residual and dF/F would divide by nothing.
-
-**Why this is signal-safe here.** The offset it removes is field-wide, not
-glomerular: the neuropil rings show it as strongly as the ROIs (+0.077 against
-+0.072), it is far more uniform across ROIs than the odor response (CV 0.13
-against a four-fold spread), it does not scale with each ROI's own response
-(r = -0.13), it is the same before and after anaesthesia, and mineral oil shows
-it at full strength. None of that is true of an odor-evoked tail.
-
-The neuropil is deliberately *not* fitted -- it is held back as the check. If
-the correction is right, the neuropil's late elevation collapses with the
-ROIs'.
-
-**Fitting.** Both time constants are instrumental, so they are estimated once
-from the population mean rather than per ROI, where the fit would chase noise.
-With them fixed the model is linear in the two amplitudes and the offset, so
-those come from a closed-form least squares per ROI per trial -- fast, and it
-lets each ROI carry its own amplitude, which is what a field-wide transient
-scaled by brightness looks like.
-
-**Raw F is not modified.** The correction applies to traces read out of the
-round, never to what is written into it, so the stored `/traces/roi` stays raw
-and any correction can be revisited without re-extracting.
-"""
+"""Remove the instrumental decay at the start of each acquisition."""
 
 from __future__ import annotations
 
 import numpy as np
 
-# The slow constant is parameterised as a *ratio* to the fast one rather than
-# in seconds of its own.
-#
-# Two exponentials free to take any constants are not identifiable when those
-# constants are close: the fit expresses the fall-and-recover shape as the
-# difference of two nearly identical curves, with amplitudes ballooning to
-# +869/-811 to cancel, and the pair swinging 2.5-fold between halves of one
-# session. Fixing that with a hard floor on the slow constant just pins it
-# there -- which is what happened, at 5.0 s in every subset.
-#
-# A minimum ratio keeps them apart in a way the optimiser cannot defeat, and
-# scales with whatever the fast constant turns out to be, so it needs no
-# retuning per rig.
 TAU_FAST_BOUNDS_S = (0.1, 10.0)
 TAU_RATIO_BOUNDS = (2.0, 40.0)
 
@@ -92,19 +24,7 @@ def fit_baseline(
     components: int = 2,
     fit_window: str = "outside",
 ) -> dict:
-    """
-    Estimate the baseline's time constants from the population-mean trace.
-
-    `components=1` fits a single exponential; the constant then has to describe
-    both the fast settling and whatever slower drift follows, so it lands
-    somewhere between. Worth comparing against, because two components are only
-    justified if they earn it downstream -- the second one costs identifiability
-    and neither version was stable across blocks.
-
-    The odor window and `guard_s` after it are masked out, so the response
-    cannot pull the baseline model. What remains -- the pre-odor period and the
-    late tail -- is what constrains the two components and the asymptote.
-    """
+    """Estimate the baseline's time constants from the population-mean trace."""
 
     from scipy.optimize import curve_fit
 
@@ -119,10 +39,6 @@ def fit_baseline(
     mask = np.ones(n_frame, dtype=bool)
 
     if fit_window == "pre":
-        # Only the pre-odor period. This is the honest model when the
-        # post-odor elevation is real rather than instrumental: it removes the
-        # acquisition-start transient and asserts nothing about what follows.
-        # It cannot flatten the late trace, and should not be expected to.
         mask[on:] = False
     elif fit_window == "outside":
         mask[on:min(off + guard, n_frame)] = False
@@ -224,13 +140,7 @@ def detrend_traces(
     trials: None | np.ndarray = None,
     guard_s: float = RESPONSE_GUARD_S,
 ) -> tuple[np.ndarray, dict]:
-    """
-    Subtract both fitted components from every trace, keeping the offset.
-
-    `fit` reuses a result from `fit_baseline` -- pass the ROI fit when
-    correcting neuropil, so both are corrected by the same model and the
-    neuropil stays an independent check rather than being fitted to itself.
-    """
+    """Subtract both fitted components from every trace, keeping the offset."""
 
     n_roi, n_trial, n_frame = roi.shape
 
@@ -283,10 +193,6 @@ def detrend_traces(
         "guard_s": float(guard_s),
         "median_a_fast": float(np.nanmedian(amps[:, :, 0])),
         "median_a_slow": float(np.nanmedian(amps[:, :, 1])),
-        # Full per-ROI per-trial coefficients, so the correction is
-        # reproducible from the round without refitting -- and auditable, since
-        # an amplitude far from its neighbours marks a trial whose baseline did
-        # something the model did not expect.
         "a_fast": amps[:, :, 0],
         "a_slow": amps[:, :, 1],
         "fit": fit,
@@ -307,22 +213,7 @@ def fit_shape(
     trials: None | np.ndarray = None,
     guard_s: float = RESPONSE_GUARD_S,
 ) -> dict:
-    """
-    Measure the settling profile instead of assuming its functional form.
-
-    Every ROI-trial trace is divided by its own mean over the unmasked frames,
-    which removes brightness, and the median across all of them at each frame
-    is the common shape. With ~17,800 traces per frame it needs no smoothing.
-
-    The parametric fit this replaces was degenerate: `tau_slow` pinned to its
-    bound in every subset while the two amplitudes ballooned to +869/-811 to
-    cancel, and the resulting correction differed by 5.4% of mean F between
-    halves of one session -- the same size as the effect being removed. A
-    measured shape has no constants to rail against.
-
-    The shape is centred on its own mean, so subtracting `scale * shape` leaves
-    the trace's overall level alone; only the time-varying part goes.
-    """
+    """Measure the settling profile instead of assuming its functional form."""
 
     if trials is None:
         trials = np.ones(roi.shape[1], dtype=bool)
@@ -367,12 +258,7 @@ def detrend_by_shape(
     shape: dict,
     trials: None | np.ndarray = None,
 ) -> tuple[np.ndarray, dict]:
-    """
-    Regress a measured shape out of every trace, one scale per ROI per trial.
-
-    Pass the ROI shape when correcting neuropil, so both are corrected by the
-    same profile and the neuropil stays an independent check.
-    """
+    """Regress a measured shape out of every trace, one scale per ROI per trial."""
 
     centred = shape["shape"]
     mask = shape["mask"]
@@ -410,23 +296,7 @@ def fit_per_trial(
     guard_s: float = RESPONSE_GUARD_S,
     components: int = 2,
 ) -> dict:
-    """
-    One set of time constants per trial, from that trial's mean across ROIs.
-
-    Amplitudes are per ROI per trial either way -- that is what the least
-    squares in `detrend_traces` already does. What this adds is letting the
-    *shape* drift across the session, which it should if the transient damps as
-    the tissue is repeatedly exposed.
-
-    Averaging across ROIs within the trial before fitting is deliberate. Going
-    all the way to per ROI per trial means fitting five nonlinear parameters to
-    ~200 noisy frames, seventeen thousand times; the spread that produces is
-    estimation error, not biology, and the amplitudes already carry the per-ROI
-    part.
-
-    Returns per-trial fits with NaN where a trial did not converge, so the
-    caller can see the coverage rather than silently getting a fallback.
-    """
+    """One set of time constants per trial, from that trial's mean across ROIs."""
 
     if trials is None:
         trials = np.ones(roi.shape[1], dtype=bool)

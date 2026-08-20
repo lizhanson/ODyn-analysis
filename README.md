@@ -16,7 +16,7 @@ analysis/
   seg_20x/      20x soma/process segmentation, ordered curation, ROI grouping
   seg_20x/grouping.py   soma-anchored ROI groups from gap + trace correlation
   stage0/       odor and mixture tables (data-independent)
-  Stage1_10x_segmentation.ipynb    the working record/ trial and error
+  Stage1_10x_segmentation.ipynb    10x segmentation workflow
   Stage1_20x_segmentation.ipynb    approved-mcor 20x workflow for VS Code
 ```
 
@@ -27,7 +27,7 @@ and set the top cell:
 
 ```python
 GROUP_ID = 217              # not exp_id -- the two id spaces overlap
-MANIPULATION = "ketamine/xylazine"
+MANIPULATION = ""
 SEPARATE_BY_CONDITION = False
 APPROVED_ONLY = False
 ```
@@ -40,8 +40,7 @@ installation.
 **Use group ID.** removes the ambiguity, and handles
 sessions that are split across `_e1`/`_e2`.
 
-**The database is read through a snapshot.** `LocalGroup` copies the database first, under a
-bounded lock, and refuses a network path unless forced.
+**Session metadata is read from a local copy.** This avoids repeated slow reads from the server.
 
 **Correlation maps are cached after making z-score movies.** Saves time and data storage. See `session/corrcache.py`.
 

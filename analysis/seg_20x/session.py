@@ -34,14 +34,7 @@ class ApprovedGroupInputs:
 
 
 def resolve_approved_group(group, group_id: int, *, mcor_source: str | None = None):
-    """
-    Resolve only database-registered, approved mcor files for a group.
-
-    Unlike ``session.resolve_group``, this does not require odor/trial rows.
-    That is necessary for spontaneous or otherwise acquisition-only 20x
-    recordings such as group 198. There is deliberately no directory fallback:
-    if approval is absent from ``mcor_files``, the acquisition is not eligible.
-    """
+    """Resolve only database-registered, approved mcor files for a group."""
 
     mapping = group.group_experiments
     members = mapping[mapping.group_id == int(group_id)]

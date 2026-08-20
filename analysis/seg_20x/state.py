@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -10,6 +11,7 @@ import numpy as np
 from ..seg_10x.state import grow_seed
 from .segmentation import (
     PROCESS_DEFAULTS,
+    RIDGE_PARAMS,
     SOMA_DEFAULTS,
     detect_processes,
     detect_somas,
@@ -29,6 +31,57 @@ PHASES = (
     PHASE_PROCESS_CURATE,
     PHASE_GROUP,
 )
+
+BUNDLE_TYPE = "odyn_20x_mask_bundle"
+
+# 1: curated masks only, so resuming had to re-run the detectors.
+SCHEMA_VERSION = 2
+
+
+def save_portable_state(state, path, *, config=None):
+    """Save any live 20x state without relying on its bound method globals."""
+
+    import json
+    from pathlib import Path
+
+    import h5py
+
+    # Literals here are intentional. A recovery function must not depend on
+    # globals that may themselves be absent from an autoreload-created globals
+    # dictionary. Tests assert these match the public module constants.
+    bundle_type = "odyn_20x_mask_bundle"
+    schema_version = 2
+
+    path = Path(path).with_suffix(".h5")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    config = state.configuration() if config is None else config
+    table = state.roi_table()
+    arrays = {
+        "masks/soma": state.curated_somas(),
+        "masks/process": state.curated_processes(),
+        "masks/soma_automatic": state.automatic_somas(),
+        "masks/process_automatic": state.automatic_processes(),
+        "images/structural": state.structural,
+    }
+    if state.correlation is not None:
+        arrays["images/correlation"] = state.correlation
+
+    with h5py.File(path, "w") as handle:
+        handle.attrs["file_type"] = bundle_type
+        handle.attrs["schema_version"] = schema_version
+        handle.attrs["config_json"] = json.dumps(config)
+        for name, data in arrays.items():
+            handle.create_dataset(name, data=data, compression="gzip")
+        rois = handle.create_group("rois")
+        string_type = h5py.string_dtype("utf-8")
+        for column in table:
+            values = table[column]
+            rois.create_dataset(
+                column,
+                data=values.to_numpy(),
+                dtype=string_type if values.dtype == object else None,
+            )
+    return path
 
 
 class Segmentation20xState:
@@ -61,56 +114,54 @@ class Segmentation20xState:
         self._automatic_processes = None
         self._process_record = None
 
+        # Replaying every hand-placed seed costs a watershed each, and the
+        # group phase asks for the curated labels on every single click. Cache
+        # the replay and drop it when an edit actually changes it.
+        self._curated_somas = None
+        self._curated_processes = None
+        self._manual_soma_ids = {}
+        self._manual_process_ids = {}
+
+    # ---- persistence -----------------------------------------------------------
+
     @classmethod
     def load(cls, path):
-        """Resume a saved round by replaying its recorded edits and groups."""
+        """Resume a saved round, from a bundle or a legacy NPZ checkpoint."""
         path = Path(path)
+        if path.suffix == ".h5":
+            return cls.load_portable(path)
         with np.load(path, allow_pickle=False) as arrays:
-            structural = arrays["structural"]
-            correlation = arrays["correlation"] if "correlation" in arrays.files else None
+            images = {name: arrays[name] for name in arrays.files}
         config = json.loads(path.with_suffix(".json").read_text())
-        state = cls(
-            structural, correlation,
-            soma_params=config.get("soma_params"),
-            process_params=config.get("process_params"),
-        )
-        edits = config.get("curation", {})
-        state.soma_deleted = set(edits.get("soma_deleted", []))
-        state.soma_added_seeds = [tuple(v) for v in edits.get("soma_added_seeds", [])]
-        state.soma_deleted_seeds = set(edits.get("soma_deleted_seeds", []))
-        state.process_deleted = set(edits.get("process_deleted", []))
-        state.manual_skeletons = [
-            [tuple(vertex) for vertex in vertices]
-            for vertices in edits.get("manual_skeletons", [])
-        ]
-        state.deleted_manual_skeletons = set(
-            edits.get("deleted_manual_skeletons", [])
-        )
-        state.groups = {}
-        for key, group_id in config.get("groups", {}).items():
-            kind, ident = key.split(":", 1)
-            state.groups[(kind, int(ident))] = int(group_id)
-        phase = config.get("summary", {}).get("phase", PHASE_GROUP)
-        if phase not in PHASES:
-            raise ValueError(f"Saved round has unknown phase {phase!r}.")
-        state.phase = phase
+        state = cls._from_config(images.get("structural"), images.get("correlation"), config)
+        state._restore_masks(images, config, source=path)
         return state
 
     @classmethod
     def load_portable(cls, path):
-        """Resume from a single portable 20x mask HDF5 bundle."""
+        """Resume from a single portable 20x mask bundle."""
+        # Resolve these inside the call.
+        import json
         import h5py
+        from pathlib import Path
+
+        from .state import BUNDLE_TYPE as bundle_type
 
         path = Path(path)
         with h5py.File(path, "r") as handle:
-            if handle.attrs.get("file_type", "") != "odyn_20x_mask_bundle":
+            if handle.attrs.get("file_type", "") != bundle_type:
                 raise ValueError(f"Not an ODyn 20x mask bundle: {path}")
-            structural = handle["images/structural"][:]
-            correlation = (
-                handle["images/correlation"][:]
-                if "correlation" in handle["images"] else None
-            )
             config = json.loads(handle.attrs["config_json"])
+            images = {name: handle["images"][name][:] for name in handle["images"]}
+            masks = {name: handle["masks"][name][:] for name in handle["masks"]}
+
+        state = cls._from_config(images.get("structural"), images.get("correlation"), config)
+        state._restore_masks(masks, config, source=path)
+        return state
+
+    @classmethod
+    def _from_config(cls, structural, correlation, config):
+        """A state carrying the saved parameters, edits, groups, and phase."""
         state = cls(
             structural, correlation,
             soma_params=config.get("soma_params"),
@@ -131,8 +182,70 @@ class Segmentation20xState:
             for key, group_id in config.get("groups", {}).items()
             for kind, ident in [key.split(":", 1)]
         }
-        state.phase = config.get("summary", {}).get("phase", PHASE_GROUP)
+        phase = config.get("summary", {}).get("phase", PHASE_GROUP)
+        if phase not in PHASES:
+            raise ValueError(f"Saved round has unknown phase {phase!r}.")
+        state.phase = phase
         return state
+
+    def _restore_masks(self, arrays, config, *, source):
+        """Take the saved labels rather than detecting them again."""
+        automatic = {
+            "soma": arrays.get("soma_automatic"),
+            "process": arrays.get("process_automatic"),
+        }
+        if automatic["soma"] is None or automatic["process"] is None:
+            warnings.warn(
+                f"{source} predates schema {SCHEMA_VERSION} and stores only curated "
+                "masks, so its labels have to be detected again and may differ from "
+                "the ones that were curated. Re-save it to pin them.",
+                stacklevel=3,
+            )
+            return
+
+        self._automatic_somas = np.asarray(automatic["soma"], np.int32)
+        self._automatic_processes = np.asarray(automatic["process"], np.int32)
+
+        for kind, expected in (("soma", arrays.get("soma")), ("process", arrays.get("process"))):
+            if expected is None:
+                continue
+            replayed = self.curated_somas() if kind == "soma" else self.curated_processes()
+            if not np.array_equal(replayed, np.asarray(expected, np.int32)):
+                raise ValueError(
+                    f"Replaying the saved edits on {source} does not reproduce its stored "
+                    f"{kind} labels. The masks in the file are authoritative; this state "
+                    "cannot be edited further without diverging from them."
+                )
+
+    def save(self, path):
+        """Write the one bundle that holds masks, images, edits, and groups."""
+        return self.export_portable(Path(path).with_suffix(".h5"))
+
+    def export_portable(self, path, *, config=None):
+        """Write one self-contained, cross-computer mask/curation bundle."""
+        return save_portable_state(self, path, config=config)
+
+    def roi_table(self):
+        """One row per curated ROI, with its group where it has one."""
+        import pandas as pd
+        from skimage.measure import regionprops
+
+        rows = []
+        for kind, labels in (("soma", self.curated_somas()), ("process", self.curated_processes())):
+            for region in regionprops(labels):
+                ident = int(region.label)
+                rows.append({
+                    "roi_type": kind,
+                    "source_roi_id": ident,
+                    "roi_group_id": self.groups.get((kind, ident), -1),
+                    "area_px": int(region.area),
+                    "centroid_y": round(float(region.centroid[0]), 1),
+                    "centroid_x": round(float(region.centroid[1]), 1),
+                })
+        return pd.DataFrame(rows, columns=[
+            "roi_type", "source_roi_id", "roi_group_id",
+            "area_px", "centroid_y", "centroid_x",
+        ])
 
     # ---- parameters and phases -------------------------------------------------
 
@@ -143,6 +256,7 @@ class Segmentation20xState:
             raise KeyError(name)
         self.soma_params[name] = value
         self._automatic_somas = self._soma_record = None
+        self._invalidate_somas()
 
     def set_process_param(self, name, value):
         if self.phase != PHASE_PROCESS_TUNE:
@@ -150,7 +264,19 @@ class Segmentation20xState:
         if name not in self.process_params:
             raise KeyError(name)
         self.process_params[name] = value
+        if name in RIDGE_PARAMS:
+            self._ridge = None
         self._automatic_processes = self._process_record = None
+        self._invalidate_processes()
+
+    def _invalidate_somas(self):
+        # Processes are detected against the curated somas and flooded around
+        # them, so a soma edit invalidates both.
+        self._curated_somas = None
+        self._invalidate_processes()
+
+    def _invalidate_processes(self):
+        self._curated_processes = None
 
     def advance(self):
         index = PHASES.index(self.phase)
@@ -161,6 +287,7 @@ class Segmentation20xState:
         elif self.phase == PHASE_SOMA_CURATE:
             self.curated_somas()
             self._automatic_processes = self._process_record = None
+            self._invalidate_processes()
         elif self.phase == PHASE_PROCESS_TUNE:
             self.automatic_processes()
         elif self.phase == PHASE_PROCESS_CURATE:
@@ -194,6 +321,7 @@ class Segmentation20xState:
         if target < 3:
             self.process_deleted.clear(); self.manual_skeletons.clear(); self.deleted_manual_skeletons.clear()
         self.selected.clear(); self.groups.clear()
+        self._invalidate_somas()
 
     # ---- soma ------------------------------------------------------------------
 
@@ -205,6 +333,12 @@ class Segmentation20xState:
         return self._automatic_somas
 
     def curated_somas(self):
+        if self._curated_somas is None:
+            self._curated_somas = self._replay_somas()
+            self._curated_somas.flags.writeable = False
+        return self._curated_somas
+
+    def _replay_somas(self):
         labels = self.automatic_somas().copy()
         for ident in self.soma_deleted:
             labels[labels == ident] = 0
@@ -234,6 +368,7 @@ class Segmentation20xState:
         if self.phase != PHASE_SOMA_CURATE:
             raise RuntimeError("Somas can only be added during soma curation.")
         self.soma_added_seeds.append((int(y), int(x)))
+        self._invalidate_somas()
 
     def delete_soma_at(self, y, x):
         if self.phase != PHASE_SOMA_CURATE:
@@ -246,6 +381,7 @@ class Segmentation20xState:
             self.soma_deleted_seeds.add(self._manual_soma_ids[ident])
         else:
             self.soma_deleted.add(ident)
+        self._invalidate_somas()
         return ident
 
     # ---- process ---------------------------------------------------------------
@@ -269,6 +405,12 @@ class Segmentation20xState:
         return foreground, floor
 
     def curated_processes(self):
+        if self._curated_processes is None:
+            self._curated_processes = self._replay_processes()
+            self._curated_processes.flags.writeable = False
+        return self._curated_processes
+
+    def _replay_processes(self):
         from scipy.ndimage import binary_dilation
         from skimage.draw import line
         from skimage.filters import threshold_local
@@ -323,6 +465,7 @@ class Segmentation20xState:
             self.deleted_manual_skeletons.add(self._manual_process_ids[ident])
         else:
             self.process_deleted.add(ident)
+        self._invalidate_processes()
         return ident
 
     def add_skeleton(self, vertices):
@@ -330,6 +473,7 @@ class Segmentation20xState:
             raise RuntimeError("Skeletons can only be added during process curation.")
         if len(vertices) >= 2:
             self.manual_skeletons.append([(int(y),int(x)) for y,x in vertices])
+            self._invalidate_processes()
 
     # ---- grouping --------------------------------------------------------------
 
@@ -361,6 +505,21 @@ class Segmentation20xState:
 
     def next_group_id(self):
         return max(self.groups.values(), default=0) + 1
+
+    def autogroup(self, traces, *, um_per_px, params=None, keep_manual=False):
+        """Replace the grouping with one derived from proximity and correlation."""
+        from .grouping import group_rois
+
+        if self.phase != PHASE_GROUP:
+            raise RuntimeError("ROI grouping is only available in the group phase.")
+        groups, diagnostics = group_rois(
+            self.curated_somas(), self.curated_processes(), traces,
+            um_per_px=um_per_px, params=params,
+        )
+        manual = dict(self.groups) if keep_manual else {}
+        self.groups = {**groups, **manual}
+        self.selected.clear()
+        return diagnostics
 
     # ---- output ----------------------------------------------------------------
 
@@ -397,67 +556,3 @@ class Segmentation20xState:
             },
             "summary": self.summary(),
         }
-
-    def save(self, path):
-        import pandas as pd
-        from skimage.measure import regionprops
-
-        path = Path(path); path.parent.mkdir(parents=True, exist_ok=True)
-        somas, processes = self.curated_somas(), self.curated_processes()
-        arrays = {"soma_labels": somas, "process_labels": processes,
-                  "structural": self.structural}
-        if self.correlation is not None:
-            arrays["correlation"] = self.correlation
-        np.savez_compressed(path, **arrays)
-        rows = []
-        for kind, labels in (("soma",somas),("process",processes)):
-            for region in regionprops(labels):
-                key=(kind,int(region.label))
-                rows.append({"roi_id":f"{kind[0]}{region.label}","roi_type":kind,
-                             "roi_group_id":self.groups.get(key),"area_px":int(region.area),
-                             "centroid_y":round(region.centroid[0],1),
-                             "centroid_x":round(region.centroid[1],1)})
-        pd.DataFrame(rows).to_csv(path.with_suffix(".csv"),index=False)
-        config = self.configuration()
-        path.with_suffix(".json").write_text(json.dumps(config,indent=2))
-        self.export_portable(path.with_suffix(".h5"), config=config)
-        return path
-
-    def export_portable(self, path, *, config=None):
-        """Write one self-contained, cross-computer mask/curation bundle."""
-        import h5py
-        from skimage.measure import regionprops
-
-        path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        somas, processes = self.curated_somas(), self.curated_processes()
-        if config is None:
-            config = self.configuration()
-
-        with h5py.File(path, "w") as handle:
-            handle.attrs["file_type"] = "odyn_20x_mask_bundle"
-            handle.attrs["schema_version"] = 1
-            handle.attrs["config_json"] = json.dumps(config)
-            masks = handle.create_group("masks")
-            masks.create_dataset("soma", data=somas, compression="gzip")
-            masks.create_dataset("process", data=processes, compression="gzip")
-            images = handle.create_group("images")
-            images.create_dataset("structural", data=self.structural, compression="gzip")
-            if self.correlation is not None:
-                images.create_dataset("correlation", data=self.correlation, compression="gzip")
-
-            rows = []
-            for kind, labels in (("soma", somas), ("process", processes)):
-                for region in regionprops(labels):
-                    ident = int(region.label)
-                    rows.append((kind, ident, self.groups.get((kind, ident), -1),
-                                 int(region.area), *region.centroid))
-            rois = handle.create_group("rois")
-            string_type = h5py.string_dtype("utf-8")
-            rois.create_dataset("roi_type", data=[r[0] for r in rows], dtype=string_type)
-            rois.create_dataset("source_roi_id", data=[r[1] for r in rows])
-            rois.create_dataset("roi_group_id", data=[r[2] for r in rows])
-            rois.create_dataset("area_px", data=[r[3] for r in rows])
-            rois.create_dataset("centroid_y", data=[r[4] for r in rows])
-            rois.create_dataset("centroid_x", data=[r[5] for r in rows])
-        return path

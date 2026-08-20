@@ -1,18 +1,4 @@
-"""Take a lock-free, best-effort copy of the shared SQLite database.
-
-The source lives on an SMB share in rollback-journal mode. Even a read-only
-SQLite connection takes a SHARED lock there, so this module never opens the
-source with SQLite. It copies ordinary file bytes, validates the local copy,
-and atomically installs it only after validation. A clean copy must pass
-``quick_check``; when the source itself has known integrity errors, every table
-used by analysis must instead be fully readable.
-
-This is deliberately not a transactionally consistent snapshot. A commit that
-overlaps the copy can produce pages from slightly different points in time.
-Neither validation level can prove that every table represents one instant.
-That trade is acceptable for this exploratory analysis and avoids ever
-blocking data acquisition.
-"""
+"""Take a lock-free, best-effort copy of the shared SQLite database."""
 
 from __future__ import annotations
 
@@ -72,11 +58,6 @@ def _validate_copy(path: Path) -> tuple[str, str | None]:
         if rows == ["ok"]:
             return "quick_check", None
 
-        # The live database currently has persistent integrity-check failures
-        # in rows unrelated to some workflows. Strict consistency is not
-        # required for analysis, but accepting a copy merely because it opens
-        # is too weak: traverse every table LocalGroup can expose so damaged
-        # b-tree pages or unreadable rows still reject the copy.
         _scan_analysis_tables(con)
     finally:
         con.close()
@@ -96,15 +77,7 @@ def snapshot_database(
     sleep: float | None = None,
     budget_s: float | None = None,
 ) -> dict:
-    """Copy ``source`` without opening it or taking a SQLite lock.
-
-    The temporary copy is checked locally and atomically replaces
-    ``destination``. If the source changes during copying, a structurally
-    valid result is accepted but marked as best-effort. Its mtime remains the
-    pre-copy source mtime so a subsequent call will try to refresh it.
-
-    Raises ``SnapshotError`` only if no previous snapshot can be reused.
-    """
+    """Copy ``source`` without opening it or taking a SQLite lock."""
 
     del pages, sleep, budget_s
 

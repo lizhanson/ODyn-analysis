@@ -1,37 +1,4 @@
-"""
-Streaming summary images for segmentation.
-
-A pre/post-ket session is 160-224 acquisitions of ~0.6-3.3 GB each, held on an
-SMB share that reads at ~5 MB/s. Reading one is unavoidable; reading it twice
-is not affordable. So every summary a segmenter might want is accumulated in
-a single pass, and the results -- a handful of 2-D images -- are cached.
-
-The images that come out:
-
-    mean             average fluorescence; anatomy, including silent structure
-    max              max projection; catches transients the mean washes out
-    correlation      local (8-neighbour) correlation; the classic cell-finding
-                     image, high where neighbouring pixels co-vary
-    activity         |strongest odor response| per pixel -- the detection map
-    activity_signed  the same, keeping sign: positive excited, negative
-                     suppressed
-    response_by_odor per-odor signed response maps, one per odor_id
-
-`activity` is deliberately two-sided. The z-score is computed per trial
-against that trial's own pre-odor baseline, averaged *within odor* across
-trials so noise cancels, and only then reduced across odors by taking each
-pixel's largest absolute response. A unit that is only ever suppressed
-produces a strong negative response and is exactly as findable as one that is
-only ever excited -- which an earlier `max()`-based version was not, since a
-purely inhibited unit peaked near zero.
-
-Detection is therefore biased toward *responsive* units, excited or
-suppressed, and away from units that never modulate. That is intended. What
-it must not do is bias toward excitation specifically, because the
-excited/suppressed balance analysis would then be measuring its own detection
-step. `mean` and `correlation` remain available for detecting structurally
-present but unmodulated units if that is ever wanted.
-"""
+"""Streaming summary images for segmentation."""
 
 from __future__ import annotations
 
@@ -95,13 +62,7 @@ class SummaryImages:
 
 
 def local_correlation(movie: np.ndarray) -> np.ndarray:
-    """
-    Correlation of each pixel's time course with its 8 neighbours.
-
-    Equivalent in spirit to CaImAn's `local_correlations`, written out here so
-    the summary pass does not pull in the full CaImAn import for one image.
-    Pixels with no variance (dead or saturated) return 0 rather than NaN.
-    """
+    """Correlation of each pixel's time course with its 8 neighbours."""
 
     movie = movie.astype(np.float32, copy=False)
 
@@ -147,21 +108,7 @@ def trial_zscore_response(
     odor_off_frame: int,
     baseline_end_frame: None | int = None,
 ) -> np.ndarray:
-    """
-    Mean odor-window z-score per pixel for one trial, sign preserved.
-
-    Baseline is the pre-odor portion of the same trial, so slow drift and
-    bleaching cancel.
-
-    The mean over the window is used rather than the peak, for two reasons.
-    A peak taken as `max` is blind to suppression -- an inhibited unit has a
-    negative deflection and would score near zero. And `max(|z|)` on a single
-    trial is positively biased even for pure noise, because it selects the
-    most extreme of ~100 noisy frames; averaging that across trials reduces
-    its variance but not its bias. A signed mean has neither problem: noise
-    averages toward zero, and excitation and suppression come out with
-    opposite sign and comparable sensitivity.
-    """
+    """Mean odor-window z-score per pixel for one trial, sign preserved."""
 
     if baseline_end_frame is None:
         baseline_end_frame = odor_on_frame
@@ -191,16 +138,7 @@ def build_summary_images(
     odor_off_frames: list[int],
     odor_ids: None | list[int] = None,
 ) -> SummaryImages:
-    """
-    One streaming pass over a session's motion-corrected acquisitions.
-
-    `odor_on_frames`/`odor_off_frames` give the odor window per acquisition, in
-    frames relative to that acquisition's first frame. They are computed from
-    the sync frame clock rather than assumed, because baseline length varies
-    between sessions and frame rate varies between 12.9 and 47.7 Hz.
-
-    Memory stays at roughly one acquisition; nothing is concatenated.
-    """
+    """One streaming pass over a session's motion-corrected acquisitions."""
 
     if not movie_paths:
         raise ValueError("No movie paths given.")
@@ -219,10 +157,6 @@ def build_summary_images(
     corr_sum = None
     n_frames = 0
 
-    # Per-odor accumulators, because responses are odor-specific: a glomerulus
-    # driven by 1 of 16 odors would be diluted 16-fold by pooling. Each is a
-    # single 2-D map, so this costs n_odors * H * W * 4 bytes (~18 MB for a
-    # 16-odor session at 526x550), not a movie per odor.
     response_sum: dict[int, np.ndarray] = {}
     response_n: dict[int, int] = {}
 
@@ -264,10 +198,6 @@ def build_summary_images(
 
     n = len(movie_paths)
 
-    # Trial-average within odor first (noise cancels), then take each pixel's
-    # strongest response across odors, keeping its sign. Detection uses the
-    # magnitude, so a unit that is only ever suppressed is as findable as one
-    # that is only ever excited.
     signed = {
         odor_id: response_sum[odor_id] / response_n[odor_id] for odor_id in response_sum
     }

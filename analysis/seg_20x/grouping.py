@@ -1,36 +1,4 @@
-"""
-Group somas and processes by spatial proximity and temporal correlation.
-
-Manual grouping asks the curator to decide, for every process, which soma it
-belongs to. The only evidence on screen is a static image, so the judgement is
-made almost entirely on proximity -- which is exactly the cue that is also the
-confound. A process ROI abutting a soma shares signal with it through the point
-spread function whether or not it is that cell's neurite, so "they are close and
-they covary" is partly guaranteed before any biology enters.
-
-Two things follow, and this module is built around both.
-
-Grouping is agglomerative, strongest link first, under one hard constraint: a
-group holds at most one soma. Nothing else is required. A chain of processes
-whose parent soma is out of plane -- which at 20x is most of them -- is a
-perfectly good group on its own, so processes are never made to find a soma.
-But a process is never placed in a group containing two somas either, because
-that is the one merge that cannot be true: the ROI would be claiming to belong
-to two cells at once. Where a process bridges two somas it goes to whichever it
-correlates with more strongly, and the losing link is recorded as refused
-rather than silently dropped.
-
-That constraint is also what stops single linkage running away. A threshold
-graph over touching neuropil will otherwise chain half the field into one
-component; here the chain stops at the second soma it reaches.
-
-And the confound stays visible. `proximity_correlation_profile` reports mean
-correlation against gap for every pair in range. If correlation falls off with
-distance and then flattens well above zero, the short-range links carry
-something beyond adjacency. If it decays to nothing over roughly the width of
-the PSF, the grouping is measuring the microscope, and the thresholds should be
-read as such.
-"""
+"""Group somas and processes by spatial proximity and temporal correlation."""
 
 from __future__ import annotations
 
@@ -68,14 +36,7 @@ def roi_index_image(soma_labels, process_labels):
 
 
 def pairwise_gaps(index, n_roi, max_gap_px):
-    """
-    Nearest-pixel distance between every pair of ROIs closer than the cutoff.
-
-    Each ROI is measured inside its own bounding box grown by the cutoff, so
-    the cost scales with total ROI area rather than with frame area times ROI
-    count. A pair within the cutoff always has pixels inside that box, so
-    nothing in range is missed.
-    """
+    """Nearest-pixel distance between every pair of ROIs closer than the cutoff."""
     from scipy.ndimage import distance_transform_edt, find_objects
 
     gaps: dict[tuple[int, int], float] = {}
@@ -122,13 +83,7 @@ def _correlations(matrix):
 
 
 def group_rois(soma_labels, process_labels, traces, *, um_per_px, params=None):
-    """
-    ROI groups from nearest-pixel gap and trace correlation, one soma each.
-
-    `traces` maps ("soma"|"process", label) to that ROI's time course. Returns
-    ``(groups, diagnostics)``: the mapping the state stores, and a row per
-    candidate pair recording gap, correlation, and what became of the link.
-    """
+    """ROI groups from nearest-pixel gap and trace correlation, one soma each."""
     import pandas as pd
 
     columns = ["roi_a", "roi_b", "gap_um", "correlation", "linked", "status"]
@@ -209,13 +164,7 @@ def group_rois(soma_labels, process_labels, traces, *, um_per_px, params=None):
 def proximity_correlation_profile(
     soma_labels, process_labels, traces, *, um_per_px, params=None
 ):
-    """
-    Mean correlation against nearest-pixel gap, which is the control.
-
-    Run this before trusting a grouping. Correlation that decays to zero within
-    a micron or two of the PSF width says the links are adjacency; correlation
-    that stays raised out to several microns says there is something to group.
-    """
+    """Mean correlation against nearest-pixel gap, which is the control."""
     import pandas as pd
 
     p = {**GROUPING_DEFAULTS, **(params or {})}
@@ -248,16 +197,7 @@ def proximity_correlation_profile(
 
 
 def traces_from_round(round_path, roi_manifest, *, center_each_trial=True):
-    """
-    Per-ROI time courses from a finalized round, keyed for `group_rois`.
-
-    Trials are concatenated rather than averaged, and each is centred and
-    scaled on its own baseline first, for the same reason the correlation image
-    centres each block: without it, an ROI that sits high in one trial and low
-    in another contributes a large between-trial deviation to every pair, and
-    ROIs correlate because they share the trial structure rather than because
-    they covary in time. Detrended traces are used where the round has them.
-    """
+    """Per-ROI time courses from a finalized round, keyed for `group_rois`."""
     from ..session.h5io import open_h5
     from ..session.responders import load_roi_traces
 

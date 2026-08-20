@@ -1,25 +1,4 @@
-"""
-Stage 0: build the canonical odor tables from the Moss Lab odor spreadsheet.
-
-These tables are data-independent (they describe the stimulus set, not any
-recording) and everything downstream keys off them, so they are built first.
-
-They deliberately live *outside* the odyn database for now, as flat CSVs keyed
-on `odor_id`. That key is the same `odors.odor_id` the database already uses in
-`trials.odor_id`, so retrofitting these into SQL later is a straight
-`CREATE TABLE` + `INSERT` with no re-keying.
-
-Run:
-    python -m analysis.stage0.build_odor_tables path/to/Moss_Lab_Odors.xlsx
-
-Outputs, written next to this file:
-    odor_dictionary.csv      one row per odor_id (singles, mixes, control)
-    mixture_composition.csv  one row per (mix, component) pair
-    odor_panels.csv          one row per (panel, vial position)
-
-Parsing uses only the standard library: an .xlsx is a zip of XML, and openpyxl
-is not installed in the `caiman` environment this repo runs in.
-"""
+"""Stage 0: build the canonical odor tables from the Moss Lab odor spreadsheet."""
 
 from __future__ import annotations
 
@@ -42,10 +21,6 @@ OUT_DIR = Path(__file__).parent
 # Rows in `Mono` whose name is a placeholder rather than a real reagent.
 MONO_PLACEHOLDERS = {"used for mixes", "not assigned"}
 
-# Panels are defined by which sheet they print from and how many vial
-# positions are loaded. The 7-odor panel is the first 7 positions of the
-# same physical rack as the 12-odor panel, so it is a slice of "Print v1"
-# rather than a sheet of its own.
 PANELS = [
     ("panel_16", "Print v3", None),
     ("panel_12", "Print v1", None),
@@ -159,14 +134,7 @@ def _round(val: None | float, digits: int) -> None | float:
 
 
 def build_mixtures(sheets) -> tuple[list[dict], dict[int, dict]]:
-    """Parse `Mixes` into one row per (mix, component) pair.
-
-    Column letters from the sheet header:
-      A mix id | B mix name | C used for | D tested | E VP ratio | F flag
-      G/H/I/J  component A name / id / VP / goal ppm
-      T/U/V/W  component B name / id / VP / goal ppm
-      AG/AH/AI mineral oil ml / odor sccm / total sccm
-    """
+    """Parse `Mixes` into one row per (mix, component) pair."""
 
     rows: list[dict] = []
     mixes: dict[int, dict] = {}
@@ -223,12 +191,7 @@ def build_mixtures(sheets) -> tuple[list[dict], dict[int, dict]]:
 
 
 def build_dictionary(sheets, mixes: dict[int, dict]) -> list[dict]:
-    """Parse `Mono` and merge in the mixes to give one row per odor_id.
-
-    Column letters from the sheet header:
-      A id | B name | C CAS | W notes | Y descriptors
-      AA class I/II | AB chemical group | AC chemical class | AD VP
-    """
+    """Parse `Mono` and merge in the mixes to give one row per odor_id."""
 
     out: dict[int, dict] = {}
 
@@ -280,12 +243,7 @@ def build_dictionary(sheets, mixes: dict[int, dict]) -> list[dict]:
 
 
 def build_panels(sheets) -> list[dict]:
-    """Parse the print sheets into one row per (panel, vial position).
-
-    `Print v3` and `Print v1` differ: v3 targets a delivered ppm per
-    component directly, v1 mixes by liquid volume fraction. Both expose the
-    resulting per-component ppm, which is the column analyses should use.
-    """
+    """Parse the print sheets into one row per (panel, vial position)."""
 
     # (vial, odor id, mix name, A id, A ppm, B id, B ppm, odor sccm, total sccm)
     layouts = {
@@ -338,15 +296,7 @@ def build_panels(sheets) -> list[dict]:
 
 
 def build_mixture_feasibility(panel_rows: list[dict]) -> list[dict]:
-    """Per (panel, mix, component): can the mixture prediction be built?
-
-    Stage 5 predicts a mixture response from the *measured* responses to its
-    component singles. That needs each component to appear on the same panel
-    as a single, at the concentration it takes inside the mix. Where the two
-    concentrations differ, the prediction relies on a dose extrapolation that
-    was never measured, so the size of that gap is what decides whether a mix
-    is usable.
-    """
+    """Per (panel, mix, component): can the mixture prediction be built?"""
 
     rows: list[dict] = []
 

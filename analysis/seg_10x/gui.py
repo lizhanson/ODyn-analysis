@@ -1,34 +1,4 @@
-"""
-Three-phase segmentation GUI, rendered with Bokeh in the notebook.
-
-Bokeh rather than matplotlib widgets, to match `Group.pick_mcor_parameters` --
-same `output_notebook()` + `bpl.show(modify_doc)` pattern, same VSCode
-workaround, so both of odyn's interactive tools behave the same way and need
-no backend juggling.
-
-    TUNE     per-odor sliders re-run segmentation live, across all odors or
-             one. No manual edits exist yet, so nothing can be lost.
-    MERGE    per-odor masks are combined into one consensus mask; the merge
-             sliders are live and the segmentation ones are frozen.
-    CURATE   everything frozen; add, delete, and mask out ROIs on the merged
-             mask.
-
-Curation comes after merging, on the consensus. Curating each odor separately
-would repeat the same judgements up to sixteen times and could leave the merge
-reconciling decisions a human already made.
-
-Added ROIs are watershed seeds, not stamped disks: a hand-placed ROI grows to
-fit the image the way an automatic one does, so its footprint -- and the trace
-extracted from it -- means the same thing.
-
-All state lives in `state.SegmentationState`, which is GUI-free and tested
-separately; this module is only widgets and drawing.
-
-Usage, in a notebook cell:
-
-    from analysis.seg_10x.gui import launch
-    launch(corr_by_odor, save_path="masks.npz")
-"""
+"""Three-phase segmentation GUI, rendered with Bokeh in the notebook."""
 
 from __future__ import annotations
 
@@ -201,11 +171,6 @@ class SegmentationGUI:
         self.b_reset = Button(label="Reset", width=300)
         self.b_reset.on_click(self._on_reset)
 
-        # Explicit buttons rather than double-tap to close. Bokeh emits two
-        # Tap events before a DoubleTap, so the closing double-click also
-        # appended two spurious vertices, and the ordering of the three
-        # callbacks is not guaranteed -- the polygon frequently closed on a
-        # shape the user had not drawn, or not at all.
         self.b_close_poly = Button(label="Close polygon", width=145)
         self.b_close_poly.on_click(self._close_polygon)
 
@@ -353,14 +318,7 @@ class SegmentationGUI:
         self._refresh()
 
     def _report_seed(self, index: int) -> None:
-        """
-        Say what happened to a seed, rather than letting it vanish silently.
-
-        A rejected click looks identical to a click that missed the canvas, and
-        the usual cause -- the space is already inside a neighbouring ROI --
-        is not visible from the overlay, since the neighbour is drawn in the
-        same colours as everything else.
-        """
+        """Say what happened to a seed, rather than letting it vanish silently."""
 
         # Rebuilding the mask is what populates the rejection record.
         self.state.curated_mask()
@@ -489,12 +447,7 @@ class SegmentationGUI:
 
 
 def launch(images: dict, *, save_path: str | Path, params: None | dict = None):
-    """
-    Open the segmentation GUI on `{odor key: image}` inside a notebook.
-
-    Mirrors `Group.pick_mcor_parameters`, including the BOKEH_ALLOW_WS_ORIGIN
-    workaround needed to render inside VSCode.
-    """
+    """Open the segmentation GUI on `{odor key: image}` inside a notebook."""
 
     import sys
 

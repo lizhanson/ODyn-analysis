@@ -1,40 +1,4 @@
-"""
-Sniff frequency from the thermocouple, as a trace rather than a per-trial number.
-
-The rig records respiration at 5 kHz for the whole session, in two columns:
-`[:, 0]` is the raw thermocouple and `[:, 1]` is the same signal bandpassed
-with the cutoffs listed in `/filter_changes` (0.5-20 Hz on m466). The filtered
-column is what this uses; the raw one is kept for quality scoring, since a
-bandpass hides exactly the failure it needs to detect.
-
-Frequency is estimated from **inhalation onsets**, not from a Hilbert phase.
-Sniffing is not sinusoidal -- inhalation is fast and exhalation slow -- and an
-analytic phase on a sawtooth-like waveform reports a frequency that swings
-within each cycle. Onsets are also the physiological event: odor reaches the
-epithelium on inhalation, so the interval between onsets is the quantity the
-olfactory literature reports, and 1/interval is directly interpretable.
-
-Output is a continuous trace at the imaging frame times, not an average over
-a fixed window. Odor presentation drives a dynamic change in sniffing in awake
-mice -- a burst at onset, often a second shift at offset -- so any fixed
-pre/post window bakes in an assumption about when that happens. A trace lets
-the window be chosen afterwards, and lets the time course itself be the
-result.
-
-**Quality.** A thermocouple that has drifted out of the nostril still produces
-a signal; it is just no longer respiration. Scoring is per second, from the
-raw column, as the share of power inside the sniff band. A displaced probe
-loses band power to broadband noise and drift while its total power may not
-change at all, which is why the score is a ratio rather than an amplitude.
-
-Two traces come back, deliberately:
-
-    frequency         every estimate, including across bad stretches
-    frequency_masked  the same, NaN wherever quality falls below threshold
-
-Keeping both means a downstream average can be recomputed at a different
-threshold, and that a gap is visibly a gap rather than silently absent.
-"""
+"""Sniff frequency from the thermocouple, as a trace rather than a per-trial number."""
 
 from __future__ import annotations
 
@@ -44,42 +8,6 @@ import numpy as np
 # headroom without admitting the 60 Hz line or the fast edge of the filter.
 SNIFF_BAND_HZ = (0.5, 15.0)
 
-# Cutoffs for the bandpass this module applies to the RAW column, rather than
-# using the rig's pre-filtered `respiration[:, 1]`.
-#
-# Three reasons not to use the stored column. Its cutoffs are not constant
-# across sessions -- `/filter_changes` reads 0.5-20 Hz on m466 and 0.5-15 Hz
-# on m472 -- so traces filtered differently are not comparable, and nothing
-# downstream would notice. It carries a +12 ms lag against a zero-phase
-# filter, which shifts every onset by the same amount and so biases any
-# alignment to odor onset. And a signal riding a slow upward drift may never
-# cross zero at all, losing the breath entirely; a slightly higher high-pass
-# corner recovers those (5.09 -> 5.64 crossings/s on m472).
-#
-# The high-pass sits at 1.0 Hz rather than 1.5: anaesthetised mice breathe
-# down to 1-2 Hz, and a corner at 1.5 would attenuate the post block of every
-# ket/xyl session while looking fine on the awake one.
-# The low-pass sits at 50 Hz, far above the sniff band, because it is not
-# there to define the band -- it is there to keep the inhalation edge sharp.
-# A fast bout is 8-12 Hz with a sawtooth-like waveform, so a 20 Hz corner
-# passes only the fundamental and first harmonic and rounds the onset off
-# until it stops crossing zero.
-#
-# Measured on m472 across cutoffs, comparing a quiet stretch (60-66 s) with a
-# fast bout (68-71 s):
-#
-#     band     quiet    bout
-#     1-15      3.33    5.67
-#     1-20      3.33    6.00
-#     1-40      3.33    6.67
-#     1-50      3.33    7.00
-#     1-60      3.33    7.00
-#     1-80      3.83    7.00   <- quiet stretch rises: admitting noise
-#
-# The quiet rate is flat to 60 Hz while the bout climbs, so the extra onsets
-# are recovered sharpness rather than noise. 50 rather than 60 because mains
-# sits at 60 Hz at 5.8x the local median here, and a Butterworth corner is
-# only -3 dB at the corner; 50 gives the same counts without it.
 FILTER_BAND_HZ = (1.0, 50.0)
 FILTER_ORDER = 2
 
@@ -88,84 +16,15 @@ FILTER_ORDER = 2
 # interpolation instead of being allowed to pull the trace.
 MIN_FREQ_HZ, MAX_FREQ_HZ = 0.5, 15.0
 
-# Comparison band for the quality score: what the signal looks like where
-# there is no respiration. Above the 20 Hz filter cutoff and below the
-# digitisation noise floor, which on this rig holds 56% of raw power above
-# 100 Hz. The score is in-band power over this, so it is an SNR and collapses
-# toward 1 when the probe stops seeing breath -- unlike a share-of-total,
-# which cannot exceed ~0.02 here however good the signal is, because 41% of
-# raw power sits below 0.2 Hz as slow drift.
 NOISE_BAND_HZ = (20.0, 100.0)
 
-# Hysteresis: how far below zero the signal must go between accepted onsets,
-# as a fraction of a typical trough. Without it every noise wiggle across zero
-# counts -- on m466 the bare crossing rate is 9.35 Hz against an FFT peak at
-# 3.22 Hz. This rejects crossings that are not part of a full breath while
-# leaving the timing of real onsets untouched.
-#
-# The trough is the 10th percentile of the signal, NOT a MAD. `1.4826 * MAD`
-# is the Gaussian-calibrated estimate of sigma and does not transfer to a
-# periodic waveform: for a pure sine it evaluates to 1.047 x the amplitude, so
-# a floor placed there is never reached and every onset after the first is
-# rejected. A percentile is shape-agnostic and scales with whatever the
-# waveform actually does.
-# 1.1 is set from m466's spectrum, not from theory: 50% of in-band power sits
-# at 1.5-4 Hz and 29% at 4-8 Hz (real sniff bouts), so a median instantaneous
-# rate near 3-4.5 Hz is what the signal supports. 0.5 gave 8.7 Hz -- counting
-# noise wiggles -- and 1.4 gave 2.7 Hz, missing bout breaths. Verify against
-# the waveform on a new rig with `onset_figure` rather than inheriting it.
-# The floor is applied to an AMPLITUDE-NORMALISED signal, not the raw one.
-# Breath amplitude is not stationary: on m466 the local 90th percentile of
-# |signal| swings 4x within a session (CV 79%, p10/p90 = 0.24), against 19%
-# on the clean m472. One global floor therefore cannot suit both the quiet
-# and the loud stretches of the same recording -- set deep enough to reject
-# noise in a loud stretch, it rejects real breaths in a quiet one, which is
-# undercounting on a clean session and overcounting on a noisy one at the
-# same parameter value. Dividing by a running envelope first puts the
-# threshold in units of local amplitude, where it means the same thing
-# everywhere.
-# Width of the running median subtracted before crossing detection. The 1 Hz
-# high-pass does not remove everything: a residual baseline offset of up to
-# 23% of local amplitude survives it on m472, and where the baseline wanders
-# upward a real breath may never cross zero at all, so the onset is lost
-# outright rather than mistimed.
-#
-# 0.30 s, measured on m472 across a quiet stretch, a fast bout, and a wobbly
-# tail (onsets/s):
-#
-#     window     quiet   bout    end
-#     none        3.33   7.00   4.00
-#     0.20s       3.83   7.00   7.00   <- quiet rises: tracking noise
-#     0.25s       3.33   6.67   7.00
-#     0.30s       3.33   7.00   7.00
-#     0.40s       3.33   6.67   6.00
-#     0.50s       3.33   6.00   4.00
-#
-# Shorter and the filter starts following the noise; longer and it spans
-# several breaths of a fast bout and begins subtracting the signal itself.
-# 0.30 s is the one width that leaves the quiet and bout rates untouched
-# while recovering the tail.
 BASELINE_MEDIAN_S = 0.30
 
-# Breaths in the running median used to smooth the rate trace. Smoothing is
-# in the breath domain, not the time domain: a boxcar of fixed seconds spans
-# a different number of breaths depending on how fast the animal is going, so
-# it smooths a bout harder than a quiet stretch. A median rather than a mean
-# because odor onset drives a step change in rate, and a mean bleeds that
-# step across the breaths either side of it -- which is the feature the trace
-# exists to show. 3 is enough to remove single-breath jitter while leaving a
-# step at full height after one breath.
 SMOOTH_BREATHS = 3
 
 ENVELOPE_WINDOW_S = 2.0
 ENVELOPE_PERCENTILE = 90.0
 
-# 0.7 in normalised units. Checked against each session's own spectral peak:
-# m472 3.66 vs 3.60 Hz, m465 3.27 vs 3.40, m462 4.06 vs 3.00 (bouts lift the
-# mean above the mode, as expected). It does NOT rescue m466, which reads
-# 6.08 against 2.20 -- that session is too noisy to detect breaths in at any
-# threshold, and the quality mask rather than this parameter is what handles
-# it.
 TROUGH_PERCENTILE = 10.0
 MIN_EXCURSION_FRAC = 0.7
 
@@ -174,50 +33,14 @@ MIN_EXCURSION_FRAC = 0.7
 # that shifts mid-session.
 QUALITY_WINDOW_S = 1.0
 
-# Share of in-band power below which a window is called bad. Set from the
-# data rather than from theory -- see `quality_report` for what a session's
-# distribution looks like before choosing.
-# In-band / out-of-band power. Set from where the sessions actually separate,
-# not from theory. Per-second windows retained, over 180 s of each session:
-#
-#                        >1.5   >3.0   >5.0   >8.0
-#     m472 07-17  good    99%    99%    97%    91%
-#     m462 07-21  good   100%   100%    98%    96%
-#     m465 07-23  good    99%    98%    97%    89%
-#     m466 07-27  mid     92%    87%    79%    55%
-#     m466 07-16  bad     83%    42%    32%    29%
-#     m462 07-17  bad     88%    34%     5%     1%
-#
-# 1.5 was far too lenient: it kept 88% of m462 07-17, whose spectral peak sits
-# at 0.80 Hz -- not a breathing mouse but the low edge of the 0.5 Hz filter.
-# 5.0 keeps 97-98% of the good sessions and 5% of that one. 8.0 separates no
-# better and starts costing real data.
-#
-# This is a per-window cut, so it masks bad stretches inside an otherwise fine
-# session. It is not a substitute for looking at the session-level retention:
-# m466 07-16 keeping only 32% is a signal that the recording as a whole is
-# not worth using, which no per-window threshold can express.
 QUALITY_THRESHOLD = 5.0
 
-# Session-level retention below which the whole recording is suspect, not just
-# the masked stretches. A per-window cut can say "these seconds are bad"; it
-# cannot say "this session is not worth using", and the two need separating.
-# m462 07-17 retains 5% and is unambiguous, but m466 07-16 retains 32% and
-# still yields a masked median of 2.36 Hz that looks perfectly reasonable --
-# built on a third of the data. That is the case this flag exists to catch.
 MIN_SESSION_RETENTION = 0.70
 
 
 def bandpass(x: np.ndarray, *, rate_hz: float, band=FILTER_BAND_HZ,
              order: int = FILTER_ORDER) -> np.ndarray:
-    """
-    Zero-phase Butterworth bandpass. See FILTER_BAND_HZ for why this exists
-    rather than using the rig's stored filtered column.
-
-    `filtfilt`, not `lfilter`: a causal filter delays the signal, and the
-    delay is frequency-dependent, so onsets would move by an amount that
-    depends on how fast the animal is breathing.
-    """
+    """Zero-phase Butterworth bandpass."""
 
     from scipy.signal import butter, filtfilt
 
@@ -231,17 +54,7 @@ def inhalation_onsets(
     signal: np.ndarray, *, rate_hz: float, band=SNIFF_BAND_HZ,
     min_excursion_frac: float = MIN_EXCURSION_FRAC,
 ) -> np.ndarray:
-    """
-    Sample indices of inhalation onsets: upward zero crossings of the
-    bandpassed signal.
-
-    A zero crossing rather than a peak. Peak height varies with how well the
-    probe sits and with flow rate, so a peak finder needs a prominence
-    threshold that then has to track those changes; the crossing is where the
-    signal changes sign and needs no amplitude parameter at all. On a
-    bandpassed trace the crossing sits at the steepest part of the cycle,
-    which is also where it is least sensitive to noise.
-    """
+    """Sample indices of inhalation onsets: upward zero crossings of the bandpassed signal."""
 
     x = np.asarray(signal, dtype=np.float64)
     x = x - np.nanmean(x)
@@ -250,10 +63,6 @@ def inhalation_onsets(
     if not finite.all():
         x = np.interp(np.arange(x.size), np.flatnonzero(finite), x[finite])
 
-    # Local baseline out first: see BASELINE_MEDIAN_S. Applied before the
-    # envelope so both the crossing test and the amplitude test see the same
-    # baseline-corrected signal -- correcting only the crossings admits noise
-    # in quiet stretches, measurably (3.33 -> 3.50 onsets/s on m472).
     x = x - _running_median(x, rate_hz)
     x = x / _envelope(x, rate_hz)
 
@@ -296,15 +105,7 @@ def _running_median(x: np.ndarray, rate_hz: float,
 
 def _envelope(x: np.ndarray, rate_hz: float,
               window_s: float = ENVELOPE_WINDOW_S) -> np.ndarray:
-    """
-    Running amplitude of `x`, one value per sample by interpolation.
-
-    A high percentile of |x| rather than an RMS: RMS is pulled down by the
-    long quiet exhalation between breaths, so it tracks duty cycle as much as
-    amplitude. The floor at a fifth of the median stops a silent stretch --
-    a probe out of the nostril -- from dividing by near-zero and amplifying
-    its own noise into apparent breaths.
-    """
+    """Running amplitude of `x`, one value per sample by interpolation."""
 
     step = max(int(window_s * rate_hz), 8)
     n_win = int(np.ceil(x.size / step))
@@ -326,15 +127,7 @@ def band_power_quality(
     raw: np.ndarray, *, rate_hz: float, window_s: float = QUALITY_WINDOW_S,
     band=SNIFF_BAND_HZ, noise_band=NOISE_BAND_HZ,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Per-window share of power inside the sniff band, from the RAW column.
-
-    Returns `(centres_s, score)`. Scored on the raw signal on purpose: the
-    filtered column has already had everything outside 0.5-20 Hz removed, so
-    a probe sitting in free air would score perfectly there while carrying no
-    respiration at all. The ratio on the raw signal is what distinguishes a
-    breathing trace from drift and broadband noise.
-    """
+    """Per-window share of power inside the sniff band, from the RAW column."""
 
     x = np.asarray(raw, dtype=np.float64)
     step = int(round(window_s * rate_hz))
@@ -373,18 +166,7 @@ def instantaneous_frequency(
     window_s: float = QUALITY_WINDOW_S,
     smooth_breaths: int = SMOOTH_BREATHS,
 ) -> dict:
-    """
-    Sniff frequency sampled at the times in `at_s`, with and without masking.
-
-    `at_s` is normally the imaging frame times, so the result drops straight
-    beside `/traces/roi` and can be indexed by the same trial and frame.
-
-    Frequency is held constant across each breath -- the value at a time is
-    1/(interval containing it) -- rather than smoothly interpolated between
-    onsets. Interpolating invents a rate the animal never breathed at, and on
-    a sharp change at odor onset it smears the transition across the breath
-    before it, which is precisely the moment being measured.
-    """
+    """Sniff frequency sampled at the times in `at_s`, with and without masking."""
 
     # Filter here rather than taking a pre-filtered column, so every session
     # is treated identically regardless of what the rig happened to store.
@@ -477,13 +259,7 @@ def instantaneous_frequency(
 
 
 def _median_over_breaths(rates: np.ndarray, k: int) -> np.ndarray:
-    """
-    Running median over `k` consecutive breath rates, NaN-aware.
-
-    Centred, and shorter at the ends rather than padded: padding would invent
-    breaths, and the first and last breath of a recording are exactly where an
-    invented neighbour would be least defensible.
-    """
+    """Running median over `k` consecutive breath rates, NaN-aware."""
 
     if k <= 1 or rates.size == 0:
         return rates.astype(np.float64)
@@ -502,12 +278,7 @@ def _median_over_breaths(rates: np.ndarray, k: int) -> np.ndarray:
 
 
 def quality_report(score: np.ndarray, thresholds=(0.1, 0.2, 0.25, 0.3, 0.4, 0.5)) -> str:
-    """
-    What each candidate threshold would keep, as a printable table.
-
-    For choosing `QUALITY_THRESHOLD` against a session rather than inheriting
-    it: the right cut depends on how the probe sat that day.
-    """
+    """What each candidate threshold would keep, as a printable table."""
 
     rows = [f"{'SNR threshold':>14}{'% windows kept':>17}", "-" * 31]
 
@@ -525,17 +296,7 @@ def quality_report(score: np.ndarray, thresholds=(0.1, 0.2, 0.25, 0.3, 0.4, 0.5)
 def onset_figure(raw, *, rate_hz, out_path, seconds=(0.0, 12.0),
                  min_excursion_frac=MIN_EXCURSION_FRAC,
                  odor_windows=(), smooth_breaths=SMOOTH_BREATHS):
-    """
-    Detected onsets on the waveform, with the rate trace and odor windows.
-
-    `MIN_EXCURSION_FRAC` cannot be set from theory -- it depends on how the
-    probe sat -- so it has to be checked against the trace it is applied to.
-    This is that check.
-
-    `odor_windows` is an iterable of `(on_s, off_s)`. Marking them is not
-    decoration: a rate change at odor onset is the measurement, and an
-    unmarked bout is indistinguishable from a spontaneous one by eye.
-    """
+    """Detected onsets on the waveform, with the rate trace and odor windows."""
 
     import matplotlib
     matplotlib.use("Agg")
@@ -597,17 +358,8 @@ def onset_figure(raw, *, rate_hz, out_path, seconds=(0.0, 12.0),
     return out_path
 
 
-# Share of a trial that may be quality-masked before the trial is flagged.
-# A trial with a fifth of its frames missing can still be averaged, but its
-# mean is over a different window than its neighbours', and that difference
-# is invisible once it is in a group average.
 MAX_MASKED_FRACTION = 0.20
 
-# Y limits for the QC figure, in Hz. Fixed rather than autoscaled: a handful
-# of trials carrying a 100 Hz outlier otherwise sets the range and flattens
-# every real trace to a line near zero. 15 Hz is the detector's own ceiling
-# region (MAX_FREQ_HZ is 15), so nothing meaningful is cropped, and a fixed
-# range also lets two sessions be put side by side.
 FIGURE_Y_HZ = (0.0, 15.0)
 
 
@@ -621,26 +373,7 @@ def respiration_from_round(
     max_masked: float = MAX_MASKED_FRACTION,
     save: bool = True,
 ) -> dict:
-    """
-    Sniff rate per trial, aligned to the imaging frames, written beside the round.
-
-    Runs off the sync file and a written round: the round supplies the trial
-    labels, the sync file supplies respiration and the 2p frame clock, and the
-    two are joined on the frame clock rather than on nominal timing. On m466
-    that gives 224 acquisitions of exactly 545 frames each, matching the
-    round's own trial axis one to one.
-
-    Output is `(n_trial, n_frame)` on the round's frame grid, so it indexes
-    exactly like `/traces/roi` -- same trial, same frame, no resampling at the
-    point of use. What is stored is the smoothed, quality-masked rate, with
-    the unmasked version beside it so a downstream analysis can see what was
-    dropped rather than inferring it from a gap.
-
-    Trials with more than `max_masked` of their frames masked are flagged
-    rather than removed. Removing them silently would make a group average
-    quietly rest on fewer trials for some odors than others; flagging leaves
-    that decision where it can be seen.
-    """
+    """Sniff rate per trial, aligned to the imaging frames, written beside the round."""
 
     from pathlib import Path
 
@@ -767,25 +500,11 @@ def respiration_from_round(
     return report
 
 
-# Channels that identify a behaviour sync file. The legacy per-experiment h5
-# is also 5 kHz and also sits near the session, but holds only ImagingWindow
-# and OdorDelivery -- it is what the database ingest reads, and matching it
-# here would fail later with a bare KeyError on 'respiration'.
 SYNC_CHANNELS = ("2pFrameSync", "respiration", "odorPulse")
 
 
 def find_behavior_sync(session_dir):
-    """
-    The six-channel behaviour sync file for a session, wherever it lives.
-
-    Two locations are in use: `<session>/sync/` and the mouse directory above
-    it. The mouse directory is the older convention, chosen so the file does
-    not collide with the legacy per-experiment h5 that the database ingest
-    reads -- and that legacy file is the reason this checks channels rather
-    than trusting the name. It is 5 kHz, sits in the session directory, and
-    carries ImagingWindow and OdorDelivery, so a glob for "*.h5" finds it and
-    everything downstream then fails on a missing 'respiration'.
-    """
+    """The six-channel behaviour sync file for a session, wherever it lives."""
 
     from pathlib import Path
 
@@ -895,18 +614,7 @@ def _write_respiration(path, report: dict):
 
 
 def respiration_figure(report: dict, out_path):
-    """
-    Odor-averaged sniff rate with confidence intervals, pre against post.
-
-    One panel per odor, both blocks overlaid, because the comparison the
-    design is built on is within-odor across blocks -- putting them in
-    separate figures makes the eye do the subtraction.
-
-    The interval is a 95% CI of the mean (1.96 * SEM), computed per frame over
-    the trials that are finite at that frame. The n therefore varies along the
-    trace where quality masking bit, which is why it is drawn: a band that
-    widens mid-trial is the mask, not the animal.
-    """
+    """Odor-averaged sniff rate with confidence intervals, pre against post."""
 
     from pathlib import Path
 
@@ -1054,26 +762,7 @@ def extract_respiration(
     max_masked: float = MAX_MASKED_FRACTION,
     save: bool = True,
 ) -> dict:
-    """
-    Sniff rate per acquisition, from the sync file alone.
-
-    This is the default path, and it deliberately does not need a round. A
-    session that has only been motion-corrected is exactly when someone wants
-    to know whether the respiration is usable -- before spending an hour on
-    segmentation, not after. Everything the round would have supplied is
-    recoverable without it: frame times and the valve pulse are both in the
-    sync file at 5 kHz, so `sync.py` anchors odor onset to a frame directly,
-    which is ground truth and needs no assumption about frame rate or
-    baseline length. Only the labels come from elsewhere, from the database.
-
-    **`acq_ids` is the join key, and it is required.** Aligning on position
-    would be wrong: this runs over every acquisition in the sync file, while
-    the round is later extracted with `approved_only=True` and may contain
-    fewer. Row *i* here and row *i* there are then different acquisitions, and
-    nothing about the shapes would reveal it. `acq_id` is what the database,
-    the rig and the mcor filenames all agree on, so it survives that. See
-    `align_to_round`.
-    """
+    """Sniff rate per acquisition, from the sync file alone."""
 
     from pathlib import Path
 
@@ -1208,15 +897,7 @@ def respiration_for_experiment(
     out_dir=None,
     **kwargs,
 ) -> dict:
-    """
-    `extract_respiration` with the labels fetched from odyn for one experiment.
-
-    Trials are ordered by `acq_id`, which is the order the acquisitions appear
-    in the sync file. `state` is derived from `program_id`: a session runs as
-    two programs, the first before the manipulation and the second after, and
-    the two carry the same `program_name` -- so the id is the discriminator
-    and the name is not.
-    """
+    """`extract_respiration` with the labels fetched from odyn for one experiment."""
 
     import pandas as pd
 
@@ -1258,24 +939,7 @@ def respiration_for_experiment(
 
 
 def align_to_round(aux_path, round_path):
-    """
-    Row indices joining an aux respiration file to a round, on `acq_id`.
-
-    Returns `(aux_rows, round_rows)`: `rate[aux_rows]` and `roi[:, round_rows]`
-    then describe the same acquisitions in the same order.
-
-    Position is not a valid join. The aux file covers every acquisition in the
-    sync file; the round covers those that survived `approved_only=True` and
-    the per-trial guards. Row *i* in one is not row *i* in the other, and
-    nothing about the two shapes would reveal the mismatch -- the arrays would
-    broadcast happily and every result would be wrong by however many
-    acquisitions were dropped before the first one they disagree on.
-
-    Raises rather than returning a partial join when the round carries no
-    `acq_id`: a round written before that column existed cannot be aligned
-    this way, and silently falling back to position is the failure this
-    function exists to prevent.
-    """
+    """Row indices joining an aux respiration file to a round, on `acq_id`."""
 
     import h5py
 

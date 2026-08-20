@@ -1,48 +1,4 @@
-"""
-One HDF5 file per processing round: masks, traces, and their tables together.
-
-Why one file, and why HDF5.
-
-`.npz` is a zip of `.npy` members with **no native MATLAB reader**, and this lab
-already analyses these sessions in MATLAB -- every experiment has a
-`processed/matlab` folder beside `processed/mcor`. Writing the primary product
-in a Python-only container would have made it unreadable to half the people who
-need it. HDF5 reads from both (`h5read` in MATLAB, `h5py` here), and from R,
-Julia, and ImageJ besides.
-
-Splitting masks, traces, and tables across `.npz` and `.csv` also made the set
-separable: three files that can be copied, moved, or overwritten independently,
-with nothing tying them together. One file per round cannot come apart.
-
-Naming carries the provenance, so a file identifies itself when it turns up in
-someone else's folder:
-
-    group132_20260317_m316_e1_processed_20260812.h5
-    ^        ^                  ^          ^
-    group    experiment         what       processing date
-
-The date makes rounds additive rather than destructive: re-curate and re-extract
-and yesterday's file is still there to compare against.
-
-Layout (MATLAB reads every dataset with `h5read(file, '/path')`):
-
-    /masks/labels              int32  (H, W)          the curated mask
-    /masks/<group>             int32  (H, W)          per-odor masks
-    /traces/roi                single (n_roi, n_trial, n_frame)  raw F
-    /traces/neuropil           single (same)           surrounding annulus
-    /traces/time_s             double (n_frame,)       seconds from odor onset
-    /rois/<column>             one dataset per column
-    /trials/<column>           one dataset per column
-    /trials/state              int8 + /trials/state_levels for the labels
-    /trials/manipulation       int8 + /trials/manipulation_levels
-
-    attributes on '/': exp_name, group_id, mask_hash, frame_rate, n_pre,
-                       n_odor, n_post, processed_on, and the parameters as JSON
-
-**MATLAB transposes.** HDF5 is row-major and MATLAB is column-major, so
-`h5read` returns dimensions reversed: `/traces/roi` arrives as
-(n_frame, n_trial, n_roi). Use `permute(x, [3 2 1])` to match the Python view.
-"""
+"""One HDF5 file per processing round: masks, traces, and their tables together."""
 
 from __future__ import annotations
 
@@ -65,13 +21,7 @@ def session_filename(
     processed_on: None | str = None,
     suffix: str = ".h5",
 ) -> str:
-    """
-    `group132_20260317_m316_e1_processed_20260812.h5`
-
-    `kind` names a side-product that is not the round itself, and sits before
-    the stage: `..._masks_processed_20260812.mat`. The round keeps the bare
-    name, so `find_rounds` picks it out without having to exclude anything.
-    """
+    """Build a dated session or side-product filename."""
 
     stamp = processed_on or date.today().strftime("%Y%m%d")
     what = f"_{kind}" if kind else ""
@@ -190,13 +140,7 @@ def _describe(dataset, name: str) -> None:
 
 
 def _write_table(parent, table) -> None:
-    """
-    One dataset per column, not a compound type.
-
-    MATLAB reads a compound dataset as a struct whose fields need unpacking,
-    and writes back inconsistently. Plain columns are `h5read(f, '/rois/area_px')`
-    in MATLAB and `f['rois/area_px'][:]` here.
-    """
+    """One dataset per column, not a compound type."""
 
     for column in table.columns:
         values = table[column].to_numpy()
@@ -328,10 +272,6 @@ def write_session(
             ring.attrs["dimensions"] = "roi, trial, frame"
 
         if detrend is not None and detrend.get("ok"):
-            # Detrended traces sit BESIDE the raw, never replacing them. The
-            # correction is a model with choices in it -- guard window, number
-            # of components -- and anyone should be able to redo it, or refuse
-            # it, without re-streaming the session.
             corrected = group.create_dataset(
                 "roi_detrended", data=detrend["traces"], compression="gzip"
             )
@@ -449,13 +389,7 @@ def read_session(path: str | Path) -> dict:
 
 
 def find_rounds(output_dir: str | Path, *, stage: str = STAGE) -> list[Path]:
-    """Every processing round in a session folder, newest last.
-
-    Side products can also be HDF5 and intentionally share the round naming
-    stem. A portable 20x mask bundle, for example, has ``masks/soma`` and
-    ``masks/process`` but no final ``masks/labels``. Identify rounds by their
-    schema rather than by the broad filename glob alone.
-    """
+    """Every processing round in a session folder, newest last."""
     from .h5io import open_h5
 
     rounds = []

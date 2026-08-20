@@ -1,51 +1,14 @@
-"""
-Build the per-session trial table and label its two blocks.
-
-A pre/post session is one `loop` experiment of 160-224 acquisitions, one
-acquisition per trial (~20 s of imaging every ~30 s). The olfactometer runs it
-as *two programs*: a first block, then a manipulation during a gap with the
-scope idle, then a second block.
-
-Block therefore comes from `program_id`, not from splitting trials at the
-median trial number. The distinction matters because the two blocks are not
-guaranteed to be equal in length, and because there is no imaging during the
-gap at all -- so there is no "injection frame", only a block boundary.
-
-What the manipulation was is *not* in the database; it lives in the session
-manifest. It is passed to `trial_table` and recorded per row, defaulting to
-ketamine/xylazine.
-
-Some sessions were split into two `exp_id`s at ingest rather than two
-programs (see m357 20260623, "PA split into e1 and e2 for db integration"),
-so state assignment falls back to experiment order when a session has only
-one program.
-"""
+"""Build the per-session trial table and label its two blocks."""
 
 from __future__ import annotations
 
 import pandas as pd
 
-# Block 0 is always before the manipulation, block 1 after. What the
-# manipulation *was* is not in the database -- it lives in the session
-# manifest -- so it is passed in rather than assumed.
-#
-# An earlier version hardcoded block 0 = "awake" and block 1 = "anesthetized".
-# That is simply wrong for a saline control (exp 132 is pre/post saline: both
-# blocks are awake), and nothing would have flagged it -- every downstream
-# analysis reading `state` would have mislabelled the controls.
 BEFORE = "pre"
 AFTER = "post"
 
 DEFAULT_MANIPULATION = "ketamine/xylazine"
 
-# Whether the second block is anaesthetised is a fact about the experiment,
-# not something to infer from a free-text label. The notebook passes it in
-# explicitly; `manipulation` is whatever the person running the session wants
-# to write down.
-#
-# The inference this replaced read `manipulation` against a list of accepted
-# spellings, so 'ketxyl' scored as not-anaesthetic and silently reclassified an
-# anaesthetised session as a control.
 
 
 def trial_table(
@@ -54,22 +17,7 @@ def trial_table(
     exp_id: int,
     manipulation: str = DEFAULT_MANIPULATION,
 ) -> pd.DataFrame:
-    """
-    One row per trial, ordered in time, with state and timing columns.
-
-    `manipulation` names what happened between the two blocks -- 'saline',
-    'ketamine', 'no injection', anything. It is recorded per row rather than
-    inferred, because the database does not hold it.
-
-    Columns added on top of the database's own:
-        block               0 before the manipulation, 1 after
-        state               'pre' | 'post'
-        manipulation        the label passed in
-        trial_in_block      1-based index within the block
-        baseline_s          pre-odor imaging in that trial, in seconds
-        odor_duration_s     seconds the valve was commanded open
-        odor_minus_acq_start_s  diagnostic; mixes two clocks, see below
-    """
+    """One row per trial, ordered in time, with state and timing columns."""
 
     trials = group.trials
     trials = trials[trials.exp_id == exp_id].copy()
@@ -94,27 +42,10 @@ def trial_table(
         table.odor_end - table.odor_start
     ).dt.total_seconds()
 
-    # `baseline_s` is measured within the olfactometer's own clock.
-    #
-    # The obvious formula, `odor_start - acq_start`, is wrong: `odor_start`
-    # comes from the olfactometer CSV and `acq_start` from the ScanImage TIFF,
-    # and those two computers' clocks differ by ~1.24 s -- a difference odyn
-    # already measures per trial as `h5_to_trial_ms` but never applies. On
-    # exp 202 the mixed formula gives 6.25 s where the true pre-odor period is
-    # 5.01 s, a 35-frame error at 28 Hz.
-    #
-    # `trial_start` is on the same clock as `odor_start`, and the acquisition
-    # is triggered by the olfactometer's trial-start pulse, so their difference
-    # is the pre-odor imaging period to within a few ms (5.0105 s here against
-    # 5.0077 s measured from the frame clock).
     table["baseline_s"] = (
         table.odor_start - table.trial_start
     ).dt.total_seconds()
 
-    # Kept for diagnostics, named for what it is rather than what it looks
-    # like: a cross-clock difference, not a duration. It should sit about
-    # `h5_to_trial_ms` above `baseline_s`, and a session where it does not is
-    # worth investigating before trusting its timing.
     table["odor_minus_acq_start_s"] = (
         table.odor_start - table.acq_start
     ).dt.total_seconds()
@@ -157,13 +88,7 @@ def _assign_state(table: pd.DataFrame) -> pd.DataFrame:
 
 
 def block_gap_s(table: pd.DataFrame) -> None | float:
-    """
-    Seconds between the last trial of block 0 and the first of block 1.
-
-    The manipulation window, and the only handle on when it took effect. It
-    varies widely -- 9.0 min on exp 132, 34.8 min on exp 202 -- because the
-    second block starts when the animal is ready, not after a fixed wait.
-    """
+    """Seconds between the last trial of block 0 and the first of block 1."""
 
     if table.block.nunique() < 2:
         return None

@@ -1,30 +1,4 @@
-"""
-Resumable per-trial accumulation on local disk.
-
-Extraction streams a whole session -- 160 acquisitions, an hour on a busy share
--- and accumulates into one array in RAM. Every trial is independent of every
-other, so there is no reason a failure at trial 140 should discard the first
-139. It did, twice, on 2026-08-12: once when the SMB mount dropped mid-read
-(`OSError: [Errno 6] Device not configured`) and once when a work directory
-went away underneath a run.
-
-So the accumulator lives in a local memory-mapped file with a boolean vector
-recording which trials are finished. A resumed run reads that vector and skips
-what it already has. The cost is small: for 96 ROIs x 160 trials x 301 frames
-the checkpoint is 18 MB, and flushing after each trial is nothing against the
-seconds each one takes to read off the share.
-
-**Local on purpose.** The point is to survive the network going away, so the
-checkpoint cannot live on the network. It also means the per-trial flush is a
-local write rather than 160 small writes over SMB.
-
-**Validity is checked, not assumed.** The digest covers the movie files (name,
-size, mtime), the mask, and the window geometry. Re-run motion correction, edit
-the mask, or change the window and the checkpoint is discarded rather than
-resumed -- resuming across a changed mask would produce a trace array whose
-early trials came from different ROIs than its late ones, which would load
-cleanly and be silently wrong.
-"""
+"""Resumable per-trial accumulation on local disk."""
 
 from __future__ import annotations
 
@@ -66,13 +40,7 @@ def checkpoint_key(
 
 
 class ExtractionCheckpoint:
-    """
-    Memory-mapped partial extraction plus the record of what is done.
-
-    Open it, ask `pending()` which trials still need reading, write each result
-    with `store()`, and `arrays()` at the end. `discard()` removes it once the
-    result is safely written somewhere permanent.
-    """
+    """Memory-mapped partial extraction plus the record of what is done."""
 
     def __init__(
         self,
@@ -186,13 +154,6 @@ class ExtractionCheckpoint:
         if self.ring is not None:
             self.ring.flush()
 
-        # Written last: a done-vector claiming a trial whose data never landed
-        # would be the one failure this class exists to prevent.
-        #
-        # Via an open handle, not a path: `np.save` appends `.npy` to any name
-        # that lacks it, so saving to `done.npy.partial` silently produces
-        # `done.npy.partial.npy` and the rename below then fails on a file that
-        # was never created.
         partial = self.done_path.with_name(self.done_path.name + ".partial")
 
         with open(partial, "wb") as handle:

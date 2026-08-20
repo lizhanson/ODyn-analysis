@@ -1,47 +1,4 @@
-"""
-QC on the extracted traces: does this session look like odor coding?
-
-`qc.py` checks the *images* -- contrast, striping, drift in the correlation
-maps. That catches a session that segmented badly, but it says nothing about
-whether the ROIs it produced respond to anything, and a mask can look
-immaculate over a session where the traces are noise.
-
-The check that answers that is sparsity, in its two directions. They are not
-interchangeable, and a session can fail either one:
-
-    population sparsity   for one odor, what fraction of glomeruli respond.
-                          Low means the odor drove the whole field -- which in
-                          the bulb is usually motion, a z-shift, or a baseline
-                          taken over a bleaching window, not a real response.
-    lifetime sparsity     for one glomerulus, how selectively it responds
-                          across odors. Zero everywhere means the ROIs are not
-                          resolving odor identity: often ROIs so large they
-                          average several glomeruli together, or a mask that
-                          drifted off the tissue.
-
-Both are reported two ways, because they disagree in informative places:
-
-    Treves-Rolls    continuous, uses the whole response distribution. 0 is a
-                    flat response to everything, 1 is all the response in one
-                    odor (or one glomerulus).
-    count           fraction of |z| over threshold. Blunter, but it is the
-                    number people actually report, and it does not move when
-                    a single large response rescales the distribution.
-
-Responses are rectified before either, so a suppressed glomerulus counts as
-responsive -- these recordings have real suppression, and a measure built on
-positive deflections alone would score a suppressed unit as silent.
-
-Two bleaching diagnostics come along with it, because they corrupt everything
-above before they are obvious anywhere else. Measured on exp 132: -10% across
-the 5 s pre-odor window within a trial, and -40% in baseline F from the first
-acquisition to the last. The first is why the baseline window here defaults to
-the last second before onset rather than the whole pre-period -- averaging
-F0 over 5 s of decay places it above the trace by the time the odor arrives,
-and every dF/F comes out negative.
-
-Runs off the written round, so it costs seconds and needs no re-streaming.
-"""
+"""QC on the extracted traces: does this session look like odor coding?"""
 
 from __future__ import annotations
 
@@ -56,26 +13,9 @@ import numpy as np
 # docstring on within-trial bleaching.
 BASELINE_S = 1.0
 
-# Sham window geometry, in seconds.
-#
-# The sham has to fit entirely inside the pre-odor period, and with a 4 s odor
-# and a 5 s baseline a full-length sham (4 s response + 1 s baseline) leaves
-# exactly one placement -- too few to hold any out for validation. Shortening
-# the sham response trades an exact match to the real window for the ability to
-# check the threshold on offsets it was not fitted to. 2.5 s + 2.0 s leaves 13
-# placements on this rig; a shorter response window is a slightly optimistic
-# null, since averaging fewer frames is noisier, so the achieved rate on
-# held-out offsets is the number to read rather than the target.
 SHAM_RESPONSE_S = 2.0
 SHAM_BASELINE_S = 2.0
 
-# Fallback thresholds, used only when the null cannot be built (a pre-odor
-# period too short to hold a sham window). Asymmetric, because suppression in
-# these recordings is real but reliably smaller in z than excitation -- a
-# glomerulus can only go down as far as its baseline, while there is no
-# ceiling going up. A symmetric threshold conservative enough for excitation
-# scores nearly every suppressed unit as silent: the first pass over exp 132
-# returned 0 suppressed ROIs against 27 excited.
 Z_EXCITED = 1.5
 Z_SUPPRESSED = -0.5
 
@@ -84,42 +24,14 @@ Z_SUPPRESSED = -0.5
 # on their own rather than by assumption.
 TARGET_FPR = 0.01
 
-# Colour limits for the response heatmaps, in units of baseline z.
-#
-# Fixed, not derived from the data. A percentile-based scale is hostage to a
-# single bad trial: on group 217 one dead acquisition reached |dF/F| = 188 and
-# flattened every real response to white. A fixed window in z also means two
-# sessions can be put side by side and compared, which a per-session scale
-# never allows.
-#
-# Asymmetric on purpose: excitation reaches far higher z than suppression ever
-# does (see Z_EXCITED/Z_SUPPRESSED above), so a symmetric +/-10 spent half its
-# range on suppression values that never occur. White is pinned to z=0 with
-# TwoSlopeNorm rather than to the midpoint of [vmin, vmax], so "no response"
-# still reads as white even though the range around it is not symmetric.
 HEATMAP_Z_MIN = -2.0
 HEATMAP_Z_MAX = 10.0
 
-# Spacing of sham windows through the pre-odor period, as a fraction of the
-# response window. Below 1 the windows overlap, which is deliberate: the pre
-# period only holds two non-overlapping windows, far too few to place a 1%
-# percentile. Overlapping windows are correlated and do not each count as an
-# independent sample, which is why the threshold is validated on offsets held
-# out from the ones it was fitted on rather than trusted from the sample size.
 SHAM_STEP_FRACTION = 0.2
 
 
 def treves_rolls(responses: np.ndarray, axis: int = -1) -> np.ndarray:
-    """
-    Sparseness of a rectified response vector, 0 (flat) to 1 (one-of-N).
-
-        S = [1 - (mean r)^2 / mean(r^2)] / (1 - 1/N)
-
-    The normalisation by `1 - 1/N` is what makes values comparable between
-    sessions with different numbers of odors or ROIs; without it the maximum
-    attainable sparseness depends on N, and a 7-odor panel could not be put
-    beside a 16-odor one.
-    """
+    """Sparseness of a rectified response vector, 0 (flat) to 1 (one-of-N)."""
 
     r = np.abs(np.asarray(responses, dtype=np.float64))
     n = r.shape[axis]
@@ -136,38 +48,8 @@ def treves_rolls(responses: np.ndarray, axis: int = -1) -> np.ndarray:
     return np.where(mean_sq > 0, raw / (1.0 - 1.0 / n), np.nan)
 
 
-# Seconds of pre-odor used to estimate the z denominator, and whether that
-# estimate is pooled across trials. Both are separate from BASELINE_S on
-# purpose: F0 and the noise estimate want different windows.
-#
-# F0 wants a window close to onset, because a baseline taken far from the odor
-# is a baseline for a different moment. The SD wants the opposite -- as many
-# frames as it can get, since it is a variance estimate and nothing else.
-# Tying them to one number meant the SD inherited F0's 1 s window: 25 frames
-# at this rig, and with the ~4-frame autocorrelation these traces have, about
-# 6 effective samples. Measured on group223, the resulting per-trial SD swings
-# with a median CV of 20% across trials of the same ROI, so the same response
-# scored differently depending on which trial it landed in.
-#
-# `None` means the whole pre-odor period. Safe only on detrended traces: on
-# raw ones the ~10% settling transient dominates the window, the SD then
-# measures the transient rather than the noise, and the null goes both wider
-# and lopsided (SD 0.434, p2.5/p97.5 of -1.15/+0.63 against -0.84/+0.82 for
-# the 1 s window). Pass sd_baseline_s=1.0 when running on raw.
 SD_BASELINE_S = None
 
-# Pooling the SD across trials, per ROI. This is what actually removes the
-# denominator as a source of trial-to-trial variance: a per-trial SD rests on
-# one window however long, while pooled it rests on every baseline frame in
-# the session -- 20,160 per ROI on group223, against 126 in a single trial.
-#
-# Note what is pooled and what is not. The frames are pre-odor, so they carry
-# no response and pooling across odors is not mixing conditions; each trial's
-# residuals are taken about that trial's own mean, so drift in level between
-# trials does not leak into the spread. What it does assume is that an ROI's
-# noise is stationary across the session, which is not free -- shot noise
-# scales with sqrt(F), and group223's baseline rises 29% first trial to last.
-# Set False where that matters more than the stability.
 POOL_SD = True
 
 
@@ -181,26 +63,7 @@ def trial_responses(
     sd_baseline_s: float | None = SD_BASELINE_S,
     pool_sd: bool = POOL_SD,
 ) -> dict:
-    """
-    Per-ROI, per-trial response amplitude, aligned on each trial's own onset.
-
-    Returns dF/F and a z-score against the baseline's own variability. Both
-    are kept: dF/F is the interpretable magnitude, z is what decides
-    responsive-or-not, and they rank ROIs differently -- a dim ROI can carry a
-    large dF/F on very little signal.
-
-    F0 comes from the last `baseline_s` before onset; the z denominator comes
-    from `sd_baseline_s` (default: the whole pre-odor period) pooled across
-    trials per ROI when `pool_sd`. See those constants for why the two windows
-    are not the same one.
-
-    The z here is a mean over the response window divided by the SD of
-    individual baseline *frames* -- two different units, so it is not on a
-    "null SD of 1" scale; it measures about 0.4 on this rig. That is
-    deliberately unchanged, so thresholds calibrated against it keep meaning
-    what they meant. `responders.trial_calls` is the version whose null SD is
-    1 by construction.
-    """
+    """Per-ROI, per-trial response amplitude, aligned on each trial's own onset."""
 
     n_roi, n_trial, n_frame = roi.shape
     n_base = max(1, int(round(baseline_s * frame_rate)))
@@ -248,13 +111,6 @@ def trial_responses(
         f0[:, trial] = base_mean
 
         with np.errstate(invalid="ignore", divide="ignore"):
-            # Divide by |F0|, not F0. A signed denominator inverts dF/F
-            # wherever the baseline is negative, which is exactly what a dead
-            # detector produces: on trial 81 of group 217 every ROI had F0 of
-            # -2.5, so a genuine +460 step read as dF/F = -188 and the same
-            # trial appeared suppressed in dF/F while reading z = +317. The
-            # guard on this line checked for division by zero and missed the
-            # case that actually happens.
             dff[:, trial] = (resp_mean - base_mean) / np.where(
                 np.abs(base_mean) > 1e-9, np.abs(base_mean), np.nan
             )
@@ -281,10 +137,6 @@ def trial_responses(
         "z": z,
         "f0": f0,
         "n_baseline_frames": n_base,
-        # Frames per trial in the SD window, and the total behind each ROI's
-        # estimate. Kept apart because they differ by the trial count when
-        # pooling, and reporting only the first reads as if the SD rested on
-        # one window when it rests on all of them.
         "n_sd_frames_per_trial": n_window,
         "n_sd_frames_total": n_window * len(residuals) if pooled_used else n_window,
         "sd_pooled": pooled_used,
@@ -303,53 +155,7 @@ def sham_null(
     target_fpr: float = TARGET_FPR,
     step_fraction: float = SHAM_STEP_FRACTION,
 ) -> dict:
-    """
-    Build this session's null for the response statistic, and read the
-    thresholds off it.
-
-    The thresholds should be outputs, not inputs. A number like 1.5 carries an
-    implied false-positive rate that depends on trial count, baseline length,
-    bleaching, and how noisy these particular ROIs are -- none of which a
-    z table knows, and all of which differ between sessions. Reading the
-    threshold off the session's own null makes the *rate* the thing that is
-    fixed and comparable, which is what anyone actually wants held constant
-    when comparing two experiments.
-
-    Two ingredients:
-
-    **A sham window.** The whole measurement is repeated with the odor window
-    slid back into the pre-odor period, so baseline and response both sit
-    before the valve opens. Several offsets are used, spaced so each has its
-    own baseline. The sham inherits everything real about the session --
-    the same trials, same decay, same noise -- and differs only in that no
-    odor was delivered.
-
-    **The real odor grouping.** The statistic being thresholded is not a
-    single trial but a mean over the ~25 trials of one odor, whose null is far
-    narrower than a per-trial one. So each sham window is collapsed by odor
-    exactly as the real one is.
-
-    It is tempting to shuffle which trials form each group, since that gives
-    unlimited null samples. It is also wrong, and measurably so: shuffling
-    assumes trials are exchangeable, and here they are not. Odors are
-    delivered in blocks and baseline F falls ~40% across a session, so trials
-    of one odor share a position in time and their mean is genuinely more
-    variable than a mean over trials drawn from everywhere. On exp 132 the
-    shuffled null put `z_excited` at +0.22, which then fired on 6.9% of sham
-    ROI-odor pairs against a 1% target. Keeping the real grouping costs
-    samples and gets the width right.
-
-    **Held-out validation.** Because the windows overlap, the sample count
-    overstates how much independent information there is, so `achieved_fpr` is
-    measured on offsets the threshold was not fitted to. That number, not the
-    sample count, is what says whether the calibration holds.
-
-    The two tails are calibrated separately, so asymmetry emerges from the
-    data rather than being assumed. Both a pooled threshold (one pair of
-    numbers for the session) and per-ROI thresholds are returned; per-ROI is
-    stricter on noisy ROIs and more sensitive on quiet ones, at the cost of a
-    threshold that no longer means one thing across the figure.
-    """
+    """Build this session's null for the response statistic, and read the thresholds off it."""
 
     on = np.asarray(odor_on_frames)
     off = np.asarray(odor_off_frames)
@@ -411,10 +217,6 @@ def sham_null(
             "z_excited": per_roi_excited,
             "z_suppressed": per_roi_suppressed,
             "samples_per_roi": int(fit.shape[1]),
-            # A percentile needs enough samples that the tail is populated
-            # rather than extrapolated. Below ~5 expected samples beyond the
-            # threshold, the "1st percentile" of a row is essentially its
-            # minimum, which is a different and much more permissive quantity.
             "reliable": bool(fit.shape[1] * target_fpr >= 5),
             "excited_range": [_round(np.nanmin(per_roi_excited)),
                               _round(np.nanmax(per_roi_excited))],
@@ -431,10 +233,6 @@ def sham_null(
 
 
 
-# Trials whose baseline F sits this many SD from the session mean are dropped.
-# Five is loose enough to keep normal trial-to-trial variation and tight enough
-# to catch a detector that was off: on group 217 the PMT-off acquisition sat
-# ~10 SD out.
 BASELINE_OUTLIER_SD = 5.0
 
 
@@ -445,18 +243,7 @@ def baseline_outliers(
     n_base: int,
     threshold_sd: float = BASELINE_OUTLIER_SD,
 ) -> dict:
-    """
-    Find trials whose baseline fluorescence is implausible for this session.
-
-    A trial's F0 is taken as the population mean over its own pre-odor window,
-    and compared against the mean and SD across trials. Applied iteratively:
-    one extreme trial inflates the SD enough to hide a second, so the
-    statistics are recomputed after each removal until the set is stable.
-
-    This is a stop-gap for what `mcor_files.approved` should carry -- see
-    `resolve_session(approved_only=)`. It catches only what it is looking for,
-    a wrong overall level; a trial that is mangled some other way will pass.
-    """
+    """Find trials whose baseline fluorescence is implausible for this session."""
 
     n_trial = roi.shape[1]
     f0 = np.array([
@@ -509,14 +296,7 @@ def _by_odor(values: np.ndarray, odor_ids: np.ndarray, keys: np.ndarray) -> np.n
 
 
 def bleaching(roi: np.ndarray, odor_on_frames: np.ndarray, *, n_pre: int) -> dict:
-    """
-    Two decay measures, within a trial and across the session.
-
-    Both matter and they have different causes: within-trial decay is
-    photobleaching under the beam during one acquisition, while across-session
-    decline mixes cumulative bleaching with z-drift and can mean the mask has
-    slid off the tissue it was drawn on.
-    """
+    """Two decay measures, within a trial and across the session."""
 
     within = np.nanmean(roi[:, :, :n_pre], axis=(0, 1))
     across = np.nanmean(roi[:, :, :n_pre], axis=(0, 2))
@@ -548,22 +328,7 @@ def response_qc(
     by_state: bool = True,
     save: bool = True,
 ) -> dict:
-    """
-    Sparsity and health metrics for one processed round.
-
-    `thresholds="calibrated"` (the default) reads the two z thresholds off
-    this session's own null at `target_fpr` per tail -- see `sham_null`.
-    `"fixed"` uses `z_excited`/`z_suppressed` as given, which is what to pass
-    when several sessions must share one threshold rather than one error rate.
-
-    `per_roi_thresholds` calibrates each ROI separately instead of pooling.
-    More accurate per ROI, but the reported threshold stops being a single
-    number, so it is off by default.
-
-    Writes `<stem>_responseqc.png` and `.json` beside the round when `save`,
-    and returns the metrics. `by_state` also reports each block separately,
-    which is the comparison the manipulation is about.
-    """
+    """Sparsity and health metrics for one processed round."""
 
     if per_trial:
         # The per-trial path supersedes the sham null for deciding responsive.
@@ -692,10 +457,6 @@ def response_qc(
                 "n_rois": int(roi.shape[0]),
                 "excited": int(excited.any(axis=1).sum()),
                 "suppressed": int(suppressed.any(axis=1).sum()),
-                # A unit pushed below the threshold by every odor alike is
-                # almost certainly reading the within-trial bleaching rather
-                # than any odor. Kept separate rather than subtracted, since
-                # a genuinely broadly-suppressed glomerulus looks the same.
                 "suppressed_to_all_odors": int(suppressed.all(axis=1).sum()),
             },
             "dff": {
@@ -931,16 +692,7 @@ def _figure(
     *,
     trials: None | dict = None,
 ):
-    """
-    Seven panels, led by the single-trial response matrix.
-
-    The trial-resolved heatmap goes first and gets the full width because it
-    is the only panel where trial-to-trial reliability is visible. An odor
-    average of eight trials looks identical whether the response happened
-    every time or once at four times the amplitude, and those are different
-    findings; the average is kept below it for reading tuning structure, which
-    is easier without 180 columns.
-    """
+    """Seven panels, led by the single-trial response matrix."""
 
     import matplotlib
     matplotlib.use("Agg")
@@ -1090,15 +842,7 @@ def _figure(
 
 
 def _trial_heatmap(fig, ax, trials: dict, *, order, keys, norm) -> None:
-    """
-    Single-trial dF/F, columns grouped by odor and split by block.
-
-    Trials are sorted rather than left in acquisition order: chronological
-    columns interleave the odors and nothing is legible. Sorting by odor, then
-    block, then time keeps each odor's trials adjacent while preserving the
-    within-block time axis, so a response that fades over a block still reads
-    as a gradient rather than as noise.
-    """
+    """Single-trial dF/F, columns grouped by odor and split by block."""
 
     dff = trials["dff"]
     odor_ids = np.asarray(trials["odor_ids"])
@@ -1156,18 +900,7 @@ def _per_trial_report(
     baseline_outlier_sd: float = BASELINE_OUTLIER_SD,
     save: bool = True,
 ) -> dict:
-    """
-    The QC report with responsiveness decided per trial rather than per pair.
-
-    Health diagnostics are unchanged and still come from here -- bleaching,
-    baseline-outlier trials, ROI areas. What moves is the responsive/not
-    decision and the figure, both of which come from `responders`.
-
-    The two halves answer different questions and both are still wanted: the
-    health numbers say whether the traces are worth reading at all, and the
-    per-trial calls say what they contain. A session can pass one and fail the
-    other, which is the whole reason this file exists alongside `qc.py`.
-    """
+    """The QC report with responsiveness decided per trial rather than per pair."""
 
     from .h5io import open_h5
     from .responders import response_figure
@@ -1312,10 +1045,6 @@ def _per_trial_flags(
         for d in list(dropped)[:6]:
             i = int(d["trial_index"])
 
-            # acq_id first: it is what the database, the rig and the mcor
-            # filenames all agree on, so it is the identifier someone can act
-            # on without a lookup. The others are fallbacks for rounds
-            # written before acq_id was carried.
             if acq_ids is not None and i < len(acq_ids):
                 where = f"acq_id {int(acq_ids[i])}"
                 if mcor is not None and i < len(mcor):

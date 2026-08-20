@@ -1,40 +1,4 @@
-"""
-Resolve one session's inputs from the database, wherever the data lives.
-
-The development scripts globbed a local folder for `*_mcor.tif` and named the
-sync file by hand. That works on a staged copy and nowhere else: it cannot tell
-which acquisition a file belongs to except by parsing its name, silently picks
-up files that are still being written, and has no idea which motion correction
-was approved.
-
-Where the database knows, it is used: `mcor_files` gives the correct path per
-acquisition with `source` and `approved`, so a session with two
-motion-correction runs resolves to the right one.
-
-It usually does not know. Only 15 of 215 experiments have any `mcor_files`
-rows -- the ones motion-corrected through `Group.run_motion_correction`.
-Everything else was corrected outside odyn (exp 132 has a `processed/matlab`
-folder beside `mcor`) and has files on disk with no database record at all. So
-the directory is the fallback, and `mcor_source` in the result records which
-route was taken.
-
-Falling back means matching files to acquisitions by the number in the
-filename, which is exactly the fragile assumption the database would remove.
-It is checked: the count must match, and a mismatch raises rather than
-silently pairing the wrong movie with the wrong trial.
-
-Timing comes from whichever sync source the session has:
-
-    sync/<mouse>_<exp>_<date>.h5   2pFrameSync + odorPulse, per-frame clock.
-                                   Later sessions; the precise route.
-    <exp>_00001.h5                 ImagingWindow (one trigger per acquisition)
-                                   + OdorDelivery. Earlier sessions; enough to
-                                   time odor onset against each acquisition's
-                                   trigger, assuming the nominal frame rate
-                                   holds within an acquisition.
-    database only                  `baseline_s` from the trial table, good to
-                                   ~10 ms on both sessions checked.
-"""
+"""Resolve one session's inputs from the database, wherever the data lives."""
 
 from __future__ import annotations
 
@@ -71,12 +35,6 @@ class SessionInputs:
     # by this, so it is what a QC message has to name if someone is going to
     # go and look at one -- a trial index means nothing outside the round.
     acq_ids: list[int]
-    # What happened between the two blocks. Travels with `states` because it
-    # is the other half of the same fact: `state` says which side of the
-    # manipulation a trial is on, and this says what the manipulation was.
-    # Splitting them means a saline control and a ketamine session are
-    # indistinguishable downstream, which is exactly the comparison the
-    # pre/post design exists to make.
     manipulation: str
 
     timing_source: str
@@ -89,13 +47,7 @@ class SessionInputs:
 
     @property
     def output_dir(self) -> Path:
-        """
-        Where this session's derived files belong: `processed/python/`.
-
-        Beside `processed/mcor` and `processed/matlab`, so outputs live with
-        the session they came from rather than in a scratch directory that
-        disappears with the kernel, the session, or the machine.
-        """
+        """Where this session's derived files belong: `processed/python/`."""
 
         directory = self.exp_dir / "processed" / "python"
         directory.mkdir(parents=True, exist_ok=True)
@@ -109,15 +61,7 @@ class SessionInputs:
         return directory
 
     def __getattr__(self, name: str):
-        """
-        Explain the stale-instance case instead of a bare AttributeError.
-
-        `%autoreload` rebinds methods on existing objects but cannot add a
-        field to one already constructed, so an instance made before a field
-        was introduced runs the new code against the old data and fails
-        somewhere unrelated to the cause. Anything reaching here is either a
-        genuine typo or exactly that.
-        """
+        """Explain the stale-instance case instead of a bare AttributeError."""
 
         if name.startswith("_"):
             raise AttributeError(name)
@@ -197,13 +141,7 @@ def _windows_from_frame_clock(path: Path) -> list[None | tuple[int, int]]:
 def _windows_from_trigger(
     path: Path, *, frame_rate: float, loop_interval_s: float
 ) -> list[None | tuple[int, int]]:
-    """
-    Odor onset relative to each acquisition's own trigger.
-
-    `ImagingWindow` is one short pulse per acquisition, not a frame clock, so
-    frame indices assume the nominal rate holds within an acquisition. Over a
-    12 s acquisition a 0.04% rate error is ~5 ms, well under one frame.
-    """
+    """Odor onset relative to each acquisition's own trigger."""
 
     from .h5io import open_h5
 
@@ -235,18 +173,7 @@ def _windows_from_trigger(
 
 
 def _no_mcor_message(group, exp_id: int, exp_dir) -> str:
-    """
-    Explain a missing-mcor failure in terms of what to do about it.
-
-    Two things make the bare version of this error misleading. First, it cannot
-    distinguish "motion correction has not been run" from "it ran and the
-    output is missing", which need opposite responses. Second, group ids and
-    experiment ids are both small integers in overlapping ranges, so a number
-    is usually valid as either -- group 217 is exp 213, while exp 217 is a
-    different session entirely. Passing one where the other was meant lands on
-    a real experiment that simply is not ready, and nothing in the message
-    hints at the mix-up.
-    """
+    """Explain a missing-mcor failure in terms of what to do about it."""
 
     mcor_dir = exp_dir / "processed" / "mcor"
     raw = sorted((exp_dir / "raw").glob("*.tif")) if (exp_dir / "raw").is_dir() else []
@@ -286,28 +213,7 @@ def _no_mcor_message(group, exp_id: int, exp_dir) -> str:
 
 
 def experiments_in_group(group, group_id: int) -> list[int]:
-    """
-    The experiment ids a group contains, validated as one session.
-
-    A group is usually one experiment, but a session can also be split into
-    two: same field of view, same animal, `_e1` before the manipulation and
-    `_e2` after. Those have to be analysed together -- the whole point is a
-    within-glomerulus comparison across the two -- so the group, not the
-    experiment, is the right unit to ask for.
-
-    Order comes from `exp_start`, not from the name. `exp_name` cannot be
-    trusted for this: in two of the four multi-experiment groups the second
-    experiment is recorded as `_e1` as well, even though its acquisitions sit
-    under `.../e2/raw/`. Sorting by name would put those in an arbitrary order
-    and silently label the post block as pre -- the one error that would invert
-    every result while looking entirely normal. Start times are unambiguous
-    (10:13 vs 11:43 for group 193) and match the folder layout.
-
-    Same animal and same frame size are still required, because one group in
-    the database spans two mice on two different days at two different frame
-    sizes. Concatenating that would produce a session that looks fine and mixes
-    animals, so it is refused with the reason rather than guessed at.
-    """
+    """The experiment ids a group contains, validated as one session."""
 
     mapping = group.group_experiments
     rows = mapping[mapping.group_id == group_id]
@@ -364,15 +270,7 @@ def resolve_group(
     manipulation: None | str = None,
     **kwargs,
 ) -> SessionInputs:
-    """
-    Resolve a whole group, whether it is one experiment or a split session.
-
-    For a single-experiment group this is `resolve_session` by another name.
-    For an e1/e2 pair the two are resolved separately and concatenated, with
-    `state` taken from which experiment each acquisition came from rather than
-    from the olfactometer program -- in a split session the program numbering
-    restarts, so it carries no before/after information.
-    """
+    """Resolve a whole group, whether it is one experiment or a split session."""
 
     exp_ids = experiments_in_group(group, group_id)
 
@@ -395,14 +293,6 @@ def resolve_group(
 def _combine(parts: list, labels: list[str], *, group_id: int) -> SessionInputs:
     """Concatenate resolved experiments into one session."""
 
-    # Frame rates must agree, but only to the precision that matters.
-    #
-    # The reported rate is measured, not commanded, so the two halves of one
-    # session differ in the last digit -- 13.998 against 13.999 on group 193.
-    # Demanding exact equality rejects a perfectly good pairing. What would
-    # matter is a rate difference large enough to shift odor onset within an
-    # acquisition: at 0.1% over a 12 s acquisition that is ~0.17 frames, still
-    # under the one-frame resolution of the alignment itself.
     rates = [float(p.frame_rate) for p in parts]
     spread = (max(rates) - min(rates)) / max(min(rates), 1e-9)
 
@@ -420,15 +310,6 @@ def _combine(parts: list, labels: list[str], *, group_id: int) -> SessionInputs:
             f"({sorted(shapes)}); one mask cannot serve both."
         )
 
-    # Both halves must be timed the same way.
-    #
-    # This is the one inconsistency that would corrupt the result rather than
-    # merely degrade it. The whole purpose of a split session is comparing the
-    # same glomeruli before and after, and the sources differ in where they put
-    # odor onset -- the frame clock resolves it to the frame, the database to
-    # ~10 ms of a nominal rate. Timing one block one way and the other block
-    # the other puts a systematic offset exactly along the axis being measured,
-    # and nothing downstream could distinguish it from a real effect.
     sources = {p.timing_source for p in parts}
     if len(sources) > 1:
         raise ValueError(
@@ -486,24 +367,7 @@ def resolve_session(
     approved_only: bool = True,
     exclude_acq_ids: tuple[int, ...] = (),
 ) -> SessionInputs:
-    """
-    Gather one session's motion-corrected paths, odor windows, and labels.
-
-    Paths come from `mcor_files` rather than a directory listing, so each is
-    tied to its acquisition and the right motion-correction run is chosen.
-    `approved_only` is on. Approval is a judgement about an individual
-    acquisition, made by looking at its motion-corrected movie, and it is the
-    mechanism the per-trial baseline guard in `response_qc` was standing in
-    for. Running unapproved data is the exception now, not the default.
-
-    Note that `approved = 0` means "not approved", which covers both rejected
-    and not-yet-reviewed -- there is no separate reviewed flag. A session
-    nobody has reviewed therefore raises rather than silently returning
-    nothing, and the fix is to review it, not to pass approved_only=False.
-
-    `manipulation` is passed through to `trial_table`; leaving it None takes
-    that function's default of ketamine/xylazine.
-    """
+    """Gather one session's motion-corrected paths, odor windows, and labels."""
 
     from .trials import DEFAULT_MANIPULATION, trial_table
 
@@ -530,26 +394,10 @@ def resolve_session(
         mcor = mcor[mcor.source == mcor_source]
 
     if exclude_acq_ids:
-        # A stop-gap for per-trial QC until `approved` is settable. Keyed on
-        # acq_id rather than position, so it cannot drift if the trial table
-        # changes, and stated in the notebook where it is visible rather than
-        # buried here.
         drop = {int(a) for a in exclude_acq_ids}
         mcor = mcor[~mcor.acq_id.isin(drop)]
 
     if approved_only:
-        # Trial-level QC, read from the database rather than re-derived here.
-        #
-        # `approved` is where a judgement about an individual acquisition gets
-        # recorded -- a trial where the PMT was off, one the motion correction
-        # mangled, one with a z-jump. Session 213 has exactly such a trial:
-        # acquisition 81, PMT off after the injection, mean intensity -4
-        # against a session median of 477. It z-scores to unit variance like
-        # any other trial, so nothing downstream flags it; it simply adds a
-        # trial of noise to whatever average it lands in.
-        #
-        # Excluding it is a decision about data, not about code, which is why
-        # it belongs in the database and not in a hardcoded list here.
         before = len(mcor)
         mcor = mcor[mcor.approved.astype(bool)]
 
@@ -595,27 +443,12 @@ def resolve_session(
 
     sync_path, timing_source = find_sync_file(exp_dir)
 
-    # Sync file first, database second.
-    #
-    # The frame clock is the better source when it is readable: it gives odor
-    # onset to the frame, from the same 5 kHz recording as the valve, with no
-    # assumption about frame rate or clock agreement. But rig code has changed
-    # over the years and old sessions carry older layouts, and a session that
-    # cannot be read here is not a session with unknown timing -- membership in
-    # a group means it already passed odyn's sync checks and its trial timing
-    # is recorded. Falling back to that is strictly better than refusing to
-    # analyse the experiment, and the source is reported either way so nobody
-    # has to guess which was used.
     windows = None
 
     if timing_source == TIMING_FRAME_CLOCK:
         try:
             windows = _windows_from_frame_clock(sync_path)
         except (KeyError, OSError, ValueError, RuntimeError) as error:
-            # RuntimeError included deliberately: HDF5 raises it for a failed
-            # close, which on SMB happens transiently and is not a statement
-            # about the data. Letting it propagate would abort a session over
-            # a filesystem hiccup when the database has the timing anyway.
             windows = None
             timing_source = f"{TIMING_TRIGGER} (sync unreadable: {type(error).__name__})"
 
@@ -729,16 +562,6 @@ def resolve_session(
         excluded_acq_ids=tuple(int(a) for a in exclude_acq_ids),
         path_source=path_source,
         exp_dir=exp_dir,
-        # Only the trials that produced a path.
-        #
-        # `paths`, `odor_ids` and `states` are built inside the loop above and
-        # so already skip anything without a motion-corrected file; the table
-        # was not, which left it one row longer than everything else the moment
-        # a trial was dropped. Downstream that surfaced as
-        # "Per-trial inputs have differing lengths: {160, 159}" in
-        # `extract_traces`, which reads trial_ids from the table and everything
-        # else from the lists. Latent since the missing-file fallback existed;
-        # `exclude_acq_ids` made it reachable.
         table=table.iloc[kept].reset_index(drop=True),
         missing=missing,
     )

@@ -1,30 +1,4 @@
-"""
-Merge ROI masks segmented independently per odor (and optionally per state).
-
-A combined activity image dilutes anything odor-specific: a glomerulus driven
-by 1 of 16 odors contributes to one map and is averaged against fifteen where
-it is silent. Segmenting each odor's map on its own lets that glomerulus be
-found at full contrast, and the same glomerulus detected under several odors
-then has to be recognised as one unit rather than several.
-
-That recognition is by spatial overlap, resolved with complete-linkage
-agglomerative clustering. Thresholding overlap and taking connected
-components -- the obvious approach -- is single linkage, whose classic
-pathology is chaining: if A-B and B-C clear threshold but A-C do not, all
-three merge anyway, and on a dense glomerular field that walks across a row
-of neighbours and returns one enormous ROI. Complete linkage requires every
-pair in a group to clear threshold, so a chain cannot form by construction,
-with no size cap needed. It also guarantees two ROIs from the same source map
-never merge, since disjoint labels sit at maximum distance.
-
-Two overlap metrics, because they fail differently:
-
-    iou      intersection / union. Symmetric, punishes size mismatch. Use
-             when the maps should agree closely.
-    overlap  intersection / smaller area. Forgiving when one detection is a
-             fragment of another, which happens when an odor drives only part
-             of a glomerulus. Merges more readily; likelier to over-merge.
-"""
+"""Merge ROI masks segmented independently per odor (and optionally per state)."""
 
 from __future__ import annotations
 
@@ -56,13 +30,7 @@ def pairwise_overlap(
     *,
     metric: str = "iou",
 ) -> np.ndarray:
-    """
-    Overlap between every ROI of `mask_a` and every ROI of `mask_b`.
-
-    Returns an (n_a, n_b) matrix indexed from label 1. Computed with one
-    joint histogram rather than per-pair intersection, so cost does not grow
-    with the number of ROIs squared.
-    """
+    """Overlap between every ROI of `mask_a` and every ROI of `mask_b`."""
 
     if mask_a.shape != mask_b.shape:
         raise ValueError(f"Shape mismatch: {mask_a.shape} vs {mask_b.shape}.")
@@ -114,19 +82,7 @@ def _largest_component(footprint: np.ndarray) -> np.ndarray:
 
 
 def _cluster(overlap: np.ndarray, *, min_overlap: float, linkage: str) -> np.ndarray:
-    """
-    Group ROIs from an all-pairs overlap matrix. Returns a cluster id per ROI.
-
-    'single' links a cluster through any one qualifying pair, which is
-    connected-components and chains: A-B and B-C merge A with C even when
-    A and C do not overlap at all. On a dense field that walks across a row
-    of neighbours.
-
-    'complete' requires every pair in a cluster to clear the threshold, so a
-    chain cannot form -- the guarantee comes from the linkage rule rather than
-    from a size cap bolted on afterwards. Two ROIs from the same source map
-    never merge under it either, since disjoint labels sit at distance 1.
-    """
+    """Group ROIs from an all-pairs overlap matrix."""
 
     n = overlap.shape[0]
 
@@ -159,28 +115,7 @@ def merge_masks(
     linkage: str = "complete",
     min_area_px: None | float = None,
 ) -> MergedMasks:
-    """
-    Merge per-odor label images into one consensus label image.
-
-    `consensus_fraction` decides the merged footprint: 0.0 takes the union of
-    every member's pixels, 1.0 the intersection, 0.5 the pixels that at least
-    half the members agree on. Union grows ROIs with each extra detection;
-    intersection shrinks them toward nothing. Half is a reasonable default
-    only once several odors have detected the ROI.
-
-    `min_detections` drops ROIs found by fewer than N maps, which is the knob
-    for trading odor-specific sensitivity against false positives.
-
-    `linkage` is 'complete' (every pair in a group must overlap; no chaining)
-    or 'single' (connected components; chains). Complete is the default and
-    should stay that way on a dense field.
-
-    `min_area_px` drops merged ROIs smaller than this. It is needed because a
-    merged footprint can end up below the size floor its own segmentation
-    enforced: pixels already claimed by an earlier ROI are removed so the
-    output stays disjoint, which can erode a later ROI to a sliver. Pass the
-    segmentation's `min_area_px` to keep the two consistent.
-    """
+    """Merge per-odor label images into one consensus label image."""
 
     if not masks:
         raise ValueError("No masks given.")
@@ -249,20 +184,6 @@ def merge_masks(
         if not footprint.any():
             continue
 
-        # Keep one connected region, not a scatter of pixels that sum to one.
-        #
-        # Two steps here produce speckle. A `consensus_fraction` above 0 votes
-        # pixel by pixel, and around the rim -- where the odors disagree about
-        # the boundary -- the vote alternates, leaving a halo of isolated
-        # pixels. Then the competition above removes whatever a neighbouring
-        # ROI already claimed, which can cut the remainder into islands.
-        #
-        # A size floor on the total does not catch this: 700 scattered pixels
-        # pass a 707-px floor as readily as one 700-px disc, and the resulting
-        # "ROI" averages fluorescence from wherever its specks landed. Measured
-        # on exp 132: 70 of 132 merged ROIs were non-contiguous, one of them in
-        # 132 separate pieces. Taking the largest component makes the floor
-        # mean what it says, and needs no extra parameter.
         footprint = _largest_component(footprint)
 
         # Re-check size AFTER competition and cleanup, not before: an ROI

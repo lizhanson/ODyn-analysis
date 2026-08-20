@@ -1,25 +1,4 @@
-"""
-Mask side-products: a MATLAB `.mat` and a picture of the ROIs on the image.
-
-The HDF5 round already holds the mask, and `h5read` reads it -- but two things
-make it awkward as the thing you hand to someone working in MATLAB:
-
-  * **It transposes.** HDF5 is row-major and MATLAB is column-major, so
-    `h5read(file, '/masks/labels')` returns (W, H) and needs a `permute` that
-    nobody remembers to apply. `.mat` written by `scipy.io.savemat` arrives in
-    MATLAB the same way round it left Python: (H, W), rows are rows.
-  * **It is a whole session.** Someone who only wants the ROIs has to know the
-    layout to find them.
-
-So the `.mat` is a convenience copy, not a second source of truth. It carries
-the same `mask_hash` as the HDF5, which is what says whether the two are still
-the same mask.
-
-The PNG renders the mask the way the curation GUI does -- greyscale background
-on a 1-99.5 percentile scale, ROIs filled with the same cycled palette -- so
-what gets filed away looks like what was approved on screen. It is the record
-of what the ROIs looked like, readable without loading anything.
-"""
+"""Mask side-products: a MATLAB `.mat` and a picture of the ROIs on the image."""
 
 from __future__ import annotations
 
@@ -42,15 +21,7 @@ GREY_PERCENTILES = (1.0, 99.5)
 
 
 def _matlab_name(key) -> str:
-    """
-    A group key as a legal MATLAB struct field: `7` -> `odor7`.
-
-    Keys reach here either raw (`7`, `(7, 'pre')`) or already stringified by
-    `repr` on the way into the HDF5, so `"(7, 'pre')"` has to give the same
-    field name as the tuple did. Punctuation collapses to single underscores
-    and the `odor` prefix covers the common case of a bare numeric id, which
-    MATLAB will not accept as a field name on its own.
-    """
+    """A group key as a legal MATLAB struct field: `7` -> `odor7`."""
 
     if isinstance(key, tuple):
         text = "_".join(str(part) for part in key)
@@ -69,13 +40,7 @@ def mask_overlay_rgb(
     alpha: float = DEFAULT_OVERLAY_ALPHA,
     percentiles: tuple[float, float] = GREY_PERCENTILES,
 ) -> np.ndarray:
-    """
-    Blend a label image over a greyscale background, GUI-style.
-
-    `alpha` is the ROI colour's weight, so 0.25 is the 75%-transparent overlay.
-    Background pixels are untouched, which keeps the greyscale readable rather
-    than washing the whole frame toward the palette.
-    """
+    """Blend a label image over a greyscale background, GUI-style."""
 
     image = np.asarray(image, dtype=np.float32)
     labels = np.asarray(labels)
@@ -123,13 +88,7 @@ def save_mask_overlay(
 
 
 def background_image(images) -> np.ndarray:
-    """
-    One background for a merged mask, from the per-odor maps it came from.
-
-    The GUI shows one odor at a time; the merged mask belongs to all of them,
-    so the still averages across groups. An ROI that only one odor drove is
-    still visible, just fainter -- which is honest about where it came from.
-    """
+    """One background for a merged mask, from the per-odor maps it came from."""
 
     if isinstance(images, dict):
         stack = np.stack([np.asarray(images[k], dtype=np.float32)
@@ -155,15 +114,7 @@ def save_masks_mat(
     mask_hash: str = "",
     processed_on: str = "",
 ) -> Path:
-    """
-    Write the masks as a MATLAB v5 `.mat`, oriented as MATLAB expects.
-
-    Variables:
-
-        labels        int32 (H, W). 0 background, N is ROI N.
-        per_odor      struct, one (H, W) field per odor group, pre-merge.
-        n_rois, exp_name, group_id, mask_hash, processed_on, readme
-    """
+    """Write the masks as a MATLAB v5 `.mat`, oriented as MATLAB expects."""
 
     from scipy.io import savemat
 
@@ -214,22 +165,7 @@ def find_saved_masks(output_dir: str | Path) -> list[Path]:
 
 
 def load_latest_mask(output_dir: str | Path) -> None | dict:
-    """
-    The most recent curated mask for a session, or None if there is none.
-
-    Curation is the expensive human step -- deletions, hand-placed seeds and
-    exclusion polygons that took real judgement -- and it is already written to
-    disk by every finished run. What was missing is anything that reads it
-    back: on a fresh kernel the notebook found no live GUI and quietly fell
-    through to the automatic merge, so an hour of extraction could run against
-    a mask nobody had approved, and nothing in the output would say so.
-
-    A completed round is preferred over a `.mat`, since the round is the file
-    the traces were extracted from and carries the hash that ties them
-    together. The `.mat` is the fallback for a session that was curated and
-    saved but never extracted -- which is exactly the state an interrupted run
-    leaves behind.
-    """
+    """The most recent curated mask for a session, or None if there is none."""
 
     candidates = find_saved_masks(output_dir)
 

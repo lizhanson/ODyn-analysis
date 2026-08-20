@@ -1,33 +1,4 @@
-"""
-Local correlation over a concatenated set of trial-averaged z-score movies.
-
-The segmentation image is built from one movie per odor *and condition* --
-32 blocks for a 16-odor pre/post-ket session -- concatenated along time, with
-a single local-correlation map computed over the whole thing.
-
-Two reasons this beats computing a map per block and combining them:
-
-  - Splitting awake from anesthetized before averaging keeps responses that
-    differ between states from cancelling each other. A glomerulus excited
-    awake and suppressed under ket/xyl averages toward nothing if the two are
-    pooled.
-  - Concatenating rather than combining removes the choice of combination
-    rule. Taking a max across per-block maps inflates values purely by
-    selecting the largest of N noisy estimates, which made an earlier
-    raw-vs-z comparison not directly comparable. One map over one long series
-    has no such knob.
-
-The concatenation is never materialised. A Pearson correlation needs only
-per-pixel sums, sums of squares, and sums of neighbour products, all of which
-accumulate additively across blocks -- so memory is a handful of images
-regardless of how many blocks there are or how long they run.
-
-Each block is centred on its own mean before accumulating. Without that, a
-pixel that sits high in one block and low in another contributes a large
-between-block deviation to every pairwise product, and neighbouring pixels
-would correlate because they share the block structure rather than because
-they co-vary in time.
-"""
+"""Local correlation over a concatenated set of trial-averaged z-score movies."""
 
 from __future__ import annotations
 
@@ -57,12 +28,7 @@ def concatenated_local_correlation(
     *,
     center_each_block: bool = True,
 ) -> tuple[np.ndarray, dict]:
-    """
-    Local 8-neighbour correlation over blocks concatenated along time.
-
-    `blocks` yields (T, H, W) arrays, which may be memmaps. They are consumed
-    one at a time and never held together.
-    """
+    """Local 8-neighbour correlation over blocks concatenated along time."""
 
     sum_x = None
     sum_xx = None
@@ -156,45 +122,7 @@ def group_zscore_blocks(
     keys=None,
     progress: bool = True,
 ):
-    """
-    One averaged z-score movie per condition, streamed from an odyn group.
-
-    Bridges `odyn.groups.Group` (the `avg-last-z-scores` branch) to
-    `concatenated_local_correlation`, so the segmentation image can be built
-    straight off `db.groups[...]` rather than off a resolved session.
-
-    Yields rather than returning a dict. `Group.z_score_average_movies` builds
-    every condition before returning any, which the method's own docstring
-    flags as too RAM-intensive for large experiments -- a 16-odor pre/post
-    session at 600x500x500 frames is ~19 GB held at once. Streaming one
-    condition at a time costs nothing here, because
-    `concatenated_local_correlation` consumes blocks one at a time and
-    accumulates only per-pixel sums, so peak memory is one movie regardless of
-    how many conditions there are.
-
-    Averaging is `sum / sqrt(n)`, matching `z_score_average_movies` rather
-    than the plain mean in `zscore.py`. That normalisation matters here and
-    not elsewhere: the correlation is computed over every condition
-    concatenated, so a block's weight follows its variance. Under a plain mean
-    a condition with more trials has *less* noise and therefore *less* weight,
-    which down-weights the best-measured conditions. Under sum/sqrt(n) the
-    noise sits near 1 for every condition and signal grows with sqrt(n), so a
-    condition contributes in proportion to how well it was measured.
-
-    Blocks are one per `(program_id, odor_id)`. `program_id` is what separates
-    pre from post anaesthesia -- both programs carry the same `program_name`
-    ("16odors passive 4s scope"), so the id is the discriminator and the name
-    is not. That gives the same 2 x n_odor blocks `zscore.py` builds.
-
-    `z_score_average_movies` also keys on `outcome`, which is a behavioural
-    field: it reads 'na' throughout these passive sessions, so grouping on it
-    adds a constant and changes nothing. It is left out of the default rather
-    than trusted to stay constant. Pass `by=(..., "outcome")` on a session
-    where it means something.
-
-    `keys` restricts which conditions are used, as tuples matching `by`.
-    Leave it None for all of them.
-    """
+    """One averaged z-score movie per condition, streamed from an odyn group."""
 
     trials = group.trials[
         group.trials["acq_id"].isin(group.approved_mcor_files.index)

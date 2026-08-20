@@ -1,31 +1,4 @@
-"""
-Cache the correlation maps, not the movies they came from.
-
-The z-score movies are an intermediate. Nothing downstream reads them: they
-exist to be collapsed, once, into one local-correlation map per group, and the
-segmentation, the GUI and the merge all work from those maps alone.
-
-Caching the intermediate instead of the product is expensive in a way that only
-shows up on a busy share. Exp 213, 16 odors with conditions separated:
-
-    z-score movies    32 x 284 MB  =  9.09 GB   ~56 min to write at 2.7 MB/s
-    correlation maps  32 x 1.26 MB =  40.4 MB   ~15 s
-
-A 225x ratio, and on that run the write phase was more than half the total
-time -- spent on data nothing reads. The accumulators still have to be built,
-so the streaming cost is unchanged; what disappears is pushing 9 GB over SMB
-and back again.
-
-The trade is that the movies are gone once the maps are computed. That is
-deliberate: they can be rebuilt by re-streaming, and the alternative -- keeping
-them "just in case" -- is what cost the 56 minutes. Anything that genuinely
-needs per-pixel time courses should build them explicitly with
-`build_group_zscore_movies`.
-
-The digest is the movie cache's, plus the correlation parameters, so changing
-either the z-scoring or the correlation invalidates the maps. Re-running motion
-correction invalidates them too, since file size and mtime are in the digest.
-"""
+"""Cache the correlation maps, not the movies they came from."""
 
 from __future__ import annotations
 
@@ -87,13 +60,7 @@ def load_cached_maps(directory: str | Path, digest: str) -> None | tuple[dict, d
 def write_cached_maps(
     directory: str | Path, maps: dict, *, meta: dict, digest: str
 ) -> Path:
-    """
-    Replace whatever is cached here with these maps.
-
-    Manifest last and atomic, matching the movie cache: an interrupted write
-    leaves arrays with no manifest, which reads as a miss, rather than a
-    manifest pointing at data that does not match it.
-    """
+    """Replace whatever is cached here with these maps."""
 
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
@@ -145,16 +112,7 @@ def build_group_correlation_maps(
     keep_movies: bool = False,
     progress: bool = True,
 ) -> tuple[dict, dict]:
-    """
-    One local-correlation map per group, cached.
-
-    On a hit this reads ~40 MB and returns in seconds. On a miss it streams the
-    session once, accumulates the z-score movies into `work_dir` on local disk,
-    collapses them to maps, caches the maps, and deletes the accumulators.
-
-    `keep_movies=True` returns the movies alongside the maps for the rare case
-    that wants them; they still are not cached.
-    """
+    """One local-correlation map per group, cached."""
 
     from .summary import local_correlation
     from .zscore import build_group_zscore_movies, cache_key
@@ -232,20 +190,7 @@ def convert_movie_cache(
     *,
     delete_movies: bool = False,
 ) -> dict:
-    """
-    Turn an existing movie cache into a correlation cache, without re-streaming.
-
-    For sessions cached before this module existed. Reading 9 GB back off the
-    share is slow, but it is a one-off, and it is the difference between
-    keeping that 9 GB forever and keeping 40 MB.
-
-    The movie cache's own digest is reused, so the maps validate against a
-    later call with the same parameters -- the conversion produces exactly what
-    a fresh run would have.
-
-    `delete_movies` removes the source arrays afterwards. Off by default: the
-    conversion should be verified before anything is thrown away.
-    """
+    """Turn an existing movie cache into a correlation cache, without re-streaming."""
 
     from .summary import local_correlation
 

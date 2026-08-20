@@ -1,38 +1,4 @@
-"""
-Finalise a session: freeze the mask and extract its traces in one step.
-
-Extraction takes no decisions of its own. Given a mask it reads the same pixels
-from every acquisition and writes the result; there is no parameter to weigh,
-nothing to look at and judge. Everything discretionary happened upstream, in
-segmentation and curation.
-
-So it is not a separate stage. Leaving it separate invites the failure it
-cannot detect: a mask edited after extraction, and traces on disk that no
-longer correspond to the ROIs anyone is looking at. Nothing in the files would
-say so -- both would load, both would have plausible shapes, and the mismatch
-would only surface as noise in an analysis much later.
-
-`finalize_session` couples them and records the coupling. The mask's content
-hash goes into the trace metadata, so `verify` can say whether a set of traces
-belongs to the mask beside it.
-
-It writes one self-describing HDF5 per round into `<exp>/processed/python/`:
-
-    group132_20260317_m316_e1_processed_20260812.h5
-
-The date makes rounds additive: re-curate and re-extract, and the previous
-round is still there to compare against rather than overwritten. See
-`store.py` for the layout.
-
-Two side-products go beside it, sharing its stem and date:
-
-    group132_20260317_m316_e1_masks_processed_20260812.mat
-    group132_20260317_m316_e1_masks_processed_20260812.png
-
-The `.mat` is the mask for MATLAB, without the transpose `h5read` imposes; the
-PNG is the ROIs drawn over the image as the GUI drew them. Neither is a source
-of truth -- both carry the same `mask_hash` as the round. See `masks.py`.
-"""
+"""Finalise a session: freeze the mask and extract its traces in one step."""
 
 from __future__ import annotations
 
@@ -70,19 +36,7 @@ def finalize_session(
     scratch_dir: None | str | Path = None,
     detrend: bool = True,
 ) -> dict:
-    """
-    Write the mask and its traces together, linked by the mask's hash.
-
-    `extract=False` writes only the mask, for the case where the traces are
-    being produced elsewhere -- on a cluster, say. The mask hash is still
-    recorded, so whatever extracts later can be checked against it.
-
-    `images` is the per-odor correlation maps (or a single background image).
-    Given them, the round also gets a PNG of the ROIs drawn over the image the
-    way the GUI drew them; without them the PNG is skipped, since a mask
-    picture with nothing underneath says nothing about whether the ROIs are in
-    the right places.
-    """
+    """Write the mask and its traces together, linked by the mask's hash."""
 
     from .extract import extract_traces
     from .masks import (
@@ -128,14 +82,6 @@ def finalize_session(
             checkpoint_dir=checkpoint, mask_hash=digest,
         )
 
-    # Fit and subtract the acquisition-onset transient.
-    #
-    # Stored beside the raw traces, never instead of them: F0 is taken from the
-    # last second before onset, which on this rig sits at the floor of a ~10%
-    # settling transient, so everything after reads elevated and dF/F is biased
-    # positive. The model is fitted with the odor window masked out, so it
-    # cannot absorb the response -- per-ROI-odor responses correlate 0.99 with
-    # the uncorrected ones.
     detrend_result = None
     if extract and traces is not None and detrend:
         from .detrend import detrend_traces
@@ -150,14 +96,6 @@ def finalize_session(
             info["traces"] = corrected
             detrend_result = info
 
-    # Write locally, then copy.
-    #
-    # Writing HDF5 straight to the share means a dropped mount leaves a
-    # truncated file where a valid round should be -- and it would still open,
-    # since HDF5 does not require a footer. A local write followed by a copy
-    # makes the failure mode "no file" instead of "a plausible wrong file", and
-    # the copy is one sequential 36 MB transfer rather than the scattered small
-    # writes HDF5 does as it builds the file.
     _write_round(
         path, scratch,
         labels=labels, traces=traces, per_group_masks=per_group_masks,
@@ -242,12 +180,7 @@ def _write_round(destination: Path, scratch: None | Path, **kwargs) -> Path:
 
 
 def verify(output_dir: str | Path) -> dict:
-    """
-    Do the traces in this folder belong to the mask beside them?
-
-    The check that matters after a re-curation: masks and traces both load
-    fine when they disagree, and nothing else would notice.
-    """
+    """Do the traces in this folder belong to the mask beside them?"""
 
     from .h5io import open_h5
     from .store import find_rounds

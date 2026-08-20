@@ -1,28 +1,4 @@
-"""
-Trial-averaged pixelwise z-score movies, one per odor.
-
-A single trial's z-score movie is dominated by noise; averaging the trials of
-one odor cancels most of it and leaves the response. That averaged movie is a
-far better substrate than raw frames for anything that reads temporal
-structure -- in particular the local-correlation image, which on raw
-acquisitions at 10x came out at p99.5 = 0.105 and visibly striped.
-
-Order of operations matters. The optional spatial Gaussian is applied to the
-raw frames *before* the z-score, so it reduces per-pixel noise going into the
-baseline statistics. Smoothing afterwards would just blur a result whose noise
-had already been baked into the denominator. This matches how
-`odor_zscore_movies._load_trial_zscore` did it.
-
-Memory: the accumulators are one movie per odor held simultaneously, because
-trials of a given odor are scattered through the session in random order and
-re-reading the session once per odor is wasteful even on fast storage. At 10x
-that is ~3 GB for 16 odors over a 6 s window; at 20x it is 12-20 GB.
-
-That fits in RAM on a 64 GB workstation or a cluster node but not on a small
-laptop, so `memory_backend="auto"` measures free memory and falls back to
-memory-mapped files only when it has to. Disk-backed accumulation costs real
-time on a 20x session, so it is not the default where RAM is available.
-"""
+"""Trial-averaged pixelwise z-score movies, one per odor."""
 
 from __future__ import annotations
 
@@ -53,14 +29,7 @@ def _available_bytes() -> None | int:
 
 
 def _tracked(iterable, *, total: int, description: str, enabled: bool = True):
-    """
-    Wrap an iterable in a progress bar, or return it unchanged.
-
-    `tqdm.auto` picks the notebook widget when there is one and the plain text
-    bar otherwise, so the same call works in Jupyter, a terminal, and a script.
-    Falls back to the bare iterable if tqdm is missing, since a progress bar is
-    never worth an ImportError.
-    """
+    """Wrap an iterable in a progress bar, or return it unchanged."""
 
     if not enabled:
         return iterable
@@ -108,15 +77,7 @@ def cache_key(
     spatial_sigma_px: None | float,
     min_baseline_std: float,
 ) -> str:
-    """
-    Digest of everything that changes the output.
-
-    Includes the inputs, not just the parameters: each file's size and
-    modification time go in, so re-running motion correction invalidates the
-    cache rather than silently serving movies built from the old registration.
-    That is the failure this cache could otherwise introduce, and it would be
-    invisible -- the arrays would load fine and be wrong.
-    """
+    """Digest of everything that changes the output."""
 
     payload = {
         "files": [
@@ -140,14 +101,7 @@ def cache_key(
 
 
 def _load_cached(directory: Path, digest: str) -> None | tuple[dict, dict]:
-    """
-    Return cached movies and metadata, or None when the entry does not match.
-
-    One entry per directory, not one per digest. The alternative -- a
-    subdirectory per parameter set -- keeps old results around cheaply but
-    grows without bound, and a 7-odor session is ~3 GB per entry. Here a
-    mismatched digest is a miss and the stale arrays are replaced.
-    """
+    """Return cached movies and metadata, or None when the entry does not match."""
 
     manifest_path = directory / "manifest.json"
 
@@ -195,25 +149,7 @@ def make_group_keys(
     *,
     separate_by_condition: bool = False,
 ) -> list:
-    """
-    Group keys for `build_group_zscore_movies`, with or without state split.
-
-    Pooling is the default: it roughly doubles the trials behind each map and
-    costs nothing when the two blocks respond alike. Separating is the
-    exception, taken when they do not.
-
-    In DAT-GCaMP and TH-GCaMP the awake and anesthetized responses to an odor
-    agree in sign at 93-99% of responsive pixels -- the state effect is on
-    magnitude, not polarity -- so pooling costs under 1% of amplitude and buys
-    roughly double the trials per average. Measured on exp 202, 10x.
-
-    Thy1-GCaMP labels mitral/tufted cells, where responses can invert under
-    ket/xyl. There, pooling would cancel exactly the units the
-    excited/suppressed analysis is about, and they would be lost from
-    detection entirely. Separate for Thy1 -- but only when the manipulation is
-    actually an anaesthetic: under saline there is no state change to preserve,
-    so even Thy1 should pool. The notebook's `ANESTHESIA` toggle says which.
-    """
+    """Group keys for `build_group_zscore_movies`, with or without state split."""
 
     if len(odor_ids) != len(states):
         raise ValueError(
@@ -249,37 +185,7 @@ def build_group_zscore_movies(
     refresh_cache: bool = False,
     progress: bool = True,
 ) -> tuple[dict[int, np.ndarray], dict]:
-    """
-    Stream the session once and return a trial-averaged z-score movie per group.
-
-    `group_keys` is one hashable per acquisition naming the average it belongs
-    to. Passing odor alone gives one movie per odor; passing `(odor, state)`
-    gives one per odor-and-condition, which is what the correlation map wants
-    -- a glomerulus can respond differently awake and under ket/xyl, and
-    averaging the two together partly cancels both.
-
-    Every window is the same length -- `pre_s` before onset, the odor, then
-    `post_s` -- anchored on each trial's own onset frame, so trials with
-    onsets differing by a frame still stack correctly.
-
-    `memory_backend` is 'auto' (RAM when it comfortably fits, else disk),
-    'memory' (force RAM), or 'disk' (force memory-mapped files). Forcing
-    'memory' on a machine that cannot hold the accumulators will not fail
-    cleanly -- it will swap.
-
-    `cache_dir` turns on reuse. The result is stored under a digest of the
-    inputs and every parameter that changes it, so an identical call returns in
-    seconds instead of re-streaming the session -- which matters because tuning
-    segmentation does not touch these movies at all, and each rebuild is ~30
-    min over SMB for a 7-odor session.
-
-    The digest includes each input file's size and modification time, so
-    re-running motion correction misses rather than silently serving movies
-    built from the old registration. `refresh_cache=True` forces a rebuild.
-
-    Returns `{group_key: movie}` plus a metadata dict recording which backend
-    was used, how much it needed, and whether the cache was hit.
-    """
+    """Stream the session once and return a trial-averaged z-score movie per group."""
 
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -336,11 +242,6 @@ def build_group_zscore_movies(
     counts = {key: 0 for key in unique}
     skipped = []
 
-    # A bar, because this is the long pole and its duration is not predictable
-    # from anything the caller can see. The same session streamed at 12.5 s per
-    # acquisition in the afternoon and 24.8 s in the evening, purely from other
-    # traffic on the share -- so a static estimate would be wrong by a factor
-    # of two and a silent cell gives no way to tell "slow today" from "hung".
     for path, on_frame, off_frame, key in _tracked(
         zip(movie_paths, odor_on_frames, odor_off_frames, group_keys),
         total=len(movie_paths),
@@ -383,14 +284,6 @@ def build_group_zscore_movies(
         if in_memory:
             movies[key] = sums[key]
         else:
-            # Reuse the mapping already open rather than reopening the file by
-            # path. The old code reopened it read-only, which meant a run could
-            # be killed at the finish line by anything that removed the work
-            # directory while it streamed -- a cleanup script, a full disk, a
-            # colleague tidying /tmp. On POSIX the accumulation itself survives
-            # that (the inode lives while the descriptor is open) so there is
-            # no reason for the result to depend on the directory entry still
-            # being there 35 minutes later.
             sums[key].flush()
 
             view = sums[key][:]
@@ -414,16 +307,6 @@ def build_group_zscore_movies(
     if entry is not None:
         movies = _write_cache(entry, movies, meta=meta, shape=shape, digest=digest)
 
-        # The accumulators have been copied into the cache, so nothing points
-        # at them any more. Deleting them here rather than leaving it to the
-        # caller matters because they are the size of the output -- 2.1 GB for
-        # a seven-odor session -- and the caller's cleanup only runs if the
-        # caller finishes. A kernel interrupt part-way through, or a switch to
-        # a different experiment, otherwise strands them on the local disk
-        # where nothing will ever look for them again.
-        #
-        # Without a cache they are the returned arrays and must survive; that
-        # is the one case where the caller does own them.
         _discard_accumulators(sums, work_dir, in_memory=in_memory)
 
     return movies, meta
@@ -453,17 +336,7 @@ def _discard_accumulators(sums: dict, work_dir: Path, *, in_memory: bool) -> Non
 def _write_cache(
     directory: Path, movies: dict, *, meta: dict, shape: tuple, digest: str
 ) -> dict:
-    """
-    Persist the movies, then the manifest, replacing whatever was there.
-
-    The manifest goes last and is written atomically. An interrupted run
-    therefore leaves arrays with no manifest, which `_load_cached` treats as a
-    miss -- rather than a manifest pointing at half-written data, which it
-    would treat as a hit.
-
-    The old manifest is removed *first*, so a crash midway through writing the
-    arrays cannot leave the previous manifest pointing at overwritten files.
-    """
+    """Persist the movies, then the manifest, replacing whatever was there."""
 
     directory.mkdir(parents=True, exist_ok=True)
 

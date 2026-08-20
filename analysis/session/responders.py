@@ -1,99 +1,16 @@
-"""
-Which ROI-odor pairs are excited or suppressed, by a paired test per pair.
-
-`response_qc.py` answers this with a sham null: slide the measurement window
-back into the pre-odor period, collect the values it produces, and read a
-threshold off that distribution. The null is what limits it. An empirical
-p-value cannot go below `1/(n_null+1)`, and because the null is built as one
-(n_roi x n_odor) matrix per sham offset, the number of tests grows exactly as
-fast as the number of null samples -- so the ROI and odor counts cancel and
-only the offset count matters. With the two fitted offsets a 5 s pre-odor
-period allows, no pair can score below p = 2.8e-4, and BH only returns
-discoveries when enough pairs pile up at that floor together. Excitation
-clears it collectively and the threshold collapses toward noise; suppression,
-being smaller, never reaches the critical mass and gets nothing. On group223
-that came out as 110/110 ROIs excited at z >= 0.286 and 0 suppressed on every
-odor.
-
-The fix here is to stop estimating a null and test each pair on its own trials.
-Every trial of one odor gives one number -- the odor window minus that trial's
-own pre-odor window -- and a one-sample t-test asks whether those numbers
-differ from zero. The p-value is analytic, so it has no resolution floor and
-does not depend on how many other pairs are significant: a pair is judged on
-its own evidence. Excitation and suppression are the same test read in two
-directions, which is what makes the two tails comparable.
-
-Two things this leans on:
-
-**Detrended traces.** The correction in `detrend.py` removes the instrumental
-settling transient, which is what made a pre-odor window unusable as F0 --
-`finalize.py` notes the last second sits at the floor of a ~10% transient, so
-anything earlier reads elevated and biases dF/F positive. `/traces/roi` is
-stored raw and `response_qc` reads it; this module prefers
-`/traces/roi_detrended` and records which it used.
-
-**The whole pre-odor window as F0.** `BASELINE_S = 1.0` in `response_qc` is a
-workaround for that same transient. Once it is corrected the constraint is
-gone, and a baseline over ~5 s instead of ~1 s is the largest free gain
-available here: the variance of (response - baseline) falls with the frame
-count in the baseline, and at this rig's geometry that is a ~2.8x reduction,
-or ~1.7x on t, before any change of statistic. Fluorescence noise is
-autocorrelated, so treat that as an upper bound -- the realised gain is
-smaller, and `control_test` is what measures whether it was worth it.
-
-Nothing here calibrates against the pre-odor period, but it is still used, as
-a check rather than a threshold: `control_test` reruns the identical test on a
-split of the pre-odor window, where there is no odor and the answer should be
-"nothing". Rejections there are residual drift the detrend did not remove, and
-they invalidate the real counts rather than adjusting them.
-
-What this trades away: a t-test over trials rewards consistency, not
-amplitude. A pair that responds enormously on 2 of 10 trials and not at all on
-the other 8 will not pass, and under the sham-null threshold it would have.
-That is the right trade for suppression, which is small and (by hypothesis)
-reliable, but it is a real change in what "responsive" means and it is worth
-stating in a methods section rather than discovering later.
-
-Power is set by the trial count, and 10 trials per odor is not many. At this
-rig's geometry a suppression of 0.5 per-trial SD is detected ~14% of the time
-and 1.0 SD ~56%; 40 trials per odor takes those to 68% and >99%. No choice of
-test fixes that -- see the note on `MIN_TRIALS`.
-"""
+"""Which ROI-odor pairs are excited or suppressed, by a paired test per pair."""
 
 from __future__ import annotations
 
 import numpy as np
 
-# Target false discovery rate across all ROI-odor pairs, both tails together.
-#
-# One family, not one per tail: excitation and suppression are the same test
-# read in two directions, and splitting them into two families of the same m
-# would charge the multiple-comparisons cost twice while controlling neither
-# jointly. The sign is read off the t statistic after the fact.
 TARGET_FDR = 0.05
 
-# Fewer trials than this and the pair is not tested at all.
-#
-# A t-test on 3 trials is not wrong so much as useless: it has almost no power
-# against anything, and its p-values still enter the BH denominator, so every
-# under-powered pair makes the threshold stricter for the pairs that could
-# have passed. Dropping them outright is better than letting them dilute.
 MIN_TRIALS = 5
 
 
 def read_manipulation(f) -> str | None:
-    """
-    The manipulation label from a round, or None if it predates the field.
-
-    `state` says which side of the manipulation a trial is on; this says what
-    it was. Both are needed to read a pre/post design -- a saline control and
-    a ketamine session have identical `state` columns, and without this the
-    time-in-session confound cannot be separated from the manipulation.
-
-    Stored per trial and constant in practice, so the single label is returned
-    when there is one and a joined string when a round somehow carries more,
-    rather than silently reporting the first.
-    """
+    """The manipulation label from a round, or None if it predates the field."""
 
     if "trials/manipulation" not in f:
         return None
@@ -108,13 +25,7 @@ def read_manipulation(f) -> str | None:
 
 
 def load_roi_traces(f, *, prefer_detrended: bool = True) -> tuple[np.ndarray, str]:
-    """
-    The detrended traces if the round carries them, the raw ones otherwise.
-
-    Returns which it used rather than silently picking, because every number
-    downstream depends on it and the two are not interchangeable -- see the
-    module docstring on why a raw trace cannot use a long baseline.
-    """
+    """The detrended traces if the round carries them, the raw ones otherwise."""
 
     if prefer_detrended and "traces/roi_detrended" in f:
         return f["traces/roi_detrended"][:], "detrended"
@@ -130,20 +41,7 @@ def trial_deltas(
     baseline_s: float | None = None,
     frame_rate: float,
 ) -> dict:
-    """
-    Per-ROI, per-trial (odor window mean - pre-odor window mean).
-
-    `baseline_s=None` uses the whole pre-odor period of each trial, which is
-    the point of running on detrended traces. Passing a number instead takes
-    only that many seconds immediately before onset, which is what to do if
-    the detrend is unavailable and the settling transient is still in there.
-
-    Returns the difference in the traces' own units and the baseline level
-    beside it, so a caller can express the effect as dF/F without recomputing
-    F0. The test itself uses the difference: a t statistic is invariant to
-    scaling within a pair, so normalising first would change the reported
-    effect size and not the p-value.
-    """
+    """Per-ROI, per-trial (odor window mean - pre-odor window mean)."""
 
     n_roi, n_trial, n_frame = roi.shape
 
@@ -186,18 +84,7 @@ def trial_deltas(
 
 
 def bh_reject(p: np.ndarray, q: float) -> tuple[np.ndarray, float | None]:
-    """
-    Benjamini-Hochberg step-up over every finite p-value in `p`.
-
-    Sort ascending, find the largest rank k with p_(k) <= (k/m)*q, reject
-    everything at or below that p. Returns the mask in `p`'s own shape and the
-    cutoff, or `(all False, None)` when nothing survives.
-
-    Note this is a step-UP: the bar rises as more tests pass, so a single test
-    does not need to clear q/m -- it needs to clear (k/m)*q for whatever k the
-    family reaches. That is why the sham-null version could return 1388
-    discoveries while its own `underpowered` check said none were possible.
-    """
+    """Benjamini-Hochberg step-up over every finite p-value in `p`."""
 
     values = np.asarray(p, dtype=np.float64)
     flat = values.ravel()
@@ -232,18 +119,7 @@ def responder_test(
     min_trials: int = MIN_TRIALS,
     trials: np.ndarray | None = None,
 ) -> dict:
-    """
-    One-sample t-test per ROI-odor pair against zero, then BH over all pairs.
-
-    `delta` is (n_roi, n_trial) from `trial_deltas`; `trials` optionally
-    restricts which trials count, for testing a block (pre, post) on its own.
-
-    Excited and suppressed come from one BH pass split by the sign of t, not
-    from two passes. Two one-tailed families would each carry the full m and
-    control neither jointly; one two-sided family costs a factor of two on
-    each p-value and controls the thing actually being claimed -- the share of
-    *responsive calls* that are wrong, regardless of direction.
-    """
+    """One-sample t-test per ROI-odor pair against zero, then BH over all pairs."""
 
     from scipy import stats
 
@@ -327,51 +203,7 @@ def trial_calls(
     target_fdr: float = TARGET_FDR,
     robust: bool = True,
 ) -> dict:
-    """
-    Per ROI, per *trial*: is the odor-locked response above or below chance?
-
-    `responder_test` asks whether a pair responds on average over its trials,
-    so a single trial has no answer of its own. This asks the per-trial
-    question directly, which is the one that survives if suppression is not
-    locked to odor identity -- a trial-resolved call can be regressed against
-    anything measured per trial, and an odor-collapsed one cannot.
-
-    A single trial cannot supply its own null: the pre-odor period holds only
-    a couple of response-length windows and they overlap almost completely, so
-    the null has to be pooled somewhere. It is pooled across trials, per ROI,
-    which keeps the ROI-to-ROI differences in noise that a session-wide pool
-    would flatten.
-
-    The geometry splits the pre-odor period in half and uses the whole thing:
-
-        pre1 = [on-2W, on-W)    pre2 = [on-W, on)    response = [on, on+W)
-
-        d = mean(response) - mean(pre2)      the measurement
-        c = mean(pre2)     - mean(pre1)      the same thing, no odor
-
-    `c` is length-matched to `d` by construction, which is the point -- an
-    unmatched control window averages a different number of frames, and its
-    spread is then the wrong yardstick for `d`. `W` defaults to half the
-    shortest pre-odor period, so the two control windows tile it exactly.
-
-    Each ROI's `c` across trials gives a centre and a scale. Centring is what
-    removes residual within-trial drift: after detrending, group223's pre-odor
-    window still falls 0.5%, which is small but lands entirely in the
-    suppressed tail if it is not subtracted. `robust` uses median and MAD
-    rather than mean and SD, so a dead trial widens nothing.
-
-        z = (d - centre) / scale
-
-    p-values are two-sided normal. That is a distributional assumption, unlike
-    the empirical null it replaces, but a deliberate one: `d` is a difference
-    of two means of W frames each, so the CLT is doing real work, and the
-    assumption buys unbounded p-resolution -- which is exactly what the sham
-    null could not provide. `split_half_control` measures whether it holds
-    instead of asserting it.
-
-    BH runs over every (ROI, trial) pair at once and the sign of z splits the
-    survivors, same as `responder_test`.
-    """
+    """Per ROI, per *trial*: is the odor-locked response above or below chance?"""
 
     from scipy import stats
 
@@ -393,11 +225,6 @@ def trial_calls(
     d = np.full((n_roi, n_trial), np.nan)
     c = np.full((n_roi, n_trial), np.nan)
 
-    # Excluded trials are left NaN rather than dropped, so trial indices keep
-    # meaning the same thing as the round's own trial axis -- a caller can
-    # still line `z` up against odor_ids, states, or anything else per-trial.
-    # NaN then propagates correctly: the centre and scale are nanmedian/MAD,
-    # and every downstream step filters on isfinite.
     keep = (np.ones(n_trial, bool) if usable is None
             else np.asarray(usable, bool))
 
@@ -428,10 +255,6 @@ def trial_calls(
     with np.errstate(invalid="ignore", divide="ignore"):
         z = (d - centre) / np.where(scale > 1e-12, scale, np.nan)
 
-    # The shared trial-to-trial component is removed from the real and the
-    # control z alike. Correcting only the real one would leave the chance
-    # rate measured against a wider distribution than the calls are, which
-    # flatters every ratio on the figure.
     component = None
     if deglobal is not None:
         if odor_ids is None:
@@ -460,19 +283,6 @@ def trial_calls(
         "n_excluded_trials": int((~keep).sum()),
     }
 
-    # Each tail gets its own threshold against its own control tail. A single
-    # BH pass over both signs controls only the false share of the two
-    # together, and the tails here are nowhere near the same size -- far more
-    # glomeruli are excited than suppressed, and that is expected rather than
-    # a defect.
-    #
-    # FDR is not inherited by a subset, and the suppressed calls are always
-    # the subset that matters. On group223 the joint pass let the dense
-    # excited tail lift the bar and the sparse suppressed tail ride on it:
-    # 918 suppressed calls at a 60% false share against a 5% target, where
-    # thresholding the tails separately gives 254 at 4.7%. The excited tail is
-    # fine either way (4.8% joint), which is exactly why the joint number
-    # looks reassuring and is not.
     thresholds = empirical_trial_threshold(result, target_fdr=target_fdr)
 
     excited = z >= thresholds["excited"]["z_threshold"]
@@ -511,44 +321,12 @@ def trial_calls(
 def empirical_trial_threshold(
     calls: dict, *, target_fdr: float | None = None,
 ) -> dict:
-    """
-    Per-trial z thresholds read off the control distribution, per tail.
-
-    `trial_calls` gets its p-values from a normal, and on real traces that is
-    optimistic: group223's control z has kurtosis 2.0, and the split-half
-    check rejects 1.4% of a set where the truth is zero. This drops the
-    distributional assumption entirely.
-
-    Both `d` and `c` are standardised by the same per-ROI centre and scale, so
-    the control z is what the real z would look like with no odor. For a
-    candidate threshold t, the share of control values beyond t estimates the
-    share of real values beyond t that are false:
-
-        FDR(t)  ~  P(control > t) / P(real > t)
-
-    The smallest t meeting the target is chosen per tail, so the two come out
-    asymmetric on their own. That is the whole point: excitation and
-    suppression differ in both signal size and null width, and one number
-    imposed on both is what produced 0 suppressed pairs.
-
-    This is the same ratio-of-tails logic as the old sham null, but it is not
-    subject to what broke that one. The threshold is a ratio of two rates, not
-    a quantile of the null, so it needs the null to be *shaped* right rather
-    than to resolve a 1e-5 tail, and the count of control samples here is
-    n_roi x n_trial rather than n_roi x n_odor per offset.
-
-    Returns `inf`/`-inf` for a tail where no threshold reaches the target,
-    which is an honest "nothing here" rather than a threshold that misses it.
-    """
+    """Per-trial z thresholds read off the control distribution, per tail."""
 
     q = calls["target_fdr"] if target_fdr is None else target_fdr
 
     z = calls["z"]
 
-    # Use the standardised control the caller already built when it exists:
-    # with `deglobal` set it has had the same component removed as `z`, and
-    # rebuilding it from `c` here would compare a corrected z against an
-    # uncorrected null and understate the chance rate.
     control = calls.get("control_z")
     if control is None:
         control = (calls["control"] - calls["centre"][:, None]) / np.where(
@@ -592,42 +370,7 @@ def empirical_trial_threshold(
 def _deglobal(
     z: np.ndarray, odor_ids: np.ndarray, *, method: str = "pc1",
 ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Remove the trial-to-trial component shared across ROIs, keeping odor tuning.
-
-    Glomeruli do not fluctuate independently: on these sessions one component
-    carries 42-57% of the trial-to-trial variance once each odor's mean
-    response is taken out, and pairwise correlations run 0.24-0.61. That
-    shared term widens the control distribution as much as the real one, so it
-    costs sensitivity in both tails without adding signal to either.
-
-    The order of operations is what keeps this from eating the result:
-
-    1. Take out each odor's mean response per ROI. What is left is variation
-       *within* an odor -- trial-to-trial, by construction not odor tuning.
-    2. Find the component. `"pc1"` takes the leading right singular vector of
-       that residual, so ROIs contribute in proportion to how much they follow
-       it. `"median"` uses the population median per trial, which is blunter
-       but needs no explaining in a methods section.
-    3. Re-centre the component within each odor, so it sums to zero over the
-       trials of any one odor. This is the guard that matters: a component
-       with zero mean inside every odor cannot shift any odor's mean response,
-       so no amount of regressing it out can remove tuning.
-    4. Regress it out of the *uncorrected* z per ROI, each with its own slope.
-       Per-ROI slopes matter -- ROIs differ in how strongly they follow the
-       shared term, and a single global subtraction would over-correct the
-       ones that ignore it into spurious suppression.
-
-    Removing the odor mean first is why this is defensible where the neuropil
-    subtraction was not. Neuropil carried real odor-specific response (r=0.64
-    with each ROI's own tuning), so subtracting it removed signal. This
-    component is orthogonal to odor identity before it is ever used.
-
-    Returns the corrected z and the per-trial component that was removed --
-    the latter is worth keeping, since it is a per-trial measure of how much
-    the whole field moved together and can be correlated against anything else
-    recorded per trial.
-    """
+    """Remove the trial-to-trial component shared across ROIs, keeping odor tuning."""
 
     odor_ids = np.asarray(odor_ids)
     z = np.asarray(z, dtype=np.float64)
@@ -676,19 +419,7 @@ def population_sparsity(
     *,
     trials: np.ndarray | None = None,
 ) -> dict:
-    """
-    Per odor, the share of glomeruli excited and suppressed, with a spread.
-
-    The unit is one trial: each trial of an odor gives one percentage, and the
-    mean and SEM are taken over those trials. That is the quantity a reader
-    wants -- "on a given presentation, what fraction of the field responds" --
-    and it comes with an honest error bar, which a measure computed on the
-    trial-averaged matrix cannot have.
-
-    `chance` is the same percentage computed on the pre-odor control windows,
-    and belongs on the plot beside the bars: a 6% excited share means
-    something different against a 1% chance rate than against a 5% one.
-    """
+    """Per odor, the share of glomeruli excited and suppressed, with a spread."""
 
     odor_ids = np.asarray(odor_ids)
     keys = np.unique(odor_ids)
@@ -747,29 +478,12 @@ def _centre_scale(c: np.ndarray, *, robust: bool) -> tuple[np.ndarray, np.ndarra
 def split_half_control(
     calls: dict, *, target_fdr: float | None = None, robust: bool = True,
 ) -> dict:
-    """
-    Does the normal approximation in `trial_calls` hold on this session?
-
-    Standardising the control values with a centre and scale computed from
-    those same values is circular -- it cannot help but look calibrated. So
-    the trials are split: odd trials estimate the centre and scale, even
-    trials are standardised with them and run through the identical BH pass.
-    No odor is involved in either half, so every rejection is false, and BH
-    under a complete null should return approximately none.
-
-    A rejection count well above zero means the tails of `d` are heavier than
-    normal, and the per-trial calls are over-confident by however much.
-    """
+    """Does the normal approximation in `trial_calls` hold on this session?"""
 
     from scipy import stats
 
     q = calls["target_fdr"] if target_fdr is None else target_fdr
 
-    # Use the standardised control when the caller built one: with `deglobal`
-    # set it has had the same component removed as `z`, and checking the raw
-    # `c` instead would report the calibration of a quantity the calls are no
-    # longer made from -- the check would come out identical with and without
-    # the correction, which is exactly the case it exists to distinguish.
     standardised = calls.get("control_z")
 
     if standardised is None:
@@ -810,25 +524,7 @@ def control_test(
     min_trials: int = MIN_TRIALS,
     trials: np.ndarray | None = None,
 ) -> dict:
-    """
-    The same test where the answer is known to be nothing.
-
-    Each trial's pre-odor period is split in half and the second half is
-    treated as the "response", the first as its baseline. No odor was
-    delivered in either, so every rejection is a false one, and BH should
-    return approximately zero -- not `target_fdr` of the pairs. BH controls the
-    false share *among rejections*, so under a complete null it rejects nothing
-    at all with probability >= 1 - q.
-
-    This does not calibrate anything. It measures whether the detrend left the
-    pre-odor period flat enough for a long baseline to be honest. Rejections
-    here mean residual drift, and they invalidate the real counts rather than
-    correcting them -- fall back to `baseline_s=1.0` and rerun.
-
-    The halves are shorter than the real windows, so this is if anything a
-    generous check: less averaging means noisier values, which makes a
-    spurious rejection harder, not easier. It catches bias, not variance.
-    """
+    """The same test where the answer is known to be nothing."""
 
     on = np.asarray(odor_on_frames)
 
@@ -866,22 +562,7 @@ def responders(
     by_state: bool = True,
     drop_baseline_outliers: bool = True,
 ) -> dict:
-    """
-    Excited and suppressed ROI-odor pairs for one processed round.
-
-    Reads the round, prefers the detrended traces, takes each trial's odor
-    window against its own whole pre-odor window, and tests each ROI-odor pair
-    over its trials -- see the module docstring for why this replaces the sham
-    null rather than tuning it.
-
-    Runs the pooled block and, with `by_state`, each state on its own. The
-    per-state blocks halve the trials per odor and lose power accordingly;
-    they are reported because the manipulation is the question, not because
-    they are as trustworthy as the pooled numbers.
-
-    `control` carries the same test run inside the pre-odor period, where
-    nothing should be found. Read it before the counts.
-    """
+    """Excited and suppressed ROI-odor pairs for one processed round."""
 
     from pathlib import Path
 
@@ -1026,33 +707,7 @@ def trial_counts(
     z_suppressed: float = -2.0,
     window_frames: int | None = None,
 ) -> dict:
-    """
-    Per trial: how many glomeruli are excited, how many suppressed, and what
-    each of those counts would be by chance.
-
-    The plain version of `trial_calls` -- same z, no FDR, no per-tail
-    threshold search. You pick the thresholds; this says what they mean.
-
-    z is the odor window mean minus the preceding equal-length window mean,
-    divided by the spread of that same quantity measured across trials in the
-    pre-odor period. The denominator is the SD of a *window mean*, not of
-    single frames. That distinction is the whole ballgame for reading a
-    threshold: `response_qc`'s z divides by the SD of individual baseline
-    frames, so it is inflated by roughly sqrt(window length) -- about 10x at
-    this rig's geometry -- and a "z > 2" there is nowhere near two standard
-    deviations of anything. Thresholds are not transferable between the two.
-
-    `chance` is the identical computation on windows inside the pre-odor
-    period, where no odor was delivered. It is the empirical answer to "what
-    would this count be anyway", and it is measured rather than assumed
-    because fluorescence is autocorrelated: the nominal 2.3% per tail beyond
-    |z| > 2 for a normal distribution is not what these traces do.
-
-    Read the two together. A per-trial excited count is interesting to the
-    extent it exceeds the chance count on the same threshold, and the two
-    tails have different chance rates, which is why they get separate
-    thresholds.
-    """
+    """Per trial: how many glomeruli are excited, how many suppressed, and what each of those counts would be by chance."""
 
     calls = trial_calls(
         roi, odor_on_frames=odor_on_frames, window_frames=window_frames,
@@ -1060,10 +715,6 @@ def trial_counts(
 
     z = calls["z"]
 
-    # Use the standardised control the caller already built when it exists:
-    # with `deglobal` set it has had the same component removed as `z`, and
-    # rebuilding it from `c` here would compare a corrected z against an
-    # uncorrected null and understate the chance rate.
     control = calls.get("control_z")
     if control is None:
         control = (calls["control"] - calls["centre"][:, None]) / np.where(
@@ -1109,12 +760,7 @@ def trial_counts(
 def chance_table(
     counts: dict, thresholds=(1.5, 2.0, 2.5, 3.0, 3.5, 4.0),
 ) -> str:
-    """
-    Observed against chance across candidate thresholds, as a printable table.
-
-    For picking a threshold with the consequences visible, rather than
-    inheriting 2.0 from a paper whose baseline geometry was different.
-    """
+    """Observed against chance across candidate thresholds, as a printable table."""
 
     z = counts["z"]
     control = counts["control_z"]
@@ -1142,19 +788,6 @@ def chance_table(
     return "\n".join(rows)
 
 
-# Colour limits for the response heatmaps, in per-trial z.
-#
-# Not the same numbers as response_qc's HEATMAP_Z_MIN/MAX, and importing those
-# here would be a bug: that z divides a window mean by a single-frame SD and
-# runs about 5x smaller, so its +10 ceiling saturates almost the whole field
-# on this scale (p95 is +27 on group223) and the heatmap goes flat red.
-#
-# Fixed rather than per-session, so two sessions can be put side by side. The
-# range is asymmetric because the tails are: suppression is bounded by the
-# baseline and reaches about -5, while excitation has no ceiling. Values past
-# +20 do saturate, which is deliberate -- they are all "very responsive" and
-# spending range on separating them costs the contrast where the thresholds
-# actually sit (around +1.7 / -3.4).
 HEATMAP_Z_MIN = -6.0
 HEATMAP_Z_MAX = 20.0
 
@@ -1187,23 +820,7 @@ def response_figure(
     save: bool = True,
     out_path=None,
 ):
-    """
-    QC display driven by the per-trial z, not the sham-null one.
-
-    Six panels. The trial-resolved heatmap leads and takes the full width
-    because it is the only one where trial-to-trial reliability is visible --
-    an odor average looks identical whether a response happened every time or
-    once at ten times the amplitude.
-
-    Population sparsity is reported as excited and suppressed percentages with
-    an error bar over trials, rather than as Treves-Rolls. The unit is one
-    trial, so the spread is real and measured rather than a property of a
-    trial-averaged matrix, and the chance rate from the pre-odor control is
-    drawn beside it -- a 3% suppressed share means one thing against a 0.1%
-    chance rate and nothing at all against a 3% one. Treves-Rolls is kept for
-    lifetime sparseness, where a continuous measure over odors is what is
-    wanted and there is no per-trial unit to take a spread over.
-    """
+    """QC display driven by the per-trial z, not the sham-null one."""
 
     from pathlib import Path
 
@@ -1401,14 +1018,7 @@ PREFERRED_STATE_ORDER = ("pre", "post")
 
 
 def _display_order(state_levels: list) -> tuple[list, np.ndarray]:
-    """
-    Block names in reading order, and a display rank per state code.
-
-    Fixed once here rather than at each plotting call, so the heatmap columns,
-    the grouped bars, the histograms and the legends cannot disagree about
-    which block comes first. Levels not in PREFERRED_STATE_ORDER keep their
-    stored order and follow the known ones.
-    """
+    """Block names in reading order, and a display rank per state code."""
 
     known = [n for n in PREFERRED_STATE_ORDER if n in state_levels]
     rest = [n for n in state_levels if n not in PREFERRED_STATE_ORDER]
@@ -1418,14 +1028,7 @@ def _display_order(state_levels: list) -> tuple[list, np.ndarray]:
 
 
 def _sparsity_panel(ax, sparsity, keys, *, title, grouped=False):
-    """
-    Excited above the axis, suppressed below, error bars over trials.
-
-    Mirroring about zero rather than stacking keeps both tails readable when
-    one is twenty times the other, which is the usual case. Chance is drawn as
-    a dashed line on each side, because a percentage with no chance rate
-    beside it cannot be interpreted.
-    """
+    """Excited above the axis, suppressed below, error bars over trials."""
 
     x = np.arange(len(keys))
 

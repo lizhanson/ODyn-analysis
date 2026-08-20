@@ -1,33 +1,4 @@
-"""
-Segmentation state for the per-odor curation GUI, with no GUI in it.
-
-Everything the interface does to the data lives here, so it can be tested
-without opening a window: parameters per odor, the two-phase workflow, and
-the manual edits.
-
-The workflow is two phases on purpose.
-
-    tune     per-odor sliders re-run segmentation live; no manual edits yet
-    merge    per-odor masks are combined into one consensus mask; the merge
-             parameters are live here and the segmentation ones are frozen
-    curate   everything is frozen; ROIs are added, deleted, or masked out on
-             the merged mask
-
-Curation happens **after** merging, on the consensus, not per odor. Curating
-each odor separately would mean repeating the same judgements up to sixteen
-times and could produce per-odor masks that disagree, leaving the merge to
-reconcile decisions a human already made. One pass on the merged result is
-both less work and unambiguous.
-
-The old GUI mixed tuning and curation, and its delete handler zeroed an ROI
-without recording the deletion anywhere -- so the next slider move re-ran
-segmentation and silently brought it back. Curation was lost without warning.
-Sequential phases remove the failure mode rather than patching it: while
-parameters can change there is nothing to lose, and once there is something to
-lose the parameters cannot change.
-
-Going back a phase is allowed but discards curation, and says so.
-"""
+"""Segmentation state for the per-odor curation GUI, with no GUI in it."""
 
 from __future__ import annotations
 
@@ -76,14 +47,6 @@ SLIDER_RANGES = {
     "border_px": (0, 100, 1),
 }
 
-# How far a hand-placed seed is let off the segmentation's parameters. These
-# scale `min_diameter_px`, `max_diameter_px` and `threshold_pctl` for manual
-# additions only; the automatic pass is untouched. See `manual_bounds` for why
-# the two should not share bounds at all.
-#
-# `peak_distance_px` has no manual counterpart and is not applied: it is the
-# minimum separation between automatic watershed seeds, and a click may land
-# as close to an existing ROI as the person clicking wants.
 MANUAL_MIN_SCALE = 0.5
 MANUAL_MAX_SCALE = 1.5
 
@@ -119,15 +82,7 @@ class Curation:
 
 
 def border_mask(shape: tuple[int, int], border_px: int) -> np.ndarray:
-    """
-    True within `border_px` of any edge.
-
-    Rigid motion correction with `border_nan="copy"` fills shifted edges by
-    duplicating pixel content (see `odor_zscore_movies._crop_border`). Those
-    duplicated columns correlate perfectly with their neighbours, so they
-    produce high-correlation ROIs along the frame edge that are an artefact of
-    registration rather than signal.
-    """
+    """True within `border_px` of any edge."""
 
     mask = np.zeros(shape, dtype=bool)
 
@@ -152,24 +107,7 @@ def grow_seed(
     max_diameter_px: float,
     threshold_pctl: float = 60.0,
 ) -> np.ndarray:
-    """
-    Grow one hand-placed seed into an ROI by watershed, as `segment_image` does.
-
-    A fixed disk would give a hand-added ROI a footprint unlike every automatic
-    one -- same area regardless of what is under it, ignoring the boundary the
-    image plainly shows. Flooding the inverted image from the seed instead
-    makes it follow the same landscape, so its trace means the same thing.
-
-    The flood is confined to a window around the seed, to pixels no other ROI
-    has claimed, and to pixels above a local threshold; a rim of background
-    seeds around the window stops it leaking outward.
-
-    The size bounds passed here should be the *manual* ones, not the
-    segmentation's -- see `manual_bounds`. A click marks a glomerulus the
-    automatic pass did not find, which usually means it is dimmer or smaller
-    than the parameters were tuned for, so judging it by those parameters
-    rejects precisely the ROIs the tool exists to add.
-    """
+    """Grow one hand-placed seed into an ROI by watershed, as `segment_image` does."""
 
     from skimage.segmentation import watershed
 
@@ -211,13 +149,6 @@ def grow_seed(
 
     markers = np.zeros(window.shape, dtype=np.int32)
 
-    # Background rim first, seed second, so the seed always wins. A seed near
-    # the image edge lands on a clipped window's border, and writing the rim
-    # afterwards would erase it -- the region then grows to nothing.
-    #
-    # The rim only goes on window edges that are not image edges: where the
-    # window was clipped there is no "outside" to hold the flood back, and a
-    # barrier there would just truncate a legitimate edge ROI.
     if r0 > 0:
         markers[0, :] = 2
     if r1 < h:
@@ -248,11 +179,6 @@ def grow_seed(
         trimmed[ys[keep], xs[keep]] = True
         region = trimmed
 
-    # A flood that stalls -- the click landed on a narrow ridge, or the
-    # neighbours have claimed most of the space -- gives back a handful of
-    # pixels. Take the disk instead of returning something that will only be
-    # thrown away: the click was deliberate, and an ROI of the minimum size is
-    # a more honest reading of it than nothing.
     out = np.zeros((h, w), dtype=bool)
     out[r0:r1, c0:c1] = region
 
@@ -266,33 +192,7 @@ def grow_seed(
 
 
 def manual_bounds(params: dict) -> dict:
-    """
-    Size and threshold bounds for a hand-placed seed, relaxed from the shared
-    segmentation parameters.
-
-    The automatic parameters are tuned to be *selective*: they are what decides
-    which of thousands of candidate maxima become ROIs, and they are set where
-    they are because being wrong there is expensive. A manual seed is not a
-    candidate -- someone looked at the image and asserted a glomerulus is at
-    that pixel. There is no false-positive rate to control, so the same
-    thresholds only serve to overrule the person using the tool.
-
-    Concretely, and measured on exp 132, where both hand-added seeds were
-    rejected: the diameter range widens to half the floor and 1.5x the ceiling.
-
-    **The threshold is taken as tuned, not relaxed.** `params` must be the
-    effective parameters for the odor being curated -- `params_for(key)`, so
-    per-odor overrides are included -- because that value is the judgement just
-    made while watching the segmentation update. An earlier version dropped it
-    by a fixed 25 percentiles from the shared default, which meant a threshold
-    raised to exclude a bad map was ignored the moment you clicked to add an
-    ROI, and the seed grew against a far more permissive image than the one on
-    screen.
-
-    The one constraint that does not relax is disjointness -- a manual ROI
-    still grows only into unclaimed pixels -- because two ROIs sharing pixels
-    would make two traces out of one piece of tissue.
-    """
+    """Size and threshold bounds for a hand-placed seed, relaxed from the shared segmentation parameters."""
 
     return {
         "min_diameter_px": params["min_diameter_px"] * MANUAL_MIN_SCALE,
@@ -467,14 +367,7 @@ class SegmentationState:
         return {key: self.segment(key) for key in self.keys}
 
     def combined_image(self) -> np.ndarray:
-        """
-        Per-pixel maximum across odors -- what the merged mask sits on.
-
-        The merged mask spans every odor, so curating it against a single
-        odor's image would hide the structure that produced half the ROIs.
-        Max rather than mean keeps a glomerulus driven by one odor as visible
-        as one driven by all of them.
-        """
+        """Per-pixel maximum across odors -- what the merged mask sits on."""
 
         if getattr(self, "_combined", None) is None:
             self._combined = np.nanmax(
@@ -503,12 +396,7 @@ class SegmentationState:
         }
 
     def curated_mask(self, key=None) -> np.ndarray:
-        """
-        The merged mask with manual edits applied.
-
-        `key` is accepted and ignored, so callers written against the earlier
-        per-odor signature keep working; curation is on the merge now.
-        """
+        """The merged mask with manual edits applied."""
 
         mask = self.merged().labels.copy()
         edits = self.curation
@@ -520,17 +408,6 @@ class SegmentationState:
         for polygon in edits.exclude_polygons:
             mask[_polygon_mask(self.shape, polygon)] = 0
 
-        # An exclusion polygon is a region tool, not an ROI tool: it zeroes
-        # every pixel it covers, including part of an ROI it merely clips at
-        # the edge. What survives is a sliver -- one pixel, in the worst case
-        # seen -- and a sliver still becomes a row in the trace table,
-        # indistinguishable in form from a real glomerulus and made of
-        # whatever the polygon happened not to cover.
-        #
-        # So a clipped ROI is re-judged by what remains, against the same
-        # floor the segmentation and merge enforce. Disconnected leftovers go
-        # too: a polygon cutting an ROI in two leaves pieces that would be
-        # averaged into a single trace across a gap.
         if edits.exclude_polygons:
             mask, self._clipped = _drop_clipped(mask, min_area_px=min_area)
         else:
@@ -561,10 +438,6 @@ class SegmentationState:
         for index, y, x in edits.live_seeds():
             region = grow_seed(image, (y, x), unclaimed=out == 0, **bounds)
 
-            # A floor still applies -- a click in a fully claimed corner can
-            # leave a single pixel, and that ROI would yield a trace
-            # indistinguishable in form from a real one -- but it is the
-            # relaxed manual floor, not the segmentation's. See `manual_bounds`.
             if region.sum() >= manual_min_area:
                 out[region] = next_id
                 provenance[next_id] = ("seed", index)
@@ -585,15 +458,7 @@ class SegmentationState:
             raise RuntimeError("Manual edits are only available while curating.")
 
     def delete_at(self, y: int, x: int) -> None | tuple[str, int]:
-        """
-        Delete whatever ROI is under (y, x), automatic or hand-added.
-
-        Reading the id from the merged mask would miss hand-added ROIs
-        entirely -- they do not exist there, so the lookup returns 0 and the
-        click silently does nothing. Going through the curated mask and its
-        provenance covers both, and records the deletion against whichever
-        thing produced the ROI so it survives a redraw.
-        """
+        """Delete whatever ROI is under (y, x), automatic or hand-added."""
 
         self._require_curating()
 
@@ -712,14 +577,7 @@ class SegmentationState:
 def _drop_clipped(
     labels: np.ndarray, *, min_area_px: float
 ) -> tuple[np.ndarray, dict[int, int]]:
-    """
-    Re-judge every ROI after an exclusion polygon has cut into the mask.
-
-    Each label keeps only its largest connected component, and is dropped
-    outright if that component falls below `min_area_px`. Returns the cleaned
-    mask and `{roi_id: surviving_area}` for everything removed, so the GUI can
-    say what the polygon cost rather than have ROIs quietly disappear.
-    """
+    """Re-judge every ROI after an exclusion polygon has cut into the mask."""
 
     from scipy.ndimage import label as connected_components
 

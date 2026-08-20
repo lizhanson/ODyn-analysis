@@ -11,19 +11,26 @@ from ..session.correlation import concatenated_local_correlation
 
 
 SOMA_DEFAULTS = {
-    "log_threshold": 0.16,
+    "dog_threshold": 0.12,
+    "dog_sigma_ratio": 1.4,
     "min_sigma_px": 2.5,
     "max_sigma_px": 7.0,
-    "n_sigma": 10,
     "overlap": 0.5,
     "growth_threshold_pctl": 68.0,
     "min_diameter_px": 5.0,
     "max_diameter_px": 24.0,
+    # The adaptive fill is still bounded: without this safeguard it expands
+    # far beyond curated soma boundaries on real 20x structural images.
     "radius_scale": 2.3,
     "min_radius_px": 4.0,
     "max_radius_px": 16.0,
     "border_px": 10,
 }
+
+# The ridge image is the one expensive product that does not depend on every
+# process parameter. Naming its inputs lets the cache survive a slider move
+# that cannot change it, and lets it be dropped by one that can.
+RIDGE_PARAMS = frozenset({"ridge_sigma_min_px", "ridge_sigma_max_px"})
 
 PROCESS_DEFAULTS = {
     "global_ridge_pctl": 70.0,
@@ -50,14 +57,7 @@ def build_reference_images(
     structural_sigma_px: float = 0.8,
     correlation_sigma_px: float = 0.7,
 ) -> tuple[dict[str, np.ndarray], dict]:
-    """
-    Build structural and local-correlation images from one approved movie.
-
-    One contiguous window is intentional for the first implementation: it is
-    one bounded server read, and the resulting two small maps are all the GUI
-    needs. The notebook records the acquisition and frame interval so a later
-    multi-acquisition reference can be compared rather than silently swapped.
-    """
+    """Build structural and local-correlation images from one approved movie."""
 
     import tifffile
     from skimage.filters import gaussian
@@ -101,22 +101,22 @@ def _border_mask(shape, border_px):
 
 
 def detect_somas(image: np.ndarray, params: dict | None = None):
-    """LoG soma candidates followed by bounded adaptive watershed growth."""
+    """DoG soma-center candidates followed by adaptive watershed growth."""
 
     from scipy.ndimage import label as connected_components
-    from skimage.feature import blob_log
+    from skimage.feature import blob_dog
 
     p = {**SOMA_DEFAULTS, **(params or {})}
     image = np.asarray(image, dtype=np.float32)
     finite = image[np.isfinite(image)]
     lo, hi = np.percentile(finite, (1, 99.8))
     normal = np.clip((image - lo) / max(float(hi - lo), 1e-9), 0, 1)
-    blobs = blob_log(
+    blobs = blob_dog(
         normal,
         min_sigma=float(p["min_sigma_px"]),
         max_sigma=float(p["max_sigma_px"]),
-        num_sigma=int(p["n_sigma"]),
-        threshold=float(p["log_threshold"]),
+        sigma_ratio=float(p["dog_sigma_ratio"]),
+        threshold=float(p["dog_threshold"]),
         overlap=float(p["overlap"]),
         exclude_border=int(p["border_px"]),
     )
