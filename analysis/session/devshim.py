@@ -54,7 +54,8 @@ class LocalGroup:
         # anything, and does nothing about how long it makes others wait.
         # Neither does query discipline, because the value of an interactive
         # session is asking questions nobody planned for. So the live file is
-        # copied once, under a bounded lock, and never read again.
+        # copied once without opening it through SQLite or taking a database
+        # lock, and never read again.
         if snapshot_to is not None:
             from .snapshot import ensure_snapshot
 
@@ -68,8 +69,8 @@ class LocalGroup:
                 f"Refusing to read {self.db_path} directly: it is on a network "
                 f"share, and the whole-table reads this class does would hold a "
                 f"SQLite lock long enough to fail another machine's writes.\n\n"
-                f"Pass snapshot_to=<local path> to copy it first (bounded, a "
-                f"few seconds, refreshed when the live file changes), or "
+                f"Pass snapshot_to=<local path> to copy it first (lock-free, "
+                f"validated locally, and refreshed when the live file changes), or "
                 f"allow_live=True if you have a specific reason and know the "
                 f"queries are small."
             )

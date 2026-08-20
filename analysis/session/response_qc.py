@@ -733,6 +733,7 @@ def response_qc(
             "session_mean_f0": round(guard["session_mean"], 2),
             "session_sd_f0": round(guard["session_sd"], 2),
             "trials": guard["dropped"],
+            "applied": True,
         },
         "bleaching": bleaching(roi, on_frames, n_pre=n_pre),
         # Per-ROI arrays are dropped from the report: they are n_roi long and
@@ -1181,6 +1182,10 @@ def _per_trial_report(
         frame_rate = float(f.attrs["frame_rate"])
         exp_name = str(f.attrs["exp_name"])
         mask_digest = str(f.attrs["mask_hash"])
+        trial_ids = (f["trials/trial_id"][:] if "trials/trial_id" in f
+                     else np.arange(roi.shape[1]))
+        acq_ids = f["trials/acq_id"][:] if "trials/acq_id" in f else None
+        mcor = _trial_mcor_paths(f)
 
     stem = path.with_suffix("")
     n_base = max(1, int(round(BASELINE_S * frame_rate)))
@@ -1190,8 +1195,11 @@ def _per_trial_report(
         threshold_sd=baseline_outlier_sd,
     )
 
+    # Actually exclude them. The counts were reported here from the start but
+    # the mask was never passed on, so the JSON claimed exclusions that had
+    # not happened -- worse than no guard, since it reads as protection.
     figure = response_figure(
-        path, deglobal=deglobal, save=save,
+        path, deglobal=deglobal, save=save, usable=guard["keep"],
         out_path=f"{stem}_responseqc.png",
     )
 
@@ -1231,12 +1239,12 @@ def _per_trial_report(
         "window_frames": calls["window_frames"],
         "roi_area_px": [int(np.min(areas)), int(np.max(areas))],
         "rois_under_10px": int((areas < 10).sum()),
+        # Counts only. Which trials, and which files to go and look at, is a
+        # thing to act on rather than a table to carry: it goes in `flags`.
         "excluded_trials": {
             "n": guard["n_dropped"],
             "threshold_sd": guard["threshold_sd"],
-            "session_mean_f0": round(guard["session_mean"], 2),
-            "session_sd_f0": round(guard["session_sd"], 2),
-            "trials": guard["dropped"],
+            "n_trials_used": figure["n_trials_used"],
         },
         "bleaching": bleaching(roi, on_frames, n_pre=n_pre),
         "thresholds": {
@@ -1258,7 +1266,10 @@ def _per_trial_report(
         "block_order": levels,
     }
 
-    report["flags"] = _per_trial_flags(report)
+    report["flags"] = _per_trial_flags(
+        report, dropped=guard["dropped"], trial_ids=trial_ids,
+        acq_ids=acq_ids, mcor=mcor,
+    )
 
     if save:
         Path(f"{stem}_responseqc.json").write_text(
@@ -1270,12 +1281,62 @@ def _per_trial_report(
     return report
 
 
-def _per_trial_flags(report: dict) -> list[str]:
+def _trial_mcor_paths(f):
+    """Per-trial motion-corrected filenames, or None on rounds without them."""
+
+    if "trials/mcor_path" not in f:
+        return None
+
+    codes = f["trials/mcor_path"][:]
+    levels = [s.decode() if isinstance(s, bytes) else str(s)
+              for s in f["trials/mcor_path_levels"][:]]
+
+    return [levels[int(c)] for c in codes]
+
+
+def _per_trial_flags(
+    report: dict, *, dropped=(), trial_ids=None, acq_ids=None, mcor=None,
+) -> list[str]:
     """Plain statements of what looks wrong, or an empty list."""
 
     out = []
     pooled = report["blocks"]["pooled"]
     thresholds = report["thresholds"]
+
+    # Which acquisitions, and where to find them. The counts live in
+    # `excluded_trials`; naming the files belongs here, because it is
+    # something to go and act on rather than a table to carry around.
+    if len(dropped):
+        lines = []
+
+        for d in list(dropped)[:6]:
+            i = int(d["trial_index"])
+
+            # acq_id first: it is what the database, the rig and the mcor
+            # filenames all agree on, so it is the identifier someone can act
+            # on without a lookup. The others are fallbacks for rounds
+            # written before acq_id was carried.
+            if acq_ids is not None and i < len(acq_ids):
+                where = f"acq_id {int(acq_ids[i])}"
+                if mcor is not None and i < len(mcor):
+                    where += f" ({Path(mcor[i]).name})"
+            elif mcor is not None and i < len(mcor):
+                where = Path(mcor[i]).name
+            elif trial_ids is not None and i < len(trial_ids):
+                where = f"trial_id {int(trial_ids[i])}"
+            else:
+                where = f"trial index {i}"
+
+            lines.append(f"{where} (F0 {d['f0']:.0f}, {d['sd_from_mean']:.0f} SD)")
+
+        more = "" if len(dropped) <= 6 else f", and {len(dropped) - 6} more"
+        out.append(
+            f"{len(dropped)} approved acquisition(s) have a baseline over "
+            f"{report['excluded_trials']['threshold_sd']:.0f} SD from the "
+            f"session mean and were excluded. They passed manual mcor "
+            f"approval, so they are worth re-examining: "
+            + "; ".join(lines) + more + "."
+        )
 
     excited = [v for v in pooled["excited_per_odor"].values() if v is not None]
     if excited and max(excited) > 0.8:

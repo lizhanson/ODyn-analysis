@@ -146,3 +146,106 @@ def concatenated_local_correlation(
     }
 
     return correlation.astype(np.float32), meta
+
+
+def group_zscore_blocks(
+    group,
+    *,
+    photobleach_window_s: float = 1.0,
+    by: tuple[str, ...] = ("program_id", "odor_id"),
+    keys=None,
+    progress: bool = True,
+):
+    """
+    One averaged z-score movie per condition, streamed from an odyn group.
+
+    Bridges `odyn.groups.Group` (the `avg-last-z-scores` branch) to
+    `concatenated_local_correlation`, so the segmentation image can be built
+    straight off `db.groups[...]` rather than off a resolved session.
+
+    Yields rather than returning a dict. `Group.z_score_average_movies` builds
+    every condition before returning any, which the method's own docstring
+    flags as too RAM-intensive for large experiments -- a 16-odor pre/post
+    session at 600x500x500 frames is ~19 GB held at once. Streaming one
+    condition at a time costs nothing here, because
+    `concatenated_local_correlation` consumes blocks one at a time and
+    accumulates only per-pixel sums, so peak memory is one movie regardless of
+    how many conditions there are.
+
+    Averaging is `sum / sqrt(n)`, matching `z_score_average_movies` rather
+    than the plain mean in `zscore.py`. That normalisation matters here and
+    not elsewhere: the correlation is computed over every condition
+    concatenated, so a block's weight follows its variance. Under a plain mean
+    a condition with more trials has *less* noise and therefore *less* weight,
+    which down-weights the best-measured conditions. Under sum/sqrt(n) the
+    noise sits near 1 for every condition and signal grows with sqrt(n), so a
+    condition contributes in proportion to how well it was measured.
+
+    Blocks are one per `(program_id, odor_id)`. `program_id` is what separates
+    pre from post anaesthesia -- both programs carry the same `program_name`
+    ("16odors passive 4s scope"), so the id is the discriminator and the name
+    is not. That gives the same 2 x n_odor blocks `zscore.py` builds.
+
+    `z_score_average_movies` also keys on `outcome`, which is a behavioural
+    field: it reads 'na' throughout these passive sessions, so grouping on it
+    adds a constant and changes nothing. It is left out of the default rather
+    than trusted to stay constant. Pass `by=(..., "outcome")` on a session
+    where it means something.
+
+    `keys` restricts which conditions are used, as tuples matching `by`.
+    Leave it None for all of them.
+    """
+
+    trials = group.trials[
+        group.trials["acq_id"].isin(group.approved_mcor_files.index)
+    ]
+
+    missing = [c for c in by if c not in trials.columns]
+    if missing:
+        raise KeyError(
+            f"{group!r} trials table has no column(s) {missing}. "
+            f"Available: {sorted(trials.columns)}"
+        )
+
+    # dropna=False so a null key cannot silently discard whole conditions --
+    # the columns are NOT NULL in the schema, but the frame may be a join.
+    grouped = list(trials.groupby(list(by), dropna=False))
+
+    if keys is not None:
+        wanted = {tuple(k) for k in keys}
+        grouped = [(k, rows) for k, rows in grouped if tuple(k) in wanted]
+
+    if not grouped:
+        raise RuntimeError(
+            f"{group!r} yielded no conditions with approved mcor files. "
+            f"Run approve_mcor_files(), or check `keys`."
+        )
+
+    iterator = _tracked(grouped, total=len(grouped),
+                        description="z-scoring conditions", enabled=progress)
+
+    for key, rows in iterator:
+        acq_ids = rows["acq_id"].astype(int).unique()
+        total = None
+
+        for acq_id in acq_ids:
+            z = group.z_score_acquisition(
+                acq_id=int(acq_id), photobleach_window_s=photobleach_window_s
+            )
+            total = z if total is None else total + z
+
+        yield total / np.sqrt(len(acq_ids))
+
+
+def _tracked(iterable, *, total: int, description: str, enabled: bool = True):
+    """Progress bar if tqdm is available, the bare iterable otherwise."""
+
+    if not enabled:
+        return iterable
+
+    try:
+        from tqdm.auto import tqdm
+    except ImportError:
+        return iterable
+
+    return tqdm(iterable, total=total, desc=description, unit="cond", leave=False)

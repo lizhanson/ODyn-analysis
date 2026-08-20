@@ -91,6 +91,11 @@ class Traces:
     # before the undefaulted ones above. Defaulted, not required, because
     # rounds written before this existed have no value for it.
     manipulations: np.ndarray | None = None
+    # Motion-corrected file each trial came from. Carried so QC can name the
+    # acquisition to re-examine rather than printing a trial index that then
+    # has to be traced back through the database by hand.
+    mcor_paths: np.ndarray | None = None
+    acq_ids: np.ndarray | None = None
 
     @property
     def n_rois(self) -> int:
@@ -170,6 +175,10 @@ class Traces:
             "state": self.states,
             **({} if self.manipulations is None
                else {"manipulation": self.manipulations}),
+            **({} if self.mcor_paths is None
+               else {"mcor_path": self.mcor_paths}),
+            **({} if self.acq_ids is None
+               else {"acq_id": self.acq_ids}),
             "odor_on_frame": self.odor_on_frames,
             "odor_off_frame": self.odor_off_frames,
             "extracted": np.isfinite(self.roi[0, :, 0]),
@@ -275,6 +284,8 @@ def extract_traces(
     odor_ids: list[int],
     states: list[str],
     manipulation: str | list[str] | None = None,
+    mcor_paths: list | None = None,
+    acq_ids: list | None = None,
     frame_rate: float,
     full_acquisition: bool = True,
     pre_s: float = 2.0,

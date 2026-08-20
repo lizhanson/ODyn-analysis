@@ -67,6 +67,10 @@ class SessionInputs:
     odor_off_frames: list[int]
     odor_ids: list[int]
     states: list[str]
+    # Per kept trial. The database and the rig both identify an acquisition
+    # by this, so it is what a QC message has to name if someone is going to
+    # go and look at one -- a trial index means nothing outside the round.
+    acq_ids: list[int]
     # What happened between the two blocks. Travels with `states` because it
     # is the other half of the same fact: `state` says which side of the
     # manipulation a trial is on, and this says what the manipulation was.
@@ -459,6 +463,7 @@ def _combine(parts: list, labels: list[str], *, group_id: int) -> SessionInputs:
         odor_off_frames=[v for part in parts for v in part.odor_off_frames],
         odor_ids=[v for part in parts for v in part.odor_ids],
         states=[label for part, label in zip(parts, labels) for _ in part.states],
+        acq_ids=[v for part in parts for v in part.acq_ids],
         manipulation=first.manipulation,
         timing_source=first.timing_source,
         path_source=first.path_source,
@@ -478,7 +483,7 @@ def resolve_session(
     exp_id: int,
     manipulation: None | str = None,
     mcor_source: None | str = None,
-    approved_only: bool = False,
+    approved_only: bool = True,
     exclude_acq_ids: tuple[int, ...] = (),
 ) -> SessionInputs:
     """
@@ -486,8 +491,15 @@ def resolve_session(
 
     Paths come from `mcor_files` rather than a directory listing, so each is
     tied to its acquisition and the right motion-correction run is chosen.
-    `approved_only` is off by default because no rows are approved yet -- when
-    the approval workflow is used, turn it on.
+    `approved_only` is on. Approval is a judgement about an individual
+    acquisition, made by looking at its motion-corrected movie, and it is the
+    mechanism the per-trial baseline guard in `response_qc` was standing in
+    for. Running unapproved data is the exception now, not the default.
+
+    Note that `approved = 0` means "not approved", which covers both rejected
+    and not-yet-reviewed -- there is no separate reviewed flag. A session
+    nobody has reviewed therefore raises rather than silently returning
+    nothing, and the fix is to review it, not to pass approved_only=False.
 
     `manipulation` is passed through to `trial_table`; leaving it None takes
     that function's default of ketamine/xylazine.
@@ -632,6 +644,10 @@ def resolve_session(
         timing_source = TIMING_DATABASE
 
     paths, on_frames, off_frames, odors, states, missing = [], [], [], [], [], []
+    # Not `acq_ids`: that name is taken by a local of the directory-fallback
+    # branch above, and reusing it would either corrupt that list or raise,
+    # depending on which path built `by_acq`.
+    trial_acq_ids: list[int] = []
     kept: list[int] = []
 
     for position, row in enumerate(table.itertuples()):
@@ -660,6 +676,7 @@ def resolve_session(
         paths.append(path)
         on_frames.append(on_frame)
         off_frames.append(off_frame)
+        trial_acq_ids.append(int(acq_id))
         odors.append(int(row.odor_id))
         states.append(row.state)
 
@@ -685,7 +702,7 @@ def resolve_session(
     # `extract_traces` checks this too, but by then the failure is three frames
     # deep in a stack that never mentions the trial table.
     lengths = {len(paths), len(on_frames), len(off_frames), len(odors),
-               len(states), len(kept)}
+               len(states), len(kept), len(trial_acq_ids)}
     if len(lengths) != 1:
         raise ValueError(
             f"exp {exp_id}: per-trial fields disagree in length ({lengths}). "
@@ -705,6 +722,7 @@ def resolve_session(
         odor_off_frames=off_frames,
         odor_ids=odors,
         states=states,
+        acq_ids=trial_acq_ids,
         manipulation=manipulation or DEFAULT_MANIPULATION,
         timing_source=timing_source,
         approved_only=bool(approved_only),

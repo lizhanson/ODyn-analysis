@@ -121,6 +121,8 @@ def finalize_session(
             odor_ids=session.odor_ids,
             states=session.states,
             manipulation=session.manipulation,
+            mcor_paths=session.paths,
+            acq_ids=session.acq_ids,
             frame_rate=session.frame_rate,
             pre_s=pre_s, post_s=post_s, neuropil=neuropil,
             checkpoint_dir=checkpoint, mask_hash=digest,

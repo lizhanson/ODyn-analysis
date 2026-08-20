@@ -106,6 +106,14 @@ COLUMN_DOCS = {
     "odor_id": ("Foreign key into the odyn `odors` table.", "index"),
     "state": ("Block label: pre or post the manipulation. Stored as an integer "
               "code; see state_levels for the strings.", ""),
+    "acq_id": ("Primary key in the odyn `acquisitions` table. What the "
+               "database, the rig, and the mcor filenames all identify an "
+               "acquisition by -- name this in any message asking someone "
+               "to go and look at one.", "index"),
+    "mcor_path": ("Motion-corrected file this trial's frames came from, "
+                  "relative to main_folder. Integer code; see "
+                  "mcor_path_levels. Lets QC name the acquisition to "
+                  "re-examine instead of a bare trial index.", ""),
     "manipulation": ("What happened between the pre and post blocks -- "
                      "'saline', 'ketamine/xylazine', 'no injection'. Stored as "
                      "an integer code; see manipulation_levels for the "

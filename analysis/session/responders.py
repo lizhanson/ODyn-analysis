@@ -321,6 +321,7 @@ def trial_calls(
     *,
     odor_on_frames: np.ndarray,
     odor_ids: np.ndarray | None = None,
+    usable: np.ndarray | None = None,
     deglobal: str | None = None,
     window_frames: int | None = None,
     target_fdr: float = TARGET_FDR,
@@ -392,7 +393,23 @@ def trial_calls(
     d = np.full((n_roi, n_trial), np.nan)
     c = np.full((n_roi, n_trial), np.nan)
 
+    # Excluded trials are left NaN rather than dropped, so trial indices keep
+    # meaning the same thing as the round's own trial axis -- a caller can
+    # still line `z` up against odor_ids, states, or anything else per-trial.
+    # NaN then propagates correctly: the centre and scale are nanmedian/MAD,
+    # and every downstream step filters on isfinite.
+    keep = (np.ones(n_trial, bool) if usable is None
+            else np.asarray(usable, bool))
+
+    if keep.shape != (n_trial,):
+        raise ValueError(
+            f"usable has shape {keep.shape}, expected ({n_trial},)."
+        )
+
     for trial in range(n_trial):
+        if not keep[trial]:
+            continue
+
         start = int(on[trial])
 
         if start - 2 * w < 0 or start + w > n_frame:
@@ -440,6 +457,7 @@ def trial_calls(
         "scale": scale.ravel(),
         "window_frames": w,
         "target_fdr": target_fdr,
+        "n_excluded_trials": int((~keep).sum()),
     }
 
     # Each tail gets its own threshold against its own control tail. A single
@@ -745,11 +763,22 @@ def split_half_control(
 
     from scipy import stats
 
-    c = calls["control"]
     q = calls["target_fdr"] if target_fdr is None else target_fdr
 
-    fit, test = c[:, 0::2], c[:, 1::2]
-    centre, scale = _centre_scale(fit, robust=robust)
+    # Use the standardised control when the caller built one: with `deglobal`
+    # set it has had the same component removed as `z`, and checking the raw
+    # `c` instead would report the calibration of a quantity the calls are no
+    # longer made from -- the check would come out identical with and without
+    # the correction, which is exactly the case it exists to distinguish.
+    standardised = calls.get("control_z")
+
+    if standardised is None:
+        c = calls["control"]
+        fit, test = c[:, 0::2], c[:, 1::2]
+        centre, scale = _centre_scale(fit, robust=robust)
+    else:
+        fit, test = standardised[:, 0::2], standardised[:, 1::2]
+        centre, scale = _centre_scale(fit, robust=robust)
 
     with np.errstate(invalid="ignore", divide="ignore"):
         z = (test - centre) / np.where(scale > 1e-12, scale, np.nan)
@@ -1153,6 +1182,7 @@ def response_figure(
     *,
     deglobal: str | None = "pc1",
     target_fdr: float = TARGET_FDR,
+    usable: np.ndarray | None = None,
     prefer_detrended: bool = True,
     save: bool = True,
     out_path=None,
@@ -1200,7 +1230,7 @@ def response_figure(
         manipulation = read_manipulation(f)
 
     calls = trial_calls(
-        roi, odor_on_frames=on_frames, odor_ids=odor_ids,
+        roi, odor_on_frames=on_frames, odor_ids=odor_ids, usable=usable,
         deglobal=deglobal, target_fdr=target_fdr,
     )
 
@@ -1360,7 +1390,8 @@ def response_figure(
     return {"figure": str(out), "calls": calls, "sparsity": sparsity,
             "lifetime": lifetime, "averages": averages, "levels": levels,
             "split_half": check, "trace_source": trace_source,
-            "manipulation": manipulation}
+            "manipulation": manipulation,
+            "n_trials_used": int(np.isfinite(calls["d"]).any(axis=0).sum())}
 
 
 # Blocks are displayed in this order when present, whatever order the round
