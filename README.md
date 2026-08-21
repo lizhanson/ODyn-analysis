@@ -20,40 +20,35 @@ analysis/
   Stage1_20x_segmentation.ipynb    approved-mcor 20x workflow for VS Code
 ```
 
-## Running it
+## Use
 
 Open `analysis/Stage1_10x_segmentation.ipynb`
 and set the top cell:
 
 ```python
-GROUP_ID = 217              # not exp_id -- the two id spaces overlap
+GROUP_ID = 217             
 MANIPULATION = ""
-SEPARATE_BY_CONDITION = False
-APPROVED_ONLY = False
+SEPARATE_BY_CONDITION = False #Average odors across blocks or separate by pre/post
+APPROVED_ONLY = False #Refers to mcor approval by trial
 ```
 
-`sys.path` is set relative to the notebook, so it imports `analysis.*` without
+`sys.path` is relative to the notebook, so it imports `analysis.*` without
 installation.
 
 ## Notes
 
-**Use group ID.** removes the ambiguity, and handles
-sessions that are split across `_e1`/`_e2`.
+Session metadata is read from a local copy to avoid slow reads from the server.
 
-**Session metadata is read from a local copy.** This avoids repeated slow reads from the server.
+Correlation maps are cached after z-scoring to save time copying to the server.And because there are other better zscore movies that we should eventually use for this instead.
 
-**Correlation maps are cached after making z-score movies.** Saves time and data storage. See `session/corrcache.py`.
+Detection should usually be pooled across states even when responses might differ slightly because aeparating by block splits the trials across twice as many groups. Since the olfactometer randomizes with replacement some groups have just one or a few trials. 
 
-**Detection can be state-agnostic.** Separating splits the trials across twice as many groups, and since
-the olfactometer randomises with replacement rather than counterbalancing, some
-groups end up with one trial — whose "trial average" is a single trial of noise. Pooling avoids this and is still valid for segmentation.
-
-**Extraction is resumable and staged locally.** Each trial is written to a local
+Extraction is resumable and staged locally. Each trial is written to a local
 memmap as it completes, and the HDF5 is written to scratch and copied (nice for a long process that can be interrupted by dropping the network connection.
 
 ## Output
 
-One self-describing HDF5 per processing round, beside the session:
+One HDF5 per processing round, goes to the experiment folder/processed/python. Ex:
 
 ```
 <exp>/processed/python/group217_20260805_m426_e1_processed_20260813.h5
@@ -64,20 +59,12 @@ One self-describing HDF5 per processing round, beside the session:
 The mask's content hash is recorded in the traces, so `verify()` can say whether
 a set of traces still belongs to the mask beside it.
 
-**A 20x round is one HDF5 bundle.** `Segmentation20xState.save` writes the curated
+A 20x segmentation round is saved as one HDF5 bundle. `Segmentation20xState.save` writes the curated
 masks, the detector output they were curated from, the reference images, the
 parameters, the recorded edits, the ROI table, and the groups into a single
-`.h5`. Resuming reads the stored labels rather than running the detectors
-again: every group is keyed by label id, so a scikit-image that returns the
-same ROIs in a different order would silently reassign which cell is in which
-group. Replaying the edits on the stored labels must reproduce the stored
-curated masks or the load is refused.
+`.h5`. (Side note): There's a complicated reload/resumption process designed around the idea that ROIs can be manually assigned to groups, 
+but it probably makes sense to drop that if all group assignments are made by correlation later. Manual assignment is probably a waste of time. 
 
-**20x ROI groups can be derived rather than drawn.** `seg_20x/grouping.py`
-agglomerates ROIs by nearest-pixel gap and trace correlation, strongest link
-first, under one constraint: at most one soma per group. Processes need not
-reach a soma -- a neurite chain whose parent is out of plane is still a group --
-but no process is placed in a group holding two somas, and the refused link is
-reported. Run `proximity_correlation_profile` first: an ROI abutting a soma
-shares signal with it through the PSF, so correlation that decays to nothing
-within a micron or two means the links are adjacency.
+New stuff not vetted: 20x ROI groups can maybe be automatically assigned by a combo of spatial proximity and temporal correlation. `seg_20x/grouping.py`
+links ROIs by nearest-pixel gap and trace correlation, strongest link
+first with, at most, one soma per group. 
