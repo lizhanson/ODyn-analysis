@@ -29,6 +29,8 @@ def finalize_session(
     pre_s: float = 2.0,
     post_s: float = 2.0,
     neuropil: bool = True,
+    full_acquisition: bool = True,
+    checkpoint_every: int = 1,
     extract: bool = True,
     overlay_alpha: None | float = None,
     processed_on: None | str = None,
@@ -49,7 +51,11 @@ def finalize_session(
         "segmentation": segmentation_params,
         "merge": merge_params,
         "curation": curation,
-        "window": {"pre_s": pre_s, "post_s": post_s, "neuropil": neuropil},
+        "window": {
+            "pre_s": pre_s, "post_s": post_s, "neuropil": neuropil,
+            "full_acquisition": full_acquisition,
+            "checkpoint_every": checkpoint_every,
+        },
         "session": session.summary(),
     }
 
@@ -74,7 +80,9 @@ def finalize_session(
             mcor_paths=session.paths,
             acq_ids=session.acq_ids,
             frame_rate=session.frame_rate,
+            full_acquisition=full_acquisition,
             pre_s=pre_s, post_s=post_s, neuropil=neuropil,
+            checkpoint_every=checkpoint_every,
             checkpoint_dir=checkpoint, mask_hash=digest,
         )
 

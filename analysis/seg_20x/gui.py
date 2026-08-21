@@ -216,12 +216,18 @@ def launch(
     soma_params=None, process_params=None, state=None,
 ):
     """Open the complete 20x workflow inside a Jupyter/VS Code notebook."""
-    import os,sys
+    import os
+    import sys
+
     import bokeh.plotting as bpl
+
     from bokeh.io import output_notebook
-    from bokeh.io.state import curstate
-    if "ipykernel" in sys.modules and not curstate().notebook:
-        os.environ["BOKEH_ALLOW_WS_ORIGIN"]="*";output_notebook()
+
+    if "ipykernel" in sys.modules:
+        os.environ["BOKEH_ALLOW_WS_ORIGIN"] = "*"
+        # VS Code can discard the frontend output while Bokeh's Python state
+        # still says notebook mode is active. Reinitialize it for every launch.
+        output_notebook(hide_banner=True)
     if state is None:
         if structural is None:
             raise ValueError("Pass structural= for a new round or state= to resume one.")
@@ -229,6 +235,6 @@ def launch(
             structural, correlation,
             soma_params=soma_params, process_params=process_params,
         )
-    gui=Segmentation20xGUI(state,save_path)
+    gui = Segmentation20xGUI(state, save_path)
     bpl.show(gui.modify_doc)
     return gui

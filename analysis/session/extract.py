@@ -219,6 +219,7 @@ def extract_traces(
     neuropil_inner_px: int = 3,
     neuropil_outer_px: int = 12,
     checkpoint_dir: None | str | Path = None,
+    checkpoint_every: int = 1,
     mask_hash: str = "",
     progress: bool = True,
 ) -> Traces:
@@ -226,6 +227,8 @@ def extract_traces(
 
     if labels.max() < 1:
         raise ValueError("The mask contains no ROIs.")
+    if checkpoint_every < 1:
+        raise ValueError("checkpoint_every must be at least 1.")
 
     lengths = {len(movie_paths), len(odor_on_frames), len(odor_off_frames),
                len(trial_ids), len(odor_ids), len(states)}
@@ -286,9 +289,10 @@ def extract_traces(
         ring_out = np.full_like(roi_out, np.nan) if neuropil else None
         todo = list(range(len(movie_paths)))
 
-    for index in _tracked(
+    tracked = _tracked(
         todo, total=len(todo), description="extracting traces", enabled=progress
-    ):
+    )
+    for position, index in enumerate(tracked, start=1):
         path, start = movie_paths[index], starts[index]
         stop = start + n_span
 
@@ -305,7 +309,8 @@ def extract_traces(
                     # never fit, and leaving it pending would make every resume
                     # retry it forever.
                     store.mark_skipped(index)
-                    store.flush()
+                    if position % checkpoint_every == 0 or position == len(todo):
+                        store.flush()
                 continue
 
             stack = tif.series[0].asarray(key=slice(start, stop)).astype(np.float32)
@@ -318,7 +323,8 @@ def extract_traces(
 
         if store is not None:
             store.store(index, roi_values, ring_values)
-            store.flush()
+            if position % checkpoint_every == 0 or position == len(todo):
+                store.flush()
         else:
             roi_out[:, index, :] = roi_values
             if neuropil:
