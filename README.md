@@ -1,8 +1,8 @@
 # ODyn analysis
 
-10x glomerular segmentation and trace extraction for Ca imaging built on top of [odyn](https://github.com/lizhanson/ODyn),
+10x glomerular and 20x soma/process segmentation and trace extraction for Ca imaging built on top of [odyn](https://github.com/lizhanson/ODyn),
 which does motion correction, alignment, and provenance via the database. The goal is for this 
-repo to do everything downstream (session assembly, segmentation, trace
+repo to do downstream things important for analyzing data (session assembly, segmentation, trace
 extraction, QC, etc.)
 
 Work in progress!
