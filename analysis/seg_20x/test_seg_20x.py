@@ -326,34 +326,45 @@ def test_proximity_profile_reports_correlation_against_gap():
     assert nearest.correlation > 0.9
 
 
-def test_traces_from_a_round_are_centred_per_trial(tmp_path):
+def test_traces_from_round_are_smoothed_dff_event_windows(tmp_path):
     import h5py
     from .grouping import traces_from_round
 
-    # Two ROIs with the same shape in every trial, but trial-2 offsets that
-    # differ between them. Without per-trial centring the offsets dominate and
-    # the two look uncorrelated; with it they are the same signal.
-    shape = np.array([0.0, 1.0, 2.0, 1.0, 0.0])
-    roi = np.stack([
-        np.stack([shape + 0, shape + 50]),
-        np.stack([shape + 0, shape - 50]),
-    ])
+    shape = np.array([0., 1., 2., 1., 0., -.5, 0., 0.])
+    roi = np.zeros((2, 2, 12), float)
+    for trial, scale in enumerate((1.0, 1.5)):
+        roi[0, trial, :4] = 10 * scale
+        roi[0, trial, 4:] = 10 * scale * (1 + shape)
+        roi[1, trial, :4] = 100 * scale
+        roi[1, trial, 4:] = 100 * scale * (1 + shape)
     path = tmp_path / "round.h5"
     with h5py.File(path, "w") as handle:
         handle.create_dataset("traces/roi", data=roi)
+        handle.create_dataset("trials/odor_on_frame", data=[4, 4])
+        handle.attrs["frame_rate"] = 1.0
 
     manifest = [
         {"roi_id": 1, "roi_type": "soma", "source_roi_id": 1},
         {"roi_id": 2, "roi_type": "process", "source_roi_id": 1},
     ]
-    traces, source = traces_from_round(path, manifest)
+    traces, source = traces_from_round(
+        path, manifest, baseline_s=4, odor_s=4, post_s=4,
+        smooth_sigma_frames=1,
+    )
 
     assert source == "raw"
     assert set(traces) == {("soma", 1), ("process", 1)}
+    assert traces[("soma", 1)].shape == (2, 8)
     np.testing.assert_allclose(traces[("soma", 1)], traces[("process", 1)], atol=1e-6)
 
-    uncentred, _ = traces_from_round(path, manifest, center_each_trial=False)
-    assert np.corrcoef(uncentred[("soma", 1)], uncentred[("process", 1)])[0, 1] < 0.5
+
+def test_grouping_accepts_one_frame_lag():
+    from .grouping import _correlations
+
+    base = np.sin(np.linspace(0, 3 * np.pi, 40))
+    traces = np.stack([base, np.r_[base[1:], base[-1]]])[:, None, :]
+    assert _correlations(traces, max_lag_frames=0)[0, 1] < 0.99
+    assert _correlations(traces, max_lag_frames=1)[0, 1] > 0.999
 
 
 def test_processes_group_without_any_soma():

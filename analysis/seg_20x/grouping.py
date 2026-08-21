@@ -11,6 +11,7 @@ GROUPING_DEFAULTS = {
     # centroid can sit far from the soma it plainly touches.
     "max_gap_um": 6.0,
     "min_correlation": 0.35,
+    "max_lag_frames": 1,
     # A group of one is an ROI nothing joined. Reporting those as groups makes
     # every isolated soma and stray process a group, and the count meaningless.
     "drop_singletons": True,
@@ -67,19 +68,37 @@ def _trace_matrix(traces, keys):
             f"No trace for {len(missing)} ROI(s), e.g. {missing[:3]}. "
             "Every curated ROI needs one; extract before grouping."
         )
-    matrix = np.asarray([np.asarray(traces[key], float).ravel() for key in keys])
-    lengths = {row.size for row in matrix} if matrix.dtype == object else {matrix.shape[1]}
-    if len(lengths) != 1:
-        raise ValueError("Traces have differing lengths.")
-    return matrix
+    arrays = [np.asarray(traces[key], float) for key in keys]
+    if len({array.shape for array in arrays}) != 1:
+        raise ValueError("Traces have differing shapes.")
+    return np.stack(arrays)
 
 
-def _correlations(matrix):
-    with np.errstate(invalid="ignore", divide="ignore"):
-        corr = np.corrcoef(matrix)
-    # A flat trace -- an ROI that never left its baseline -- has no correlation
-    # with anything. Zero is the right answer; NaN would poison every argmax.
-    return np.nan_to_num(np.atleast_2d(corr), nan=0.0)
+def _cross_correlation(left, right):
+    left = np.asarray(left, float).reshape(left.shape[0], -1)
+    right = np.asarray(right, float).reshape(right.shape[0], -1)
+    left = np.nan_to_num(left - np.nanmean(left, axis=1, keepdims=True), nan=0.0)
+    right = np.nan_to_num(right - np.nanmean(right, axis=1, keepdims=True), nan=0.0)
+    scale = np.linalg.norm(left, axis=1)[:, None] * np.linalg.norm(right, axis=1)[None, :]
+    return np.divide(left @ right.T, scale, out=np.zeros_like(scale), where=scale > 0)
+
+
+def _correlations(matrix, max_lag_frames=0):
+    """Maximum Pearson correlation over the requested positive and negative lags."""
+    matrix = np.asarray(matrix, float)
+    if matrix.ndim == 2:
+        return _cross_correlation(matrix, matrix)
+    if matrix.ndim != 3:
+        raise ValueError(f"Expected ROI x trial x frame traces, got {matrix.shape}.")
+
+    best = _cross_correlation(matrix, matrix)
+    for lag in range(1, int(max_lag_frames) + 1):
+        if lag >= matrix.shape[2]:
+            break
+        shifted = _cross_correlation(matrix[:, :, lag:], matrix[:, :, :-lag])
+        best = np.maximum(best, shifted)
+        best = np.maximum(best, shifted.T)
+    return np.clip(best, -1.0, 1.0)
 
 
 def group_rois(soma_labels, process_labels, traces, *, um_per_px, params=None):
@@ -94,7 +113,7 @@ def group_rois(soma_labels, process_labels, traces, *, um_per_px, params=None):
         return {}, pd.DataFrame(columns=columns)
 
     matrix = _trace_matrix(traces, keys)
-    corr = _correlations(matrix)
+    corr = _correlations(matrix, p["max_lag_frames"])
     gaps = pairwise_gaps(index, len(keys), float(p["max_gap_um"]) / um_per_px)
 
     parent = list(range(len(keys)))
@@ -171,7 +190,7 @@ def proximity_correlation_profile(
     um_per_px = float(um_per_px)
     index, keys = roi_index_image(soma_labels, process_labels)
     matrix = _trace_matrix(traces, keys)
-    corr = _correlations(matrix)
+    corr = _correlations(matrix, p["max_lag_frames"])
     gaps = pairwise_gaps(index, len(keys), float(p["profile_max_gap_um"]) / um_per_px)
 
     rows = []
@@ -196,23 +215,50 @@ def proximity_correlation_profile(
     )
 
 
-def traces_from_round(round_path, roi_manifest, *, center_each_trial=True):
-    """Per-ROI time courses from a finalized round, keyed for `group_rois`."""
+def traces_from_round(
+    round_path,
+    roi_manifest,
+    *,
+    baseline_s=4.0,
+    odor_s=4.0,
+    post_s=4.0,
+    smooth_sigma_frames=2.0,
+):
+    """Smoothed trial ΔF/F0 from odor onset through the post-odor window."""
     from ..session.h5io import open_h5
     from ..session.responders import load_roi_traces
+    from scipy.ndimage import gaussian_filter1d
 
     with open_h5(round_path) as handle:
         roi, source = load_roi_traces(handle)
+        on_frames = handle["trials/odor_on_frame"][:].astype(int)
+        frame_rate = float(handle.attrs["frame_rate"])
 
     roi = np.asarray(roi, float)
-    if center_each_trial:
-        mean = np.nanmean(roi, axis=2, keepdims=True)
-        sd = np.nanstd(roi, axis=2, keepdims=True)
-        roi = (roi - mean) / np.where(sd > 0, sd, np.inf)
+    n_base = max(1, int(round(float(baseline_s) * frame_rate)))
+    n_window = max(2, int(round((float(odor_s) + float(post_s)) * frame_rate)))
+    windows = np.full((roi.shape[0], roi.shape[1], n_window), np.nan, float)
 
-    flat = np.nan_to_num(roi.reshape(roi.shape[0], -1), nan=0.0)
+    for trial, onset in enumerate(on_frames):
+        stop = onset + n_window
+        if onset < 1 or stop > roi.shape[2]:
+            raise ValueError(
+                f"Trial {trial} cannot provide {odor_s:g} s odor + {post_s:g} s post "
+                f"from frame {onset}; trace length is {roi.shape[2]}."
+            )
+        baseline = roi[:, trial, max(0, onset - n_base):onset]
+        f0 = np.nanmean(baseline, axis=1, keepdims=True)
+        windows[:, trial] = (
+            roi[:, trial, onset:stop] - f0
+        ) / np.maximum(np.abs(f0), 1e-6)
+
+    if smooth_sigma_frames > 0:
+        windows = gaussian_filter1d(
+            windows, sigma=float(smooth_sigma_frames), axis=2, mode="nearest"
+        )
+
     traces = {
-        (row["roi_type"], int(row["source_roi_id"])): flat[int(row["roi_id"]) - 1]
+        (row["roi_type"], int(row["source_roi_id"])): windows[int(row["roi_id"]) - 1]
         for row in roi_manifest
     }
     return traces, source

@@ -57,6 +57,7 @@ Session outputs are written under the experiment directory:
 ├── group<group_id>_<experiment>_masks_processed_<YYYYMMDD>.png
 ├── group<group_id>_<experiment>_processed_<YYYYMMDD>_responseqc.json
 ├── group<group_id>_<experiment>_processed_<YYYYMMDD>_responseqc.png
+├── group<group_id>_<experiment>_processed_<YYYYMMDD>_groups.png
 └── aux/
     ├── group<group_id>_<experiment>_pupil.h5
     ├── group<group_id>_<experiment>_pupil.png
