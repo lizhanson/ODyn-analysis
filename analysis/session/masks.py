@@ -1,11 +1,11 @@
-"""Mask side-products: a MATLAB `.mat` and a picture of the ROIs on the image."""
+"""Mask loading and ROI overlay images."""
 
 from __future__ import annotations
 
-import re
 import warnings
 
 from pathlib import Path
+import json
 
 import numpy as np
 
@@ -18,19 +18,6 @@ DEFAULT_OVERLAY_ALPHA = 0.25
 
 # Same as the GUI's `_grey_image` and the QC stills, so the three agree.
 GREY_PERCENTILES = (1.0, 99.5)
-
-
-def _matlab_name(key) -> str:
-    """A group key as a legal MATLAB struct field: `7` -> `odor7`."""
-
-    if isinstance(key, tuple):
-        text = "_".join(str(part) for part in key)
-    else:
-        text = str(key)
-
-    text = re.sub(r"_+", "_", re.sub(r"[^A-Za-z0-9_]", "_", text)).strip("_")
-
-    return text if text[:1].isalpha() else f"odor{text}"
 
 
 def mask_overlay_rgb(
@@ -104,51 +91,63 @@ def background_image(images) -> np.ndarray:
     return np.asarray(images, dtype=np.float32)
 
 
-def save_masks_mat(
+def save_mask_bundle(
     path: str | Path,
     labels: np.ndarray,
     *,
     per_group_masks: None | dict = None,
-    exp_name: str = "",
-    group_id: None | int = None,
-    mask_hash: str = "",
-    processed_on: str = "",
+    reference: None | np.ndarray = None,
+    config: None | dict = None,
 ) -> Path:
-    """Write the masks as a MATLAB v5 `.mat`, oriented as MATLAB expects."""
+    """Write a portable mask-only HDF5 for extraction on another computer."""
 
-    from scipy.io import savemat
+    import h5py
+
+    path = Path(path).with_suffix(".h5")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    partial = path.with_suffix(path.suffix + ".partial")
+
+    with h5py.File(partial, "w") as handle:
+        handle.attrs["file_type"] = "odyn_10x_mask_bundle"
+        handle.attrs["config_json"] = json.dumps(config or {}, default=str)
+        masks = handle.create_group("masks")
+        masks.create_dataset("labels", data=np.asarray(labels, np.int32), compression="gzip")
+        groups = masks.create_group("per_group")
+        for index, (key, mask) in enumerate((per_group_masks or {}).items()):
+            dataset = groups.create_dataset(
+                str(index), data=np.asarray(mask, np.int32), compression="gzip"
+            )
+            dataset.attrs["key"] = repr(key)
+        if reference is not None:
+            handle.create_dataset("reference", data=np.asarray(reference, np.float32),
+                                  compression="gzip")
+
+    partial.replace(path)
+    return path
+
+
+def load_mask_bundle(path: str | Path) -> dict:
+    """Read a portable 10x mask bundle."""
+
+    import h5py
 
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    labels = np.asarray(labels).astype(np.int32)
-
-    payload = {
-        "labels": labels,
-        "n_rois": int(labels.max()),
-        "exp_name": exp_name,
-        "group_id": -1 if group_id is None else int(group_id),
-        "mask_hash": mask_hash,
-        "processed_on": processed_on,
-        "readme": (
-            "ROI masks. labels is (rows, cols) as displayed: no permute "
-            "needed, unlike h5read on the .h5 beside this file. Pixel value "
-            "0 is background and N is ROI N, matching roi_id in /rois of the "
-            ".h5, which is the file the traces live in. per_odor holds the "
-            "single-odor masks from before the merge. mask_hash fingerprints "
-            "labels; if it differs from the .h5's, they are not the same mask."
-        ),
-    }
-
-    if per_group_masks:
-        payload["per_odor"] = {
-            _matlab_name(key): np.asarray(mask).astype(np.int32)
-            for key, mask in per_group_masks.items()
+    with h5py.File(path, "r") as handle:
+        if handle.attrs.get("file_type") != "odyn_10x_mask_bundle":
+            raise ValueError(f"Not a 10x mask bundle: {path}")
+        per_group = {
+            handle[f"masks/per_group/{name}"].attrs["key"]:
+            handle[f"masks/per_group/{name}"][:]
+            for name in handle["masks/per_group"]
+        }
+        return {
+            "path": path,
+            "labels": handle["masks/labels"][:],
+            "per_group": per_group,
+            "reference": handle["reference"][:] if "reference" in handle else None,
+            "config": json.loads(handle.attrs.get("config_json", "{}")),
         }
 
-    savemat(str(path), payload, do_compression=True)
-
-    return path
 
 def find_saved_masks(output_dir: str | Path) -> list[Path]:
     """Every saved mask for a session, oldest first. Rounds before .mat files."""
@@ -159,9 +158,10 @@ def find_saved_masks(output_dir: str | Path) -> list[Path]:
         return []
 
     rounds = sorted(directory.glob("group*_processed_*.h5"))
+    bundles = sorted(directory.glob("group*_10x_masks_processed_*.h5"))
     mats = sorted(directory.glob("group*_masks_processed_*.mat"))
 
-    return rounds + mats
+    return sorted([*rounds, *bundles, *mats], key=lambda path: path.stat().st_mtime)
 
 
 def load_latest_mask(output_dir: str | Path) -> None | dict:
@@ -173,6 +173,16 @@ def load_latest_mask(output_dir: str | Path) -> None | dict:
         return None
 
     latest = candidates[-1]
+
+    if latest.name.find("_10x_masks_processed_") >= 0:
+        bundle = load_mask_bundle(latest)
+        return {
+            **bundle,
+            "source": "10x mask bundle",
+            "has_traces": False,
+            "n_rois": int(bundle["labels"].max()),
+            "n_available": len(candidates),
+        }
 
     if latest.suffix == ".h5":
         from .h5io import open_h5

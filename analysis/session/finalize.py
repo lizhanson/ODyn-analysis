@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 
-from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -39,10 +38,7 @@ def finalize_session(
     """Write the mask and its traces together, linked by the mask's hash."""
 
     from .extract import extract_traces
-    from .masks import (
-        DEFAULT_OVERLAY_ALPHA, background_image, save_mask_overlay,
-        save_masks_mat,
-    )
+    from .masks import DEFAULT_OVERLAY_ALPHA, background_image, save_mask_overlay
     from .store import session_filename, write_session
 
     output = session.output_dir
@@ -122,14 +118,6 @@ def finalize_session(
             kind=kind, suffix=suffix, processed_on=processed_on,
         )
 
-    mat_path = save_masks_mat(
-        named("masks", ".mat"), labels,
-        per_group_masks=per_group_masks,
-        exp_name=session.exp_name, group_id=session.group_id,
-        mask_hash=digest,
-        processed_on=processed_on or date.today().strftime("%Y%m%d"),
-    )
-
     png_path = None
     if images is not None:
         png_path = save_mask_overlay(
@@ -138,7 +126,6 @@ def finalize_session(
 
     return {
         "path": str(path),
-        "mask_mat": str(mat_path),
         "mask_png": None if png_path is None else str(png_path),
         "overlay_alpha": alpha,
         "detrend": None if detrend_result is None else {

@@ -39,32 +39,43 @@ installation.
 
 Session metadata is read from a local copy to avoid slow reads from the server.
 
-Correlation maps are cached after z-scoring to save time copying to the server.And because there are other better zscore movies that we should eventually use for this instead.
+Correlation maps are cached in local scratch during 10x processing and deleted after extraction and QC complete. Only masks and final outputs are written to the server.
 
-Detection should usually be pooled across states even when responses might differ slightly because aeparating by block splits the trials across twice as many groups. Since the olfactometer randomizes with replacement some groups have just one or a few trials. 
+Detection should usually be pooled across states even when responses might differ slightly because separating by block splits the trials across twice as many groups. Since the olfactometer randomizes with replacement some groups have just one or a few trials.
 
 Extraction is resumable and staged locally. Each trial is written to a local
-memmap as it completes, and the HDF5 is written to scratch and copied (nice for a long process that can be interrupted by dropping the network connection.
+memmap as it completes, and the completed HDF5 is copied from scratch to the server.
 
 ## Output
 
-One HDF5 per processing round, goes to the experiment folder/processed/python. Ex:
+Session outputs are written under the experiment directory:
 
+```text
+<experiment>/processed/python/
+├── group<group_id>_<experiment>_10x_masks_processed_<YYYYMMDD>.h5
+├── group<group_id>_<experiment>_processed_<YYYYMMDD>.h5
+├── group<group_id>_<experiment>_masks_processed_<YYYYMMDD>.png
+├── group<group_id>_<experiment>_processed_<YYYYMMDD>_responseqc.json
+├── group<group_id>_<experiment>_processed_<YYYYMMDD>_responseqc.png
+└── aux/
+    ├── group<group_id>_<experiment>_pupil.h5
+    ├── group<group_id>_<experiment>_pupil.png
+    ├── group<group_id>_<experiment>_pupil_tuning.json
+    ├── group<group_id>_<experiment>_pupil_preflight_qc.png
+    ├── group<group_id>_<experiment>_processed_<YYYYMMDD>_respiration.h5
+    └── group<group_id>_<experiment>_processed_<YYYYMMDD>_respiration.png
 ```
-<exp>/processed/python/group217_20260805_m426_e1_processed_20260813.h5
-                       group217_..._masks_processed_20260813.mat   (MATLAB)
-                       group217_..._masks_processed_20260813.png   (overlay)
+
+The 10x mask bundle is the portable segmentation output. It contains the curated labels, per-group masks, reference image, and GUI configuration, allowing extraction on another computer without copying caches or rerunning segmentation.
+
+The processed HDF5 is the final 10x or 20x round. It contains `/masks`, `/traces`, `/rois`, and `/trials`; the PNG is a mask overlay. No `.mat` or trace `.npz` is written.
+
+Pupil and respiration outputs live in `processed/python/aux/`. Their `acq_id` arrays align trial rows to `/trials/acq_id` in the processed round. `respiration_from_round()` uses the processed-round filename stem.
+
+The 20x GUI checkpoint is local:
+
+```text
+<ODYN_SCRATCH_ROOT>/seg_20x/group<group_id>/curated_20x_rois.h5
 ```
 
-The mask's content hash is recorded in the traces, so `verify()` can say whether
-a set of traces still belongs to the mask beside it.
-
-A 20x segmentation round is saved as one HDF5 bundle. `Segmentation20xState.save` writes the curated
-masks, the detector output they were curated from, the reference images, the
-parameters, the recorded edits, the ROI table, and the groups into a single
-`.h5`. (Side note): There's a complicated reload/resumption process designed around the idea that ROIs can be manually assigned to groups, 
-but it probably makes sense to drop that if all group assignments are made by correlation later. Manual assignment is probably a waste of time. 
-
-New stuff not vetted: 20x ROI groups can maybe be automatically assigned by a combo of spatial proximity and temporal correlation. `seg_20x/grouping.py`
-links ROIs by nearest-pixel gap and trace correlation, strongest link
-first with, at most, one soma per group. 
+It contains the reference images, automatic and curated masks, parameters, edits, ROI table, and groups. The finalized server HDF5 contains the 20x masks and extracted traces.
