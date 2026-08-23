@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,15 +31,15 @@ def _manifest_groups(parameters: dict) -> dict[tuple[str, int], object]:
     }
 
 
-def aggregate_raw_units(raw, areas, manifest, groups=None) -> dict[str, UnitPopulation]:
+def aggregate_raw_units(raw, areas, manifest, groups=None, *, only=None) -> dict[str, UnitPopulation]:
     """Pixel-weight ROI means into whole, soma-only, and process-only units.
 
     Grouped ROIs share a unit. Every ungrouped ROI becomes a singleton. Weighting
     the raw ROI means by their pixel counts is exactly the mean over the union of
     their (disjoint) mask pixels. No detrending or normalization happens here.
     """
-    raw = np.asarray(raw, float)
-    areas = np.asarray(areas, float)
+    raw = np.asarray(raw, np.float32)
+    areas = np.asarray(areas, np.float32)
     if raw.ndim != 3 or raw.shape[0] != len(areas):
         raise ValueError("raw must be ROI x trial x frame and align with areas")
 
@@ -57,31 +58,38 @@ def aggregate_raw_units(raw, areas, manifest, groups=None) -> dict[str, UnitPopu
         buckets.setdefault(unit, []).append(row)
 
     def build(name, kind=None):
-        traces, pixel_counts, ids, members, member_types = [], [], [], [], []
+        selections = []
         for unit, unit_rows in buckets.items():
             chosen = unit_rows if kind is None else [r for r in unit_rows if r["roi_type"] == kind]
             if not chosen:
                 continue
+            selections.append((unit, chosen))
+        traces = np.empty((len(selections), *raw.shape[1:]), np.float32)
+        pixel_counts, ids, members, member_types = [], [], [], []
+        for position, (unit, chosen) in enumerate(selections):
             indices = np.array([int(r["roi_id"]) - 1 for r in chosen])
             weights = areas[indices]
-            traces.append(np.average(raw[indices], axis=0, weights=weights))
+            traces[position] = np.asarray(
+                np.average(raw[indices], axis=0, weights=weights), np.float32
+            )
             pixel_counts.append(weights.sum())
             ids.append(f"g{unit[1]}" if unit[0] == "group" else f"{chosen[0]['roi_type'][0]}{unit[1]}")
             members.append([int(r["roi_id"]) for r in chosen])
             member_types.append(tuple(sorted({str(r["roi_type"]) for r in chosen})))
-        shape = (0, *raw.shape[1:])
-        return UnitPopulation(name, np.stack(traces) if traces else np.empty(shape),
+        return UnitPopulation(name, traces,
                               np.asarray(pixel_counts), ids, members, member_types)
 
-    return {
-        "groups": build("whole groups + singleton ROIs"),
-        "somas": build("soma component", "soma"),
-        "processes": build("group minus soma", "process"),
+    builders = {
+        "groups": ("whole groups + singleton ROIs", None),
+        "somas": ("soma component", "soma"),
+        "processes": ("group minus soma", "process"),
     }
+    selected = builders if only is None else {key: builders[key] for key in only}
+    return {key: build(*spec) for key, spec in selected.items()}
 
 
 def _dff(raw, on_frames, frame_rate, baseline_s=4.0):
-    out = np.full_like(raw, np.nan, dtype=float)
+    out = np.full_like(raw, np.nan, dtype=np.float32)
     n_base = max(1, int(round(baseline_s * frame_rate)))
     for trial, onset in enumerate(np.asarray(on_frames, int)):
         f0 = np.nanmean(raw[:, trial, max(0, onset - n_base):onset], axis=1)
@@ -97,27 +105,36 @@ def _snr(raw, on_frames, frame_rate, baseline_s=4.0):
 
 
 def _analyse(populations, *, on, off, odor_ids, states, state_levels, frame_rate,
-             usable=None, deglobal=None, target_fdr=0.05):
+             usable=None, deglobal=None, target_fdr=0.05, report=lambda message: None):
     from ..session.detrend import detrend_traces
     from ..session.pc1 import fixed_pc1
     from ..session.responders import population_sparsity, trial_calls
 
     analysed = {}
     for key, pop in populations.items():
+        report(f"{key}: detrending {len(pop.unit_ids)} analysis units")
         corrected, fit = detrend_traces(pop.raw, odor_on_frames=on,
                                         odor_off_frames=off, frame_rate=frame_rate)
+        # The aggregated raw matrix is the same size as corrected and is no
+        # longer needed. Releasing it here is essential for 1000-ROI rounds.
+        pop.raw = np.empty((0, 0, 0), np.float32)
+        report(f"{key}: calculating dF/F and trial response z-scores")
+        snr = _snr(corrected, on, frame_rate)
         dff = _dff(corrected, on, frame_rate)
+        del corrected
         calls = trial_calls(dff, odor_on_frames=on, odor_ids=odor_ids,
                             usable=usable, deglobal=deglobal, target_fdr=target_fdr)
         masks = {"pooled": np.ones(len(odor_ids), bool)}
         masks.update({name: states == i for i, name in enumerate(state_levels)})
+        report(f"{key}: fitting fixed time-resolved PC1")
+        time_pc1 = fixed_pc1(dff, progress=lambda text: report(f"{key}: {text}"))
         analysed[key] = {
-            "population": pop, "corrected": corrected,
+            "population": pop,
             "dff": dff, "fit": fit, "calls": calls,
-            "time_pc1": fixed_pc1(dff),
+            "time_pc1": time_pc1,
             "sparsity": {name: population_sparsity(calls, odor_ids, trials=mask)
                          for name, mask in masks.items()},
-            "snr": _snr(corrected, on, frame_rate),
+            "snr": snr,
         }
     return analysed
 
@@ -155,14 +172,17 @@ def _spatial_figure(path, structural, masks, manifest, groups, analysed):
     fig.savefig(path, dpi=160, bbox_inches="tight"); plt.close(fig)
 
 
-def _atlas(stem, key, item, on, off, frame_rate, rows_per_page=24):
+def _atlas(stem, key, item, on, off, frame_rate, rows_per_page=24,
+           report=lambda message: None):
     import matplotlib.pyplot as plt
 
     pop, dff = item["population"], item["dff"]
     paths = []
     t = (np.arange(dff.shape[2]) - int(np.median(on))) / frame_rate
     odor_end = np.median(np.asarray(off) - np.asarray(on)) / frame_rate
+    n_pages = int(np.ceil(len(pop.unit_ids) / rows_per_page))
     for page, start in enumerate(range(0, len(pop.unit_ids), rows_per_page), 1):
+        report(f"trace atlas {key}: page {page}/{n_pages}")
         stop = min(start + rows_per_page, len(pop.unit_ids))
         fig, axes = plt.subplots(stop - start, 1, figsize=(13, max(3, .8 * (stop-start))),
                                  sharex=True, squeeze=False)
@@ -227,10 +247,18 @@ def _snr_figure(path, analysed):
 
 
 def qc_20x(round_path, *, groups=None, structural=None, usable=None,
-           deglobal=None, target_fdr=0.05, save=True) -> dict:
+           deglobal=None, target_fdr=0.05, save=True, progress=True) -> dict:
     """Generate grouped 20x QC; all transformations follow raw-F aggregation."""
     from ..session.h5io import open_h5
     round_path = Path(round_path)
+    started = time.perf_counter()
+
+    def report(message):
+        if progress:
+            elapsed = time.perf_counter() - started
+            print(f"[20x QC {elapsed:7.1f}s] {message}", flush=True)
+
+    report(f"loading extracted round {round_path.name}")
     with open_h5(round_path) as f:
         raw = f["traces/roi"][:]; areas = f["rois/area_px"][:]
         on = f["trials/odor_on_frame"][:]; off = f["trials/odor_off_frame"][:]
@@ -242,22 +270,77 @@ def qc_20x(round_path, *, groups=None, structural=None, usable=None,
         masks = {name: f[f"masks/{name}"][:] for name in ("labels", "soma", "process")}
     manifest = parameters["segmentation"]["roi_manifest"]
     effective_groups = _manifest_groups(parameters) if groups is None else groups
-    populations = aggregate_raw_units(raw, areas, manifest, effective_groups)
-    analysed = _analyse(populations, on=on, off=off, odor_ids=odor_ids, states=states,
-                         state_levels=state_levels, frame_rate=frame_rate, usable=usable,
-                         deglobal=deglobal, target_fdr=target_fdr)
     stem = round_path.with_suffix("")
     outputs = {"trace_atlas": {}}
+    analysed = {}
+
+    # Open the small PC1 sidecar before analysis so each population can be
+    # written and released immediately. Only the source ROI matrix remains
+    # resident throughout; grouped/detrended/dF/F matrices exist one at a time.
+    pc1_handle = None
+    time_pc1_path = Path(f"{stem}_20x_pc1_timeseries.h5")
     if save:
+        import h5py
+        pc1_handle = h5py.File(time_pc1_path, "w")
+        pc1_handle.attrs["description"] = (
+            "Fixed spatial PC1 timecourses from grouped detrended dF/F; "
+            "recorded without subtraction from traces"
+        )
+        pc1_handle.create_dataset("time_s", data=(
+            np.arange(raw.shape[2]) - int(np.median(on))
+        ) / frame_rate)
+        pc1_handle.create_dataset("trial_index", data=np.arange(len(odor_ids)))
+        pc1_handle.create_dataset("odor_id", data=odor_ids)
+        pc1_handle.create_dataset("state", data=states)
+
+    try:
+        for key in ("groups", "somas", "processes"):
+            report(f"{key}: pixel-weighting raw fluorescence")
+            populations = aggregate_raw_units(
+                raw, areas, manifest, effective_groups, only=(key,),
+            )
+            item = _analyse(
+                populations, on=on, off=off, odor_ids=odor_ids, states=states,
+                state_levels=state_levels, frame_rate=frame_rate, usable=usable,
+                deglobal=deglobal, target_fdr=target_fdr, report=report,
+            )[key]
+
+            if save:
+                outputs["trace_atlas"][key] = _atlas(
+                    stem, key, item, on, off, frame_rate, report=report,
+                )
+                group = pc1_handle.create_group(key)
+                pc = item["time_pc1"]
+                group.create_dataset("timecourse", data=pc["timecourse"], compression="gzip")
+                group.create_dataset("loadings", data=pc["loadings"])
+                group.create_dataset("area_px", data=item["population"].area_px)
+                group.create_dataset("unit_id", data=np.asarray(
+                    item["population"].unit_ids, dtype=h5py.string_dtype("utf-8")
+                ))
+                group.attrs["explained_variance_fraction"] = pc["explained_variance_fraction"]
+                group.attrs["method"] = pc["method"]
+
+            # Retain only compact summaries needed by the combined figures.
+            del item["dff"]
+            del item["time_pc1"]["timecourse"]
+            analysed[key] = item
+            del populations
+    finally:
+        if pc1_handle is not None:
+            pc1_handle.close()
+
+    if save:
+        report("rendering spatial quality map")
         spatial = Path(f"{stem}_20x_spatialqc.png")
         if structural is None:
             structural = np.where(masks["labels"] > 0, masks["labels"], 0)
         _spatial_figure(spatial, np.asarray(structural), masks, manifest, effective_groups, analysed)
+        report("rendering trial-z heatmaps and response bars")
         response = Path(f"{stem}_20x_responseqc.png"); _response_figure(response, analysed, odor_ids, states, state_levels)
+        report("rendering SNR distributions")
         snr = Path(f"{stem}_20x_snrqc.png"); _snr_figure(snr, analysed)
         outputs.update(spatial=str(spatial), response=str(response), snr=str(snr))
-        for key, item in analysed.items():
-            outputs["trace_atlas"][key] = _atlas(stem, key, item, on, off, frame_rate)
+        report("writing trial-level PC1 scores")
         pc1_path = Path(f"{stem}_20x_pc1.json")
         pc1_path.write_text(json.dumps({
             "description": "Odor-protected PC1 trial score; recorded, not subtracted"
@@ -272,31 +355,11 @@ def qc_20x(round_path, *, groups=None, structural=None, usable=None,
             },
         }, indent=2))
         outputs["pc1"] = str(pc1_path)
-        import h5py
-        time_pc1_path = Path(f"{stem}_20x_pc1_timeseries.h5")
-        with h5py.File(time_pc1_path, "w") as handle:
-            handle.attrs["description"] = (
-                "Fixed spatial PC1 timecourses from grouped detrended dF/F; "
-                "recorded without subtraction from traces"
-            )
-            handle.create_dataset("time_s", data=(
-                np.arange(raw.shape[2]) - int(np.median(on))
-            ) / frame_rate)
-            handle.create_dataset("trial_index", data=np.arange(len(odor_ids)))
-            handle.create_dataset("odor_id", data=odor_ids)
-            handle.create_dataset("state", data=states)
-            for key, item in analysed.items():
-                group = handle.create_group(key)
-                pc = item["time_pc1"]
-                group.create_dataset("timecourse", data=pc["timecourse"], compression="gzip")
-                group.create_dataset("loadings", data=pc["loadings"])
-                group.create_dataset("area_px", data=item["population"].area_px)
-                group.create_dataset("unit_id", data=np.asarray(
-                    item["population"].unit_ids, dtype=h5py.string_dtype("utf-8")
-                ))
-                group.attrs["explained_variance_fraction"] = pc["explained_variance_fraction"]
-                group.attrs["method"] = pc["method"]
         outputs["pc1_timecourse"] = str(time_pc1_path)
-    outputs["n_units"] = {key: len(pop.unit_ids) for key, pop in populations.items()}
+    outputs["n_units"] = {
+        key: len(item["population"].unit_ids) for key, item in analysed.items()
+    }
     outputs["analysis_order"] = "raw pixel-weighted aggregation -> detrend -> dF/F and trial z/calls"
+    outputs["elapsed_s"] = round(time.perf_counter() - started, 3)
+    report(f"complete in {outputs['elapsed_s']:.1f} s")
     return outputs

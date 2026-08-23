@@ -51,6 +51,20 @@ def test_post_extraction_groups_override_saved_manifest_groups():
     assert populations["groups"].unit_ids == ["g4", "p3"]
 
 
+def test_group_qc_can_build_one_float32_population_for_bounded_memory():
+    raw = np.arange(24, dtype=np.float32).reshape(3, 2, 4)
+    manifest = [
+        {"roi_id": 1, "roi_type": "soma", "source_roi_id": 1, "roi_group_id": 1},
+        {"roi_id": 2, "roi_type": "process", "source_roi_id": 1, "roi_group_id": 1},
+        {"roi_id": 3, "roi_type": "process", "source_roi_id": 2, "roi_group_id": None},
+    ]
+    populations = aggregate_raw_units(
+        raw, np.ones(3), manifest, only=("processes",),
+    )
+    assert set(populations) == {"processes"}
+    assert populations["processes"].raw.dtype == np.float32
+
+
 def test_gui_migrates_live_legacy_log_state_to_dog(tmp_path):
     state = Segmentation20xState(np.zeros((20, 20), np.float32))
     state.soma_params.pop("dog_threshold", None)

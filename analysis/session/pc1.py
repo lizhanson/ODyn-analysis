@@ -18,7 +18,7 @@ def detrended_dff(traces, odor_on_frames, frame_rate, *, baseline_s=4.0):
     return out
 
 
-def fixed_pc1(dff, *, max_iterations=30, tolerance=1e-7):
+def fixed_pc1(dff, *, max_iterations=30, tolerance=1e-7, progress=None):
     """Fit one loading vector globally and project it within every trial."""
     dff = np.asarray(dff, dtype=np.float32)
     if dff.ndim != 3 or dff.shape[0] < 1:
@@ -42,6 +42,8 @@ def fixed_pc1(dff, *, max_iterations=30, tolerance=1e-7):
         updated /= norm
         change = min(np.linalg.norm(updated - loading), np.linalg.norm(updated + loading))
         loading = updated
+        if progress is not None and (iteration == 1 or iteration % 5 == 0):
+            progress(f"PC1 power iteration {iteration}/{max_iterations}")
         if change < tolerance:
             converged = True
             break
@@ -64,7 +66,8 @@ def fixed_pc1(dff, *, max_iterations=30, tolerance=1e-7):
     }
 
 
-def pc1_from_detrended(traces, odor_on_frames, frame_rate, *, baseline_s=4.0):
+def pc1_from_detrended(traces, odor_on_frames, frame_rate, *, baseline_s=4.0,
+                       progress=None):
     return fixed_pc1(detrended_dff(
         traces, odor_on_frames, frame_rate, baseline_s=baseline_s,
-    ))
+    ), progress=progress)
