@@ -87,6 +87,7 @@ def finalize_session(
         )
 
     detrend_result = None
+    pc1_result = None
     if extract and traces is not None and detrend:
         from .detrend import detrend_traces
 
@@ -99,12 +100,17 @@ def finalize_session(
         if info.get("ok"):
             info["traces"] = corrected
             detrend_result = info
+            from .pc1 import pc1_from_detrended
+            pc1_result = pc1_from_detrended(
+                corrected, traces.odor_on_frames, traces.frame_rate,
+            )
 
     _write_round(
         path, scratch,
         labels=labels, traces=traces, per_group_masks=per_group_masks,
         exp_name=session.exp_name, group_id=session.group_id,
         mask_hash=digest, parameters=parameters, detrend=detrend_result,
+        pc1=pc1_result,
     )
 
     if checkpoint is not None and checkpoint.exists():

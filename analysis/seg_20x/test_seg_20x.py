@@ -11,6 +11,44 @@ from .state import (
     BUNDLE_TYPE, SCHEMA_VERSION, Segmentation20xState, save_portable_state,
 )
 from .gui import Segmentation20xGUI
+from .qc import aggregate_raw_units
+
+
+def test_group_qc_aggregates_raw_f_by_pixels_and_keeps_singletons():
+    raw = np.array([
+        [[[10., 20.]]],   # soma, 4 px
+        [[[30., 50.]]],   # process, 2 px; grouped with soma
+        [[[70., 90.]]],   # ungrouped process, 3 px
+    ]).reshape(3, 1, 2)
+    areas = np.array([4, 2, 3])
+    manifest = [
+        {"roi_id": 1, "roi_type": "soma", "source_roi_id": 1, "roi_group_id": 7},
+        {"roi_id": 2, "roi_type": "process", "source_roi_id": 1, "roi_group_id": 7},
+        {"roi_id": 3, "roi_type": "process", "source_roi_id": 2, "roi_group_id": None},
+    ]
+
+    populations = aggregate_raw_units(raw, areas, manifest)
+
+    np.testing.assert_allclose(populations["groups"].raw[0, 0], [50 / 3, 30])
+    np.testing.assert_allclose(populations["somas"].raw[0, 0], [10, 20])
+    np.testing.assert_allclose(populations["processes"].raw[0, 0], [30, 50])
+    np.testing.assert_allclose(populations["processes"].raw[1, 0], [70, 90])
+    assert populations["groups"].members == [[1, 2], [3]]
+    assert populations["groups"].area_px.tolist() == [6, 3]
+
+
+def test_post_extraction_groups_override_saved_manifest_groups():
+    raw = np.arange(12, dtype=float).reshape(3, 1, 4)
+    manifest = [
+        {"roi_id": 1, "roi_type": "soma", "source_roi_id": 1, "roi_group_id": -1},
+        {"roi_id": 2, "roi_type": "process", "source_roi_id": 1, "roi_group_id": -1},
+        {"roi_id": 3, "roi_type": "process", "source_roi_id": 2, "roi_group_id": 9},
+    ]
+    populations = aggregate_raw_units(
+        raw, np.ones(3), manifest, {("soma", 1): 4, ("process", 1): 4}
+    )
+    assert populations["groups"].members == [[1, 2], [3]]
+    assert populations["groups"].unit_ids == ["g4", "p3"]
 
 
 def test_gui_migrates_live_legacy_log_state_to_dog(tmp_path):

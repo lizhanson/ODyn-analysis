@@ -14,6 +14,7 @@ from .segmentation import (
 )
 from .session import ApprovedGroupInputs, resolve_approved_group
 from .state import Segmentation20xState
+from .qc import UnitPopulation, aggregate_raw_units, qc_20x
 
 __all__ = [
     "ApprovedGroupInputs",
@@ -21,6 +22,9 @@ __all__ = [
     "PROCESS_DEFAULTS",
     "SOMA_DEFAULTS",
     "Segmentation20xState",
+    "UnitPopulation",
+    "aggregate_raw_units",
+    "qc_20x",
     "build_reference_images",
     "detect_processes",
     "detect_somas",

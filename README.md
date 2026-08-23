@@ -80,3 +80,17 @@ The 20x GUI checkpoint is local:
 ```
 
 It contains the reference images, automatic and curated masks, parameters, edits, ROI table, and groups. The finalized server HDF5 contains the 20x masks and extracted traces.
+
+After trace-based grouping, the 20x notebook also writes grouped QC sidecars:
+`*_20x_spatialqc.png`, `*_20x_responseqc.png`, `*_20x_snrqc.png`, and paged
+`*_traceatlas_{groups,somas,processes}_pNN.png` files. Group traces are formed by
+pixel-weighting raw ROI fluorescence before detrending, dF/F, z-scoring, response
+calls, or baseline metrics; ROIs without a group remain singleton analysis units.
+Response calls at both 10x and 20x use traces without PC1 subtraction. The
+odor-protected PC1 trial score is still calculated and recorded for later
+state/block analysis.
+Finalized rounds also store `/traces/pc1_timecourse` (trial x imaging frame) and
+`/traces/pc1_loadings`. The fixed loading vector is fitted once over concatenated
+detrended dF/F and projected back into every trial; it is never subtracted. After
+20x grouping, `*_20x_pc1_timeseries.h5` provides the corresponding timecourses
+for whole groups, soma components, and process components.

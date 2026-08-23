@@ -255,6 +255,10 @@ def trial_calls(
     with np.errstate(invalid="ignore", divide="ignore"):
         z = (d - centre) / np.where(scale > 1e-12, scale, np.nan)
 
+    # Always estimate odor-protected PC1 for later state/block analysis. It is
+    # diagnostic unless deglobal is explicitly requested; the default response
+    # calls below use the unmodified z values.
+    _, pc1_component = _deglobal(z, odor_ids, method="pc1")
     component = None
     if deglobal is not None:
         if odor_ids is None:
@@ -273,6 +277,7 @@ def trial_calls(
         "control_z": control_z,
         "deglobal": deglobal,
         "global_component": component,
+        "pc1_component": pc1_component,
         "p": p,
         "d": d,
         "control": c,
@@ -813,7 +818,7 @@ THRESHOLD_NOTE = """thresholds: how they are set
 def response_figure(
     path,
     *,
-    deglobal: str | None = "pc1",
+    deglobal: str | None = None,
     target_fdr: float = TARGET_FDR,
     usable: np.ndarray | None = None,
     prefer_detrended: bool = True,
@@ -977,11 +982,10 @@ def response_figure(
         transform=ax.transAxes,
     )
 
-    # 8. what was removed. Worth showing rather than only naming: this is the
-    # per-trial strength of the field-wide component, and a block difference
-    # in it is a difference in state, not in odor coding.
+    # 8. PC1 is retained as a state/block diagnostic but is not subtracted by
+    # default. A block difference in it may itself be biological state.
     ax = fig.add_subplot(grid[3, 2])
-    component = calls.get("global_component")
+    component = calls.get("pc1_component")
     if component is None:
         ax.axis("off")
     else:
@@ -992,7 +996,8 @@ def response_figure(
         ax.axhline(0, color="black", lw=0.8)
         ax.set_xlabel("trial")
         ax.set_ylabel("component (a.u.)")
-        ax.set_title(f"removed global component ({deglobal})")
+        action = "subtracted" if deglobal == "pc1" else "recorded, not subtracted"
+        ax.set_title(f"odor-protected PC1 ({action})")
         ax.legend(fontsize=7)
 
     fig.suptitle(f"response QC - {path.name}", y=0.995, fontsize=13)
@@ -1008,6 +1013,7 @@ def response_figure(
             "lifetime": lifetime, "averages": averages, "levels": levels,
             "split_half": check, "trace_source": trace_source,
             "manipulation": manipulation,
+            "pc1_component": calls.get("pc1_component"),
             "n_trials_used": int(np.isfinite(calls["d"]).any(axis=0).sum())}
 
 

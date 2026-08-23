@@ -319,7 +319,7 @@ def response_qc(
     baseline_s: float = BASELINE_S,
     baseline_outlier_sd: float = BASELINE_OUTLIER_SD,
     per_trial: bool = True,
-    deglobal: str | None = "pc1",
+    deglobal: str | None = None,
     thresholds: str = "calibrated",
     target_fpr: float = TARGET_FPR,
     per_roi_thresholds: bool = False,
@@ -896,7 +896,7 @@ def _wrap(text: str, width: int = 52) -> str:
 def _per_trial_report(
     path,
     *,
-    deglobal: str | None = "pc1",
+    deglobal: str | None = None,
     baseline_outlier_sd: float = BASELINE_OUTLIER_SD,
     save: bool = True,
 ) -> dict:
@@ -969,6 +969,10 @@ def _per_trial_report(
         # by this is what separates the manipulation from time in session.
         "manipulation": figure["manipulation"],
         "deglobal": deglobal,
+        "pc1_trace_by_trial": [
+            None if not np.isfinite(v) else round(float(v), 8)
+            for v in figure["pc1_component"]
+        ],
         "window_frames": calls["window_frames"],
         "roi_area_px": [int(np.min(areas)), int(np.max(areas))],
         "rois_under_10px": int((areas < 10).sum()),

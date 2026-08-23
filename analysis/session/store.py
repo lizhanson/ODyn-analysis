@@ -184,6 +184,7 @@ def write_session(
     mask_hash: str,
     parameters: None | dict = None,
     detrend: None | dict = None,
+    pc1: None | dict = None,
 ) -> Path:
     """Write one processing round. Overwrites only a file of the same name."""
 
@@ -315,6 +316,30 @@ def write_session(
             "pre-odor; 0 is the frame nearest the valve opening."
         )
         times.attrs["units"] = "seconds"
+
+        if pc1 is not None:
+            pc = group.create_dataset(
+                "pc1_timecourse", data=np.asarray(pc1["timecourse"], np.float32),
+                compression="gzip",
+            )
+            pc.attrs["description"] = (
+                "Fixed spatial PC1 score at every imaging frame. One loading "
+                "vector was fitted over all concatenated detrended dF/F samples "
+                "and projected without subtracting PC1 from any ROI trace."
+            )
+            pc.attrs["dimensions"] = "trial, frame"
+            pc.attrs["explained_variance_fraction"] = float(
+                pc1["explained_variance_fraction"]
+            )
+            pc.attrs["method"] = pc1["method"]
+            loading = group.create_dataset(
+                "pc1_loadings", data=np.asarray(pc1["loadings"], np.float32),
+            )
+            loading.attrs["description"] = (
+                "Fixed PC1 spatial loading; row order matches /rois and "
+                "/traces/roi. PC1 was recorded, never subtracted."
+            )
+            loading.attrs["dimensions"] = "roi"
 
         f.attrs["frame_rate"] = float(traces.frame_rate)
         f.attrs["n_pre"] = int(traces.n_pre)
