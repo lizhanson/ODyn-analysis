@@ -4,6 +4,7 @@ odyn_scratch/
 nb_work_*/
 scratchpad/
 *.dat
+tmp
 
 # Local database snapshots. These are copies of the shared odyn.db taken to
 # avoid holding a SQLite lock on the share; they go stale by design and must
