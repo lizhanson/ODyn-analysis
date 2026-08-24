@@ -1,5 +1,6 @@
 import numpy as np
 
+from .trace_qc import _preferred_odor_order
 from .trace_analysis import (
     aggregate_epoch_table, epoch_scores, standardize_traces, trial_epoch_table,
 )
@@ -60,3 +61,21 @@ def test_tables_are_trial_level_then_unit_odor_block_epoch_level():
     assert odor.loc["pre", "mean_response_z"] == 2
     assert odor.loc["post", "mean_response_z"] == 3
     assert set(summary.columns).isdisjoint({"p_value", "q_value", "call"})
+
+
+def test_preferred_odor_order_uses_only_reference_trials():
+    odor_ids = np.array([1, 2, 1, 2])
+    response = np.array([
+        [4, 1, 9, 9],
+        [2, 3, 9, 9],
+        [5, 1, 9, 9],
+        [np.nan, np.nan, 9, 9],
+    ])
+    order, preference, keys = _preferred_odor_order(
+        response, odor_ids,
+        reference_trials=np.array([True, True, False, False]),
+    )
+
+    np.testing.assert_array_equal(keys, [1, 2])
+    np.testing.assert_array_equal(order, [2, 0, 1, 3])
+    np.testing.assert_array_equal(preference, [0, 0, 1, 2])

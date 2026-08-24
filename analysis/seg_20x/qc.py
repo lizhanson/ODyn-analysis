@@ -200,10 +200,16 @@ def _baseline_figures(path, analysed, states, state_levels):
 def _snr_figure(path, analysed):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(9, 5))
-    for key, colour in zip(("groups", "somas", "processes"), ("black", "deepskyblue", "magenta")):
-        values = analysed[key]["snr"]; values = values[np.isfinite(values)]
-        ax.hist(values, bins=35, histtype="step", lw=2, color=colour,
-                label=f"{analysed[key]['population'].name} (n={len(values)})")
+    for key, colour in zip(
+        ("groups", "somas", "processes"),
+        ("black", "deepskyblue", "magenta"),
+    ):
+        values = np.asarray(analysed[key]["snr"], float)
+        values = values[np.isfinite(values)]
+        ax.hist(
+            values, bins=35, histtype="step", lw=2, color=colour,
+            label=f"{analysed[key]['population'].name} (n={len(values)})",
+        )
     ax.set(xlabel="median trial baseline SNR (mean F / SD)",
            ylabel="analysis units", title="20x baseline SNR")
     ax.legend(fontsize=8); fig.savefig(path, dpi=150, bbox_inches="tight"); plt.close(fig)

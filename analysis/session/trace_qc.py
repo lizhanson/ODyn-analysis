@@ -14,6 +14,34 @@ def _decode(values):
     return [v.decode() if isinstance(v, bytes) else str(v) for v in values]
 
 
+def _preferred_odor_order(odor_response, odor_ids, reference_trials=None):
+    """Group units by preferred odor, strongest preference first per group."""
+    values = np.asarray(odor_response, float)
+    odor_ids = np.asarray(odor_ids)
+    if reference_trials is None:
+        reference_trials = np.ones(len(odor_ids), dtype=bool)
+    reference_trials = np.asarray(reference_trials, bool)
+    keys = np.unique(odor_ids)
+    tuning_columns = []
+    for odor in keys:
+        samples = values[:, reference_trials & (odor_ids == odor)]
+        count = np.sum(np.isfinite(samples), axis=1)
+        total = np.nansum(samples, axis=1)
+        tuning_columns.append(
+            np.divide(total, count, out=np.full(len(values), np.nan), where=count > 0)
+        )
+    tuning = np.column_stack(tuning_columns)
+    finite = np.isfinite(tuning)
+    safe = np.where(finite, tuning, -np.inf)
+    preference = np.argmax(safe, axis=1)
+    strength = safe[np.arange(len(values)), preference]
+    missing = ~finite.any(axis=1)
+    preference[missing] = len(keys)
+    strength[missing] = -np.inf
+    order = np.lexsort((-strength, preference))
+    return order, preference[order], keys
+
+
 def continuous_response_figure(path, *, scores, odor_ids, states, state_levels,
                                unit_label="ROI",
                                normalization_label="per-trial baseline SD",
@@ -30,6 +58,14 @@ def continuous_response_figure(path, *, scores, odor_ids, states, state_levels,
     levels = preferred + [x for x in state_levels if x not in preferred]
     rank = np.array([levels.index(state_levels[int(code)]) for code in states])
     columns = np.lexsort((np.arange(len(odor_ids)), rank, odor_ids))
+    reference = np.ones(len(states), dtype=bool)
+    preference_source = "all trials"
+    if "pre" in state_levels:
+        reference = states == state_levels.index("pre")
+        preference_source = "pre-anesthesia trials"
+    order, _, _ = _preferred_odor_order(
+        scores.mean["odor"], odor_ids, reference,
+    )
     fig, axes = plt.subplots(
         3, 4, figsize=(24, 13), constrained_layout=True,
         gridspec_kw={"height_ratios": [1, 1, .38]},
@@ -38,12 +74,15 @@ def continuous_response_figure(path, *, scores, odor_ids, states, state_levels,
 
     for row, epoch in enumerate(("odor", "post_odor")):
         values = np.asarray(scores.mean[epoch], float)
-        order = np.argsort(-np.nanmax(np.abs(np.nan_to_num(values)), axis=1))
         image = axes[row, 0].imshow(
             values[np.ix_(order, columns)], aspect="auto", cmap="RdBu_r",
             norm=norm, interpolation="nearest",
         )
-        axes[row, 0].set(title=f"{epoch}: trial mean z", ylabel=unit_label)
+        axes[row, 0].set(
+            title=(f"{epoch}: trial mean z; rows by odor preference "
+                   f"({preference_source})"),
+            ylabel=unit_label,
+        )
         sorted_odor, sorted_rank = odor_ids[columns], rank[columns]
         for edge in np.flatnonzero(np.diff(sorted_odor)) + 1:
             axes[row, 0].axvline(edge - .5, color="black", lw=1)
