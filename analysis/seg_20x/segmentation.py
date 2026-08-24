@@ -54,6 +54,7 @@ def build_reference_images(
     frames_per_trial: int = 3,
     structural_percentile: float = 75.0,
     structural_sigma_px: float = 0.8,
+    progress: bool = True,
 ) -> tuple[dict[str, np.ndarray], dict]:
     """Robust structural composite from odor windows spanning the session.
 
@@ -77,8 +78,15 @@ def build_reference_images(
     per_trial = int(frames_per_trial)
     if per_trial < 1:
         raise ValueError("frames_per_trial must be at least 1")
+    from ..session.zscore import _tracked
+
     blocks, sampled = [], []
-    for path, left, right in zip(paths, on, off):
+    trials = list(zip(paths, on, off))
+    tracked = _tracked(
+        trials, total=len(trials), description="building 20x structural reference",
+        enabled=progress,
+    )
+    for path, left, right in tracked:
         if right <= left:
             raise ValueError(f"invalid odor window [{left}, {right}) for {path.name}")
         indices = np.unique(np.linspace(left, right - 1, min(per_trial, right-left)).round().astype(int))

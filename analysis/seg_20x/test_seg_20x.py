@@ -27,7 +27,7 @@ def test_reference_samples_odor_windows_across_session(tmp_path):
         paths.append(path)
     images, meta = build_reference_images(
         paths, odor_on_frames=[2, 5], odor_off_frames=[5, 8],
-        frames_per_trial=2, structural_sigma_px=0,
+        frames_per_trial=2, structural_sigma_px=0, progress=False,
     )
     # Trial means are pattern+3 and pattern+106; their 75th percentile is 80.25.
     np.testing.assert_allclose(images["structural"], pattern + 80.25)
