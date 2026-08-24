@@ -54,6 +54,8 @@ def build_reference_images(
     frames_per_trial: int = 3,
     structural_percentile: float = 75.0,
     structural_sigma_px: float = 0.8,
+    work_dir: str | Path | None = None,
+    row_chunk: int = 16,
     progress: bool = True,
 ) -> tuple[dict[str, np.ndarray], dict]:
     """Robust structural composite from odor windows spanning the session.
@@ -80,34 +82,87 @@ def build_reference_images(
         raise ValueError("frames_per_trial must be at least 1")
     from ..session.zscore import _tracked
 
-    blocks, sampled = [], []
+    import tempfile
+
+    scratch = None if work_dir is None else Path(work_dir)
+    if scratch is not None:
+        scratch.mkdir(parents=True, exist_ok=True)
+    temporary = tempfile.NamedTemporaryFile(
+        prefix="20x_trial_means_", suffix=".dat",
+        dir=None if scratch is None else scratch, delete=False,
+    )
+    trial_means_path = Path(temporary.name)
+    temporary.close()
+
+    sampled = []
+    trial_means = None
+    n_sampled_frames = 0
     trials = list(zip(paths, on, off))
     tracked = _tracked(
         trials, total=len(trials), description="building 20x structural reference",
-        enabled=progress,
+        enabled=progress, unit="trial",
     )
-    for path, left, right in tracked:
-        if right <= left:
-            raise ValueError(f"invalid odor window [{left}, {right}) for {path.name}")
-        indices = np.unique(np.linspace(left, right - 1, min(per_trial, right-left)).round().astype(int))
-        with tifffile.TiffFile(path) as tif:
-            block = np.stack([tif.pages[int(i)].asarray() for i in indices]).astype(np.float32)
-        blocks.append(block)
-        sampled.append({"movie_path": str(path), "frames": indices.tolist()})
-    movie = np.concatenate(blocks, axis=0)
+    try:
+        for trial_index, (path, left, right) in enumerate(tracked):
+            if right <= left:
+                raise ValueError(f"invalid odor window [{left}, {right}) for {path.name}")
+            indices = np.unique(
+                np.linspace(left, right - 1, min(per_trial, right-left))
+                .round().astype(int)
+            )
+            with tifffile.TiffFile(path) as tif:
+                block = np.stack(
+                    [tif.pages[int(i)].asarray() for i in indices]
+                ).astype(np.float32)
+            mean_image = block.mean(axis=0, dtype=np.float32)
+            if trial_means is None:
+                import shutil
+                required = len(trials) * mean_image.nbytes
+                free = shutil.disk_usage(trial_means_path.parent).free
+                if free < required * 1.2:
+                    raise OSError(
+                        f"20x reference needs about {required / 1e9:.1f} GB "
+                        f"of local scratch, but only {free / 1e9:.1f} GB is free"
+                    )
+                trial_means = np.memmap(
+                    trial_means_path, dtype=np.float32, mode="w+",
+                    shape=(len(trials), *mean_image.shape),
+                )
+            trial_means[trial_index] = mean_image
+            n_sampled_frames += len(indices)
+            sampled.append({"movie_path": str(path), "frames": indices.tolist()})
+            del block, mean_image
+        trial_means.flush()
 
-    trial_means = np.stack([block.mean(axis=0) for block in blocks])
-    structural = gaussian(
-        np.percentile(trial_means, percentile, axis=0),
-        sigma=structural_sigma_px, preserve_range=True,
-    ).astype(np.float32)
+        height, width = trial_means.shape[1:]
+        chunk = max(1, int(row_chunk))
+        structural = np.empty((height, width), np.float32)
+        starts = range(0, height, chunk)
+        tracked_rows = _tracked(
+            starts, total=int(np.ceil(height / chunk)),
+            description="compositing 20x reference rows", enabled=progress,
+            unit="chunk",
+        )
+        for start in tracked_rows:
+            stop = min(start + chunk, height)
+            structural[start:stop] = np.percentile(
+                np.asarray(trial_means[:, start:stop, :]), percentile, axis=0,
+            ).astype(np.float32)
+        structural = gaussian(
+            structural, sigma=structural_sigma_px, preserve_range=True,
+        ).astype(np.float32)
+    finally:
+        if trial_means is not None:
+            del trial_means
+        trial_means_path.unlink(missing_ok=True)
     return {"structural": structural}, {
         "sampling": "frames distributed across every session odor window",
         "structural_composite": "percentile across per-trial odor-window means",
         "structural_percentile": percentile,
         "sampled_trials": sampled,
-        "n_frames": int(len(movie)),
+        "n_frames": int(n_sampled_frames),
         "frames_per_trial": per_trial,
+        "percentile_row_chunk": int(row_chunk),
         "structural_sigma_px": float(structural_sigma_px),
     }
 

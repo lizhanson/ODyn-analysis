@@ -28,7 +28,8 @@ def _available_bytes() -> None | int:
     return int(psutil.virtual_memory().available)
 
 
-def _tracked(iterable, *, total: int, description: str, enabled: bool = True):
+def _tracked(iterable, *, total: int, description: str, enabled: bool = True,
+             unit: str = "acq"):
     """Wrap an iterable in a progress bar, or return it unchanged."""
 
     if not enabled:
@@ -39,7 +40,7 @@ def _tracked(iterable, *, total: int, description: str, enabled: bool = True):
     except ImportError:
         return iterable
 
-    return tqdm(iterable, total=total, desc=description, unit="acq", leave=False)
+    return tqdm(iterable, total=total, desc=description, unit=unit, leave=False)
 
 
 def _use_memory(required_bytes: int, backend: str) -> bool:
