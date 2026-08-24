@@ -27,13 +27,15 @@ def test_reference_samples_odor_windows_across_session(tmp_path):
         paths.append(path)
     images, meta = build_reference_images(
         paths, odor_on_frames=[2, 5], odor_off_frames=[5, 8],
-        n_frames=4, structural_sigma_px=0,
+        frames_per_trial=2, structural_sigma_px=0,
     )
     # Trial means are pattern+3 and pattern+106; their 75th percentile is 80.25.
     np.testing.assert_allclose(images["structural"], pattern + 80.25)
     assert len(meta["sampled_trials"]) == 2
     assert meta["sampling"].startswith("frames distributed")
     assert meta["structural_percentile"] == 75
+    assert meta["frames_per_trial"] == 2
+    assert meta["n_frames"] == 4
 
 
 def test_group_qc_aggregates_raw_f_by_pixels_and_keeps_singletons():
@@ -184,6 +186,8 @@ def test_trace_notebook_uses_standard_h5_finalizer():
     text = open(notebook).read()
     assert "finalize_session" in text
     assert "traces_20x.npz" not in text
+    assert "published_target" in text
+    assert "partial.replace(published_target)" in text
 
 
 def test_assign_button_advances_group_number():

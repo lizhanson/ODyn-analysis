@@ -212,7 +212,7 @@ class Segmentation20xGUI:
 
 
 def launch(
-    structural=None, correlation=None, *, save_path,
+    structural=None, *, save_path,
     soma_params=None, process_params=None, state=None,
 ):
     """Open the complete 20x workflow inside a Jupyter/VS Code notebook."""
@@ -232,7 +232,7 @@ def launch(
         if structural is None:
             raise ValueError("Pass structural= for a new round or state= to resume one.")
         state = Segmentation20xState(
-            structural, correlation,
+            structural,
             soma_params=soma_params, process_params=process_params,
         )
     gui = Segmentation20xGUI(state, save_path)

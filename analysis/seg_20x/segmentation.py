@@ -7,9 +7,6 @@ from pathlib import Path
 import numpy as np
 
 from ..seg_10x.state import grow_seed
-from ..session.correlation import concatenated_local_correlation
-
-
 SOMA_DEFAULTS = {
     "dog_threshold": 0.12,
     "dog_sigma_ratio": 1.4,
@@ -54,10 +51,9 @@ def build_reference_images(
     *,
     odor_on_frames,
     odor_off_frames,
-    n_frames: int = 120,
+    frames_per_trial: int = 3,
     structural_percentile: float = 75.0,
     structural_sigma_px: float = 0.8,
-    correlation_sigma_px: float = 0.7,
 ) -> tuple[dict[str, np.ndarray], dict]:
     """Robust structural composite from odor windows spanning the session.
 
@@ -78,7 +74,9 @@ def build_reference_images(
     percentile = float(structural_percentile)
     if not 50 <= percentile <= 100:
         raise ValueError("structural_percentile must be between 50 and 100")
-    per_trial = max(1, int(np.ceil(int(n_frames) / len(paths))))
+    per_trial = int(frames_per_trial)
+    if per_trial < 1:
+        raise ValueError("frames_per_trial must be at least 1")
     blocks, sampled = [], []
     for path, left, right in zip(paths, on, off):
         if right <= left:
@@ -95,20 +93,14 @@ def build_reference_images(
         np.percentile(trial_means, percentile, axis=0),
         sigma=structural_sigma_px, preserve_range=True,
     ).astype(np.float32)
-    correlation, corr_meta = concatenated_local_correlation(blocks, center_each_block=True)
-    correlation = gaussian(
-        correlation, sigma=correlation_sigma_px, preserve_range=True
-    ).astype(np.float32)
-
-    return {"structural": structural, "correlation": correlation}, {
+    return {"structural": structural}, {
         "sampling": "frames distributed across every session odor window",
         "structural_composite": "percentile across per-trial odor-window means",
         "structural_percentile": percentile,
         "sampled_trials": sampled,
         "n_frames": int(len(movie)),
+        "frames_per_trial": per_trial,
         "structural_sigma_px": float(structural_sigma_px),
-        "correlation_sigma_px": float(correlation_sigma_px),
-        "correlation": corr_meta,
     }
 
 

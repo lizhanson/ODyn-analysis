@@ -63,9 +63,6 @@ def save_portable_state(state, path, *, config=None):
         "masks/process_automatic": state.automatic_processes(),
         "images/structural": state.structural,
     }
-    if state.correlation is not None:
-        arrays["images/correlation"] = state.correlation
-
     with h5py.File(path, "w") as handle:
         handle.attrs["file_type"] = bundle_type
         handle.attrs["schema_version"] = schema_version
@@ -87,13 +84,10 @@ def save_portable_state(state, path, *, config=None):
 class Segmentation20xState:
     """All segmentation, curation, grouping, and persistence without GUI code."""
 
-    def __init__(self, structural, correlation=None, *, soma_params=None, process_params=None):
+    def __init__(self, structural, *, soma_params=None, process_params=None):
         self.structural = np.asarray(structural, dtype=np.float32)
-        self.correlation = None if correlation is None else np.asarray(correlation, dtype=np.float32)
         if self.structural.ndim != 2:
             raise ValueError(f"structural image must be 2D, got {self.structural.shape}")
-        if self.correlation is not None and self.correlation.shape != self.structural.shape:
-            raise ValueError("structural and correlation images have differing shapes")
         self.shape = self.structural.shape
         self.soma_params = {**SOMA_DEFAULTS, **(soma_params or {})}
         self.process_params = {**PROCESS_DEFAULTS, **(process_params or {})}
@@ -150,15 +144,15 @@ class Segmentation20xState:
             images = {name: handle["images"][name][:] for name in handle["images"]}
             masks = {name: handle["masks"][name][:] for name in handle["masks"]}
 
-        state = cls._from_config(images.get("structural"), images.get("correlation"), config)
+        state = cls._from_config(images.get("structural"), config)
         state._restore_masks(masks, config, source=path)
         return state
 
     @classmethod
-    def _from_config(cls, structural, correlation, config):
+    def _from_config(cls, structural, config):
         """A state carrying the saved parameters, edits, groups, and phase."""
         state = cls(
-            structural, correlation,
+            structural,
             soma_params=config.get("soma_params"),
             process_params=config.get("process_params"),
         )
