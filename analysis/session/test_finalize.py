@@ -5,6 +5,21 @@ from .finalize import mask_hash, verify
 from .store import find_rounds
 
 
+def test_h5_table_categorical_codes_expand_beyond_uint8(tmp_path):
+    import pandas as pd
+
+    from .store import _write_table
+
+    path = tmp_path / "categories.h5"
+    values = [f"group_{index}" for index in range(300)]
+    with h5py.File(path, "w") as handle:
+        _write_table(handle.create_group("table"), pd.DataFrame({"group_id": values}))
+    with h5py.File(path, "r") as handle:
+        assert handle["table/group_id"].dtype == np.dtype(np.uint16)
+        assert len(np.unique(handle["table/group_id"][:])) == 300
+        assert len(handle["table/group_id_levels"]) == 300
+
+
 def test_portable_mask_bundle_is_not_a_finalized_round(tmp_path):
     portable = tmp_path / "group212_example_20x_masks_processed_20260819.h5"
     with h5py.File(portable, "w") as handle:

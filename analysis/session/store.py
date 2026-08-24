@@ -150,8 +150,19 @@ def _write_table(parent, table) -> None:
             # variable-length strings badly, and codes sort and filter cleanly.
             levels = sorted({str(v) for v in values})
             lookup = {level: i for i, level in enumerate(levels)}
+            largest = max(0, len(levels) - 1)
+            if largest <= np.iinfo(np.uint8).max:
+                code_dtype = np.uint8
+            elif largest <= np.iinfo(np.uint16).max:
+                code_dtype = np.uint16
+            elif largest <= np.iinfo(np.uint32).max:
+                code_dtype = np.uint32
+            else:
+                code_dtype = np.uint64
             coded = parent.create_dataset(
-                column, data=np.array([lookup[str(v)] for v in values], dtype=np.int8)
+                column, data=np.array(
+                    [lookup[str(v)] for v in values], dtype=code_dtype
+                )
             )
             _describe(coded, column)
             legend = parent.create_dataset(

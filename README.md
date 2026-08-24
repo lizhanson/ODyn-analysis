@@ -117,6 +117,14 @@ with `--serve` to review already-tuned sessions. Tuning JSON files are written
 to each experiment's `processed/python/aux` directory, where batch auxiliary
 processing discovers them automatically.
 
+Pupil alignment normally uses one camera pulse per decoded frame. If those
+counts differ, the pipeline uses the converter's Micro-Manager
+`*_frametimes.csv`, but only when its absolute start and end agree with the
+acquisition clock within 250 ms. Two-photon samples farther than two camera
+periods from a recorded pupil frame are left missing rather than extrapolated.
+The HDF5 records the alignment method, pulse-count delta, endpoint residuals,
+nearest-frame timing error, frame-validity mask, and per-trial coverage.
+
 The 20x GUI checkpoint is local:
 
 ```text
