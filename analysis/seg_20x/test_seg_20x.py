@@ -29,10 +29,11 @@ def test_reference_samples_odor_windows_across_session(tmp_path):
         paths, odor_on_frames=[2, 5], odor_off_frames=[5, 8],
         n_frames=4, structural_sigma_px=0,
     )
-    # Endpoints from both odor windows: 2, 4, 105, 107.
-    np.testing.assert_allclose(images["structural"], pattern + 54.5)
+    # Trial means are pattern+3 and pattern+106; their 75th percentile is 80.25.
+    np.testing.assert_allclose(images["structural"], pattern + 80.25)
     assert len(meta["sampled_trials"]) == 2
     assert meta["sampling"].startswith("frames distributed")
+    assert meta["structural_percentile"] == 75
 
 
 def test_group_qc_aggregates_raw_f_by_pixels_and_keeps_singletons():
