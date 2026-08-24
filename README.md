@@ -82,6 +82,41 @@ dF/F, PC1 subtraction, alternate normalization, or binary responder test.
 
 Pupil and respiration outputs live in `processed/python/aux/`. Their `acq_id` arrays align trial rows to `/trials/acq_id` in the processed round. `respiration_from_round()` uses the processed-round filename stem.
 
+The consolidated, segmentation-independent auxiliary pipeline is in
+`analysis.session.auxiliary`. It writes one `*_auxiliary.h5` containing
+acquisition-aligned treadmill velocity and derived movement features,
+bandpassed respiration and masked/unmasked sniff frequency, and masked/unmasked
+pupil diameter with fit-quality variables. Every array is trial x imaging frame
+and joins future image-processing rounds by `trials/acq_id`. It also writes a
+combined auxiliary QC page, the multipanel pupil QC page, and odor-averaged
+respiration and treadmill figures.
+
+Use `python -m analysis.batch_auxiliary` for a read-only manifest inventory.
+Add `--execute` only after pupil tuning files have been reviewed; unattended
+pupil extraction refuses to use a generic ROI when a session has videos but no
+saved tuning.
+
+Prepare the manifest-wide pupil-tuning queue with:
+
+```bash
+python -m analysis.batch_pupil_tuning --prepare
+```
+
+This performs the slow video/count preflight once and caches dim/bright
+acquisition-active frames under `<ODYN_SCRATCH_ROOT>/pupil_tuning`. Then tune
+the outstanding sessions consecutively in one browser window:
+
+```bash
+python -m analysis.batch_pupil_tuning --serve
+```
+
+The tuner reloads any existing session settings and provides Previous, Skip,
+and Save-and-advance behavior. Use `--groups 222 217` with `--prepare` for a
+targeted queue, `--refresh` to rebuild cached frames, or `--include-complete`
+with `--serve` to review already-tuned sessions. Tuning JSON files are written
+to each experiment's `processed/python/aux` directory, where batch auxiliary
+processing discovers them automatically.
+
 The 20x GUI checkpoint is local:
 
 ```text

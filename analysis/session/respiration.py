@@ -178,6 +178,14 @@ def instantaneous_frequency(
         "onsets_s": onsets / rate_hz,
         "n_breaths": int(max(onsets.size - 1, 0)),
         "quality_threshold": quality_threshold,
+        # Preserve the tuned bandpassed waveform on the caller's requested
+        # clock. This makes phase/amplitude analyses possible without storing
+        # the multi-gigabyte 5 kHz session channel in every aux product.
+        "filtered_at_s": filtered[np.clip(
+            np.rint(np.asarray(at_s, dtype=np.float64) * float(rate_hz)).astype(int),
+            0,
+            filtered.size - 1,
+        )],
     }
 
     at_s = np.asarray(at_s, dtype=np.float64)
@@ -858,6 +866,9 @@ def extract_respiration(
         "flags": list(result["flags"]),
         "rate": rate,
         "rate_unmasked": reshape(result["frequency_smooth"]),
+        "rate_instantaneous": reshape(result["frequency_masked"]),
+        "rate_instantaneous_unmasked": reshape(result["frequency"]),
+        "filtered": reshape(result["filtered_at_s"]),
         "quality": reshape(result["quality_at_s"]),
         "masked_fraction": masked_fraction,
         "flagged": flagged,

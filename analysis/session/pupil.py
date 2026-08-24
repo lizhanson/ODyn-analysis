@@ -183,6 +183,9 @@ def stage_pupil_videos(video_paths, stage_dir):
         metadata = source.with_name(f"{source.stem}_metadata.json")
         if metadata.exists():
             shutil.copyfile(metadata, destination_dir / metadata.name)
+        frametimes = find_frametimes_csv(source)
+        if frametimes is not None:
+            shutil.copyfile(frametimes, destination_dir / frametimes.name)
         staged.append(destination)
     return staged
 
@@ -238,6 +241,87 @@ def validate_alignment_counts(video_path, camera_samples, frametimes_path=None) 
             "extra frames; no pupil output was written."
         )
     return n_video
+
+
+def find_frametimes_csv(video_path):
+    """Return converter-exported Micro-Manager frame times beside an MP4."""
+
+    video_path = Path(video_path)
+    candidates = [
+        video_path.with_name(f"{video_path.stem}_frametimes.csv"),
+        *sorted(video_path.parent.glob("*frametimes*.csv")),
+    ]
+    return next((path for path in dict.fromkeys(candidates) if path.exists()), None)
+
+
+def camera_frame_times(video_paths, video_stamps, camera_blocks, sync, counts,
+                       *, frametimes_paths=None, max_endpoint_error_s=0.25):
+    """Resolve one timestamp per decoded frame, with a validated CSV fallback.
+
+    Exact frame/pulse matches retain the acquisition-clock pulses. A count
+    mismatch uses Micro-Manager elapsed times anchored by its absolute
+    ``StartTime``; endpoint agreement with the acquisition clock is required.
+    """
+
+    if frametimes_paths is None:
+        frametimes_paths = [find_frametimes_csv(path) for path in video_paths]
+    if len(counts) != len(video_paths) or len(camera_blocks) != len(video_paths):
+        raise ValueError("Video, count, and camera-block lengths differ.")
+    times, methods, start_errors, end_errors, csv_paths = [], [], [], [], []
+    for path, stamp, block, count, csv_path in zip(
+            video_paths, video_stamps, camera_blocks, counts, frametimes_paths):
+        pulse_time = np.asarray(block, dtype=float) / sync.rate_hz
+        delta = int(len(block) - count)
+        if delta == 0:
+            frame_time = pulse_time
+            method = "camera_pulses"
+            start_error = end_error = 0.0
+        else:
+            if csv_path is None:
+                raise ValueError(
+                    f"{Path(path).name}: {count:,} frames and {len(block):,} pulses; "
+                    "no frametimes.csv is available for recovery."
+                )
+            elapsed_ms = np.loadtxt(
+                csv_path, delimiter=",", skiprows=1, usecols=1, ndmin=1
+            )
+            if len(elapsed_ms) != count:
+                raise ValueError(
+                    f"{Path(csv_path).name}: {len(elapsed_ms):,} rows but "
+                    f"{count:,} decoded frames."
+                )
+            stamp_dt = stamp[0]
+            sync_start = sync.start_time
+            if sync_start.tzinfo is None and stamp_dt.tzinfo is not None:
+                sync_start = sync_start.replace(tzinfo=stamp_dt.tzinfo)
+            origin_s = stamp_dt.timestamp() - sync_start.timestamp()
+            frame_time = origin_s + np.asarray(elapsed_ms, float) / 1000.0
+            start_error = float(frame_time[0] - pulse_time[0])
+            end_error = float(frame_time[-1] - pulse_time[-1])
+            if max(abs(start_error), abs(end_error)) > max_endpoint_error_s:
+                raise ValueError(
+                    f"{Path(path).name}: frametimes disagree with camera clock "
+                    f"at endpoints by {start_error:+.3f}/{end_error:+.3f} s."
+                )
+            # Millisecond timestamps can tie during a camera disturbance.
+            # Preserve their ordering with a negligible monotonic epsilon.
+            frame_time = np.maximum.accumulate(
+                frame_time + np.arange(count, dtype=float) * 1e-9
+            )
+            method = "micromanager_frametimes"
+        times.append(frame_time)
+        methods.append(method)
+        start_errors.append(start_error)
+        end_errors.append(end_error)
+        csv_paths.append(None if csv_path is None else str(csv_path))
+    return np.concatenate(times), {
+        "methods": methods,
+        "pulse_count_deltas": [int(len(block) - count)
+                               for block, count in zip(camera_blocks, counts)],
+        "start_error_s": start_errors,
+        "end_error_s": end_errors,
+        "frametimes_paths": csv_paths,
+    }
 
 
 def _otsu(image: np.ndarray) -> float:
@@ -805,14 +889,18 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
             )
     if frametimes_path is not None and len(video_paths) != 1:
         raise ValueError("frametimes_path is only supported for a single legacy video.")
+    frametimes_paths = ([Path(frametimes_path)] if frametimes_path is not None
+                        else [find_frametimes_csv(path) for path in video_paths])
     if validate_counts:
-        counts = [
-            validate_alignment_counts(
-                path, block,
-                frametimes_path=frametimes_path if len(video_paths) == 1 else None,
-            )
-            for path, block in zip(video_paths, camera_blocks)
-        ]
+        counts = []
+        for path, csv_path in zip(video_paths, frametimes_paths):
+            count = count_video_frames(path)
+            if csv_path is not None and count_csv_frames(csv_path) != count:
+                raise ValueError(
+                    f"{Path(path).name}: decoded frame count does not match "
+                    f"{Path(csv_path).name}."
+                )
+            counts.append(count)
     else:
         if validated_counts is None:
             raise ValueError(
@@ -820,14 +908,16 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
                 "this prevents an unchecked extraction from masquerading as preflighted."
             )
         counts = [int(value) for value in validated_counts]
-        pulse_counts = [len(block) for block in camera_blocks]
-        if counts != pulse_counts or len(counts) != len(video_paths):
+        if len(counts) != len(video_paths):
             raise ValueError(
-                f"Previously validated video counts {counts} no longer match "
-                f"camera pulse blocks {pulse_counts}."
+                f"Previously validated {len(counts)} video counts for "
+                f"{len(video_paths)} videos."
             )
-    camera_samples = np.concatenate(camera_blocks)
     n_camera = int(sum(counts))
+    camera_time_s, alignment_qc = camera_frame_times(
+        video_paths, video_stamps, camera_blocks, sync, counts,
+        frametimes_paths=frametimes_paths,
+    )
 
     two_p_samples = frame_onset_samples(sync)
     blocks = group_frames_into_acquisitions(two_p_samples, rate_hz=sync.rate_hz)
@@ -840,8 +930,8 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
 
     imaging_active = np.zeros(n_camera, dtype=bool)
     for block in blocks:
-        lo = np.searchsorted(camera_samples, block[0], side="left")
-        hi = np.searchsorted(camera_samples, block[-1], side="right")
+        lo = np.searchsorted(camera_time_s, block[0] / sync.rate_hz, side="left")
+        hi = np.searchsorted(camera_time_s, block[-1] / sync.rate_hz, side="right")
         imaging_active[lo:hi] = True
 
     names = ("diameter", "area", "axis_ratio", "inlier_fraction", "chord_fraction",
@@ -975,7 +1065,6 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
                     break
         offset += expected
 
-    camera_time_s = camera_samples / sync.rate_hz
     blink, clipped, diameter_rate = classify_frames(
         values, camera_time_s, config, active=measurement_active
     )
@@ -994,15 +1083,20 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
         np.diff(block / sync.rate_hz) for block in camera_blocks
         if len(block) > 1
     ])))
-    if np.any(nearest_error > 2 * camera_period):
-        bad = int(np.sum(nearest_error > 2 * camera_period))
-        raise ValueError(
-            f"{bad} 2p frames fall outside the two pupil-video clock blocks "
-            f"by more than two camera periods ({2 * camera_period:.3f} s)."
-        )
+    alignment_valid = nearest_error <= 2 * camera_period
     def grid(array):
         return np.asarray(array)[nearest].reshape(n_trial, n_frame)
     aligned = {name: grid(value) for name, value in values.items()}
+    valid_grid = alignment_valid.reshape(n_trial, n_frame)
+    error_grid = nearest_error.reshape(n_trial, n_frame)
+    for name, array in aligned.items():
+        if array.dtype.kind == "b":
+            array[~valid_grid] = False
+        else:
+            array[~valid_grid] = np.nan
+    aligned["alignment_valid"] = valid_grid
+    aligned["nearest_frame_error_s"] = error_grid
+    coverage_fraction = np.mean(valid_grid, axis=1)
     masked_fraction = np.mean(~np.isfinite(aligned["diameter_masked"]), axis=1)
     blink_fraction = np.mean(aligned["blink"], axis=1)
     clipped_fraction = np.mean(aligned["clipped"], axis=1)
@@ -1013,8 +1107,10 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
                   video_paths=video_paths, video_counts=np.asarray(counts),
                   video_timestamps=[stamp[0].isoformat() for stamp in video_stamps],
                   video_timestamp_sources=[stamp[1] for stamp in video_stamps],
+                  camera_alignment=alignment_qc,
                   camera_imaging_fraction=float(np.mean(imaging_active)),
                   **aligned, masked_fraction=masked_fraction,
+                  coverage_fraction=coverage_fraction,
                   blink_fraction=blink_fraction,
                   clipped_fraction=clipped_fraction, flagged=flagged,
                   camera_values=values, camera_time_s=camera_time_s,
@@ -1103,23 +1199,38 @@ def _write_pupil(path, report):
         f.attrs["min_illumination_peak"] = report["config"].min_illumination_peak
         f.attrs["videos_pre_post"] = np.asarray([p.name for p in report["video_paths"]], dtype="S")
         f.attrs["video_timestamps_pre_post"] = np.asarray(report["video_timestamps"], dtype="S")
+        alignment = report["camera_alignment"]
+        f.attrs["camera_alignment_methods"] = np.asarray(alignment["methods"], dtype="S")
+        f.attrs["camera_pulse_count_deltas"] = np.asarray(
+            alignment["pulse_count_deltas"], dtype=np.int32
+        )
+        f.attrs["camera_alignment_start_error_s"] = np.asarray(alignment["start_error_s"])
+        f.attrs["camera_alignment_end_error_s"] = np.asarray(alignment["end_error_s"])
+        f.attrs["frametimes_paths"] = np.asarray(
+            [value or "" for value in alignment["frametimes_paths"]], dtype="S"
+        )
         p = f.create_group("pupil")
         for key in ("diameter", "diameter_masked", "area", "axis_ratio",
                     "inlier_fraction", "chord_fraction", "concavity_fraction",
                     "residual", "used_ransac", "threshold", "illumination_peak",
                     "illumination_active", "blink",
                     "clipped", "diameter_rate", "x", "y", "major", "minor",
-                    "theta", "imaging_active"):
+                    "theta", "imaging_active", "alignment_valid",
+                    "nearest_frame_error_s"):
             p.create_dataset(key, data=report[key], compression="gzip")
         p["diameter"].attrs["units"] = "pixels"
         p["diameter_masked"].attrs["description"] = "Diameter with blink frames set to NaN."
         p["imaging_active"].attrs["description"] = (
             "1 where camera time falls inside a 2p acquisition; dark inter-acquisition frames are 0."
         )
+        p["alignment_valid"].attrs["description"] = (
+            "1 where the nearest recorded pupil frame is within two nominal camera periods."
+        )
+        p["nearest_frame_error_s"].attrs["units"] = "seconds"
         t = f.create_group("trials")
         for key in ("acq_id", "trial_id", "odor_id", "odor_on_frame", "odor_off_frame",
                     "masked_fraction", "blink_fraction", "clipped_fraction",
-                    "flagged"):
+                    "coverage_fraction", "flagged"):
             t.create_dataset(key, data=report[key])
         if "state" in report:
             state = np.asarray(report["state"])
@@ -1206,7 +1317,7 @@ class PupilTuningGUI:
     """Two-frame Bokeh editor for a shared ROI and adaptive-threshold offset."""
 
     def __init__(self, dim_frame, bright_frame, *, save_path, roi=None,
-                 threshold_offset=0.0, bright_percentile=97.0):
+                 threshold_offset=0.0, bright_percentile=97.0, on_save=None):
         self.frames = [np.asarray(dim_frame), np.asarray(bright_frame)]
         if self.frames[0].shape != self.frames[1].shape:
             raise ValueError("Dimmest and brightest tuning frames differ in shape.")
@@ -1215,6 +1326,7 @@ class PupilTuningGUI:
         h, w = self.frames[0].shape
         self.roi = roi or (0, h, 0, w)
         self.threshold_offset = float(threshold_offset)
+        self.on_save = on_save
 
     def settings(self):
         return {"roi": tuple(map(int, self.roi)),
@@ -1338,6 +1450,8 @@ class PupilTuningGUI:
         self.save_path.parent.mkdir(parents=True, exist_ok=True)
         self.save_path.write_text(json.dumps(self.settings(), indent=2))
         self.status.text += f" &nbsp; · &nbsp; saved {self.save_path}"
+        if self.on_save is not None:
+            self.on_save(self.save_path)
 
 
 def launch_pupil_tuner(dim_frame, bright_frame, *, save_path, roi=None,

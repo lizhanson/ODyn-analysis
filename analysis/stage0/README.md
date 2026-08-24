@@ -17,7 +17,7 @@ Outputs are keyed by `odor_id`:
 
 ## Session manifest
 
-`session_manifest.csv` is the canonical candidate-session manifest for the
+`ketxyl_16odor_session_manifest.csv` is the canonical candidate-session manifest for the
 pre/post ketamine/xylazine dataset. It is keyed by `group_id` and records mouse,
 date, experiment, reporter population, objective, depth class, protocol, and
 treatment. The 20x rows also carry the numerical imaging depth transcribed from

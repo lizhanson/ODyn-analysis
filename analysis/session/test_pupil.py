@@ -17,6 +17,31 @@ def test_alignment_validation_needs_no_frametimes_csv(monkeypatch):
     assert pupil.validate_alignment_counts("movie.mp4", [10, 20]) == 2
 
 
+def test_count_mismatch_uses_absolute_frametimes_with_endpoint_qc(tmp_path):
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    movie = tmp_path / "movie.mp4"
+    csv_path = tmp_path / "movie_frametimes.csv"
+    csv_path.write_text(
+        "frame_index,elapsed_ms\n0,1000\n1,1100\n2,1300\n"
+    )
+    sync = SimpleNamespace(
+        rate_hz=10,
+        start_time=datetime.fromisoformat("2026-01-01T12:00:00-08:00"),
+    )
+    stamp = datetime.fromisoformat("2026-01-01T12:00:00-08:00")
+    times, qc = pupil.camera_frame_times(
+        [movie], [(stamp, "test")], [np.array([10, 11, 12, 13])],
+        sync, [3], frametimes_paths=[csv_path],
+    )
+    np.testing.assert_allclose(times, [1.0, 1.1, 1.3])
+    assert qc["methods"] == ["micromanager_frametimes"]
+    assert qc["pulse_count_deltas"] == [1]
+    assert qc["start_error_s"] == [0.0]
+    assert qc["end_error_s"] == [0.0]
+
+
 def test_two_videos_are_ordered_by_timestamp_in_path(tmp_path):
     post = tmp_path / "pupil_20260819_140000" / "converted" / "movie.mp4"
     pre = tmp_path / "pupil_20260819_120000" / "converted" / "movie.mp4"
@@ -51,8 +76,11 @@ def test_local_staging_copies_movie_metadata_and_reuses_cache(tmp_path):
     metadata = source_dir / "pupil_video_1_metadata.json"
     movie.write_bytes(b"movie bytes")
     metadata.write_text('{"mm_summary": {"StartTime": "2026-08-05 12:00:00.000 -0700"}}')
+    frametimes = source_dir / "pupil_video_1_frametimes.csv"
+    frametimes.write_text("frame_index,elapsed_ms\n0,0\n")
 
     staged = pupil.stage_pupil_videos([movie], tmp_path / "scratch")
+    assert staged[0].with_name(frametimes.name).read_text() == frametimes.read_text()
     assert staged[0].read_bytes() == b"movie bytes"
     assert staged[0].with_name(metadata.name).read_text() == metadata.read_text()
     first_mtime = staged[0].stat().st_mtime_ns

@@ -40,7 +40,7 @@ m496,20260807,e1,222,DAT-GCaMP,10x,na,,,"16 odor passive, 4s odors",pre/post ket
 m357,20260810,e1,229,TH-GCaMP,10x,na,,,"16 odor passive, 4s odors",pre/post ket/xyl,,,,,,
 m392,20260810,e1,223,Thy1-GCaMP,10x,na,,,"16 odor passive, 4s odors",pre/post ket/xyl,,,,,,
 m426,20260810,e1,224,Thy1-GCaMP,10x,na,,,"16 odor passive, 4s odors",pre/post ket/xyl,,,,,,
-m357,20260811,e1,225,TH-GCaMP,20x,superficial,55,-55,"16 odor passive, 4s odors",pre/post ket/xyl,20260811/m357/20260811_m357_Log_in_vivo.xlsx,10x,objective_mismatch_manifest_20x_log_10x,,,
+m357,20260811,e1,225,TH-GCaMP,20x,superficial,55,-55,"16 odor passive, 4s odors",pre/post ket/xyl,20260811/m357/20260811_m357_Log_in_vivo.xlsx,20x,objective_mismatch_manifest_20x_log_10x,,,
 m465,20260811,e1,226,TH-GCaMP,20x,superficial,65,-65,"16 odor passive, 4s odors",pre/post ket/xyl,20260811/m465/20260811_m465_m_Log_in_vivo.xlsx,20x,,,,
 m496,20260811,e1,227,DAT-GCaMP,20x,superficial,73,-73,"16 odor passive, 4s odors",pre/post ket/xyl,20260811/m496/20260811_m496_Log_in_vivo.xlsx,20x,,,,
 m357,20260814,e1,234,TH-GCaMP,20x,deep,200,-200,"16 odor passive, 4s odors",pre/post ket/xyl,20260814/m357/20260814_m357_Log_in_vivo.xlsx,20x,,,,
