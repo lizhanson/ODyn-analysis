@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,12 +15,8 @@ class Traces:
 
     # (n_rois, n_trials, n_frames), raw fluorescence
     roi: np.ndarray
-    # (n_rois, n_trials, n_frames), surrounding annulus; None when disabled
-    neuropil: None | np.ndarray
-
     roi_ids: np.ndarray          # label value in the mask, per row of `roi`
     roi_areas_px: np.ndarray
-    neuropil_areas_px: None | np.ndarray
 
     trial_ids: np.ndarray        # aligns to the trial table
     odor_ids: np.ndarray
@@ -66,7 +60,6 @@ class Traces:
             "n_pre": int(self.n_pre), "n_odor": int(self.n_odor), "n_post": int(self.n_post),
             "full_acquisition": bool(self.roi.shape[2] > self.n_pre + self.n_odor + self.n_post - 2),
             "roi_area_px": [int(self.roi_areas_px.min()), int(self.roi_areas_px.max())],
-            "has_neuropil": self.neuropil is not None,
             "n_skipped": len(self.skipped),
         }
 
@@ -80,9 +73,6 @@ class Traces:
             "area_px": self.roi_areas_px,
             "diameter_px": np.round(2 * np.sqrt(self.roi_areas_px / np.pi), 1),
         }
-
-        if self.neuropil_areas_px is not None:
-            rows["neuropil_area_px"] = self.neuropil_areas_px
 
         if labels is not None:
             centroids = []
@@ -123,61 +113,6 @@ class Traces:
             "extracted": np.isfinite(self.roi[0, :, 0]),
         })
 
-    def save(self, path: str | Path, *, labels: None | np.ndarray = None) -> Path:
-        path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        arrays = {
-            "roi": self.roi,
-            "roi_ids": self.roi_ids,
-            "roi_areas_px": self.roi_areas_px,
-            "trial_ids": self.trial_ids,
-            "odor_ids": self.odor_ids,
-            "states": self.states.astype("U32"),
-            **({} if self.manipulations is None
-               else {"manipulations": self.manipulations.astype("U32")}),
-            "time_s": self.time_s,
-        }
-        if self.neuropil is not None:
-            arrays["neuropil"] = self.neuropil
-            arrays["neuropil_areas_px"] = self.neuropil_areas_px
-
-        np.savez_compressed(path, **arrays)
-        path.with_suffix(".json").write_text(
-            json.dumps(self.summary() | {"skipped": self.skipped}, indent=2, default=str)
-        )
-
-        # Tables beside the array, in the shape the database will want.
-        self.roi_table(labels).to_csv(path.with_name(path.stem + "_rois.csv"), index=False)
-        self.trial_table().to_csv(path.with_name(path.stem + "_trials.csv"), index=False)
-
-        return path
-
-
-def neuropil_rings(
-    labels: np.ndarray, *, inner_px: int = 3, outer_px: int = 12
-) -> np.ndarray:
-    """An annulus around each ROI, excluding every ROI's pixels."""
-
-    from scipy.ndimage import binary_dilation
-
-    rings = np.zeros_like(labels)
-    occupied = labels > 0
-
-    for roi_id in range(1, int(labels.max()) + 1):
-        this = labels == roi_id
-        if not this.any():
-            continue
-
-        inner = binary_dilation(this, iterations=inner_px)
-        outer = binary_dilation(inner, iterations=outer_px - inner_px)
-
-        ring = outer & ~inner & ~occupied & (rings == 0)
-        rings[ring] = roi_id
-
-    return rings
-
-
 def _weight_matrix(labels: np.ndarray, roi_ids: np.ndarray):
     """Sparse (n_rois, n_pixels) matrix whose rows average an ROI's pixels."""
 
@@ -215,9 +150,6 @@ def extract_traces(
     full_acquisition: bool = True,
     pre_s: float = 2.0,
     post_s: float = 2.0,
-    neuropil: bool = True,
-    neuropil_inner_px: int = 3,
-    neuropil_outer_px: int = 12,
     checkpoint_dir: None | str | Path = None,
     checkpoint_every: int = 1,
     mask_hash: str = "",
@@ -240,14 +172,6 @@ def extract_traces(
     )
 
     roi_matrix, roi_areas = _weight_matrix(labels, roi_ids)
-
-    if neuropil:
-        rings = neuropil_rings(
-            labels, inner_px=neuropil_inner_px, outer_px=neuropil_outer_px
-        )
-        ring_matrix, ring_areas = _weight_matrix(rings, roi_ids)
-    else:
-        ring_matrix = ring_areas = None
 
     n_odor = int(round(np.median([b - a for a, b in zip(odor_on_frames, odor_off_frames)])))
 
@@ -277,16 +201,15 @@ def extract_traces(
             checkpoint_dir,
             digest=checkpoint_key(
                 movie_paths, mask_hash=mask_hash, shape=shape,
-                starts=starts, neuropil=neuropil,
+                starts=starts,
             ),
-            shape=shape, neuropil=neuropil,
+            shape=shape,
         )
         todo = list(store.pending())
         if store.resumed:
             print(f"resuming extraction: {store.n_done}/{shape[1]} trials already done")
     else:
         roi_out = np.full(shape, np.nan, dtype=np.float32)
-        ring_out = np.full_like(roi_out, np.nan) if neuropil else None
         todo = list(range(len(movie_paths)))
 
     tracked = _tracked(
@@ -319,28 +242,22 @@ def extract_traces(
 
         # (n_rois, n_pixels) @ (n_pixels, n_frames) -> (n_rois, n_frames)
         roi_values = roi_matrix @ flat.T
-        ring_values = (ring_matrix @ flat.T) if neuropil else None
-
         if store is not None:
-            store.store(index, roi_values, ring_values)
+            store.store(index, roi_values)
             if position % checkpoint_every == 0 or position == len(todo):
                 store.flush()
         else:
             roi_out[:, index, :] = roi_values
-            if neuropil:
-                ring_out[:, index, :] = ring_values
 
         del stack, flat
 
     if store is not None:
-        roi_out, ring_out = store.arrays()
+        roi_out = store.array()
 
     return Traces(
         roi=roi_out,
-        neuropil=ring_out,
         roi_ids=roi_ids,
         roi_areas_px=roi_areas.astype(np.int64),
-        neuropil_areas_px=None if ring_areas is None else ring_areas.astype(np.int64),
         trial_ids=np.asarray(trial_ids),
         odor_ids=np.asarray(odor_ids),
         states=np.asarray(states, dtype=object),

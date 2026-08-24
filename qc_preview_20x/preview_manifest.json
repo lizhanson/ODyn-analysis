@@ -1,0 +1,109 @@
+{
+  "source": "/Volumes/MossLab/ImagingData/20260706/m442/e1/processed/python/group175_20260706_m442_e1_processed_20260822.h5",
+  "preview_only": true,
+  "trials_per_odor_block": 2,
+  "selected_trial_indices": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    20,
+    22,
+    23,
+    26,
+    27,
+    30,
+    34,
+    40,
+    43,
+    48,
+    52,
+    64,
+    70,
+    73,
+    111,
+    112,
+    113,
+    114,
+    115,
+    116,
+    117,
+    118,
+    119,
+    120,
+    121,
+    122,
+    123,
+    124,
+    125,
+    126,
+    127,
+    129,
+    131,
+    133,
+    134,
+    135,
+    136,
+    137,
+    141,
+    142,
+    149,
+    160,
+    167,
+    168,
+    179
+  ],
+  "maximum_units_per_population": 72,
+  "response_figures": {
+    "groups": "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_continuousqc_groups.png",
+    "somas": "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_continuousqc_somas.png",
+    "processes": "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_continuousqc_processes.png"
+  },
+  "trace_atlases": {
+    "groups": [
+      "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_traceatlas_groups_p01.png",
+      "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_traceatlas_groups_p02.png",
+      "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_traceatlas_groups_p03.png"
+    ],
+    "somas": [
+      "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_traceatlas_somas_p01.png",
+      "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_traceatlas_somas_p02.png",
+      "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_traceatlas_somas_p03.png"
+    ],
+    "processes": [
+      "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_traceatlas_processes_p01.png",
+      "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_traceatlas_processes_p02.png",
+      "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_traceatlas_processes_p03.png"
+    ]
+  },
+  "snr": "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_snrqc.png",
+  "spatial": "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_spatialqc.png",
+  "tables": {
+    "groups": {
+      "trials": "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_groups_responses_trials.csv",
+      "summary": "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_groups_responses_summary.csv"
+    },
+    "somas": {
+      "trials": "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_somas_responses_trials.csv",
+      "summary": "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_somas_responses_summary.csv"
+    },
+    "processes": {
+      "trials": "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_processes_responses_trials.csv",
+      "summary": "/Users/mosse/Library/CloudStorage/OneDrive-OregonHealth&ScienceUniversity/Code/Python/ODyn-analysis/qc_preview_20x/group175_20x_preview_processes_responses_summary.csv"
+    }
+  }
+}

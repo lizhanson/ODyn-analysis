@@ -540,18 +540,12 @@ class SegmentationState:
     def save(self, path: str | Path) -> Path:
         """Write curated masks plus everything needed to reproduce them."""
 
-        path = Path(path)
+        path = Path(path).with_suffix(".h5")
         path.parent.mkdir(parents=True, exist_ok=True)
 
         # The curated merged mask is the deliverable; the per-odor masks are
         # kept so the merge can be re-derived or re-tuned without re-reading
         # any movies.
-        np.savez_compressed(
-            path,
-            labels=self.curated_mask(),
-            **{f"mask_{repr(k)}": self.segment(k) for k in self.keys},
-        )
-
         config = {
             "shared": self.shared,
             "overrides": {repr(k): v for k, v in self.overrides.items()},
@@ -569,7 +563,14 @@ class SegmentationState:
             "summary": self.summary(),
         }
 
-        path.with_suffix(".json").write_text(json.dumps(config, indent=2))
+        import h5py
+        with h5py.File(path, "w") as handle:
+            handle.attrs["file_type"] = "odyn_10x_working_mask"
+            handle.attrs["config_json"] = json.dumps(config)
+            masks = handle.create_group("masks")
+            masks.create_dataset("labels", data=self.curated_mask(), compression="gzip")
+            for key in self.keys:
+                masks.create_dataset(str(key), data=self.segment(key), compression="gzip")
 
         return path
 

@@ -219,23 +219,24 @@ def traces_from_round(
     round_path,
     roi_manifest,
     *,
-    baseline_s=4.0,
     odor_s=4.0,
     post_s=4.0,
     smooth_sigma_frames=2.0,
 ):
-    """Smoothed trial ΔF/F0 from odor onset through the post-odor window."""
+    """Smoothed canonical z traces from odor onset through the post window."""
     from ..session.h5io import open_h5
-    from ..session.responders import load_roi_traces
     from scipy.ndimage import gaussian_filter1d
 
     with open_h5(round_path) as handle:
-        roi, source = load_roi_traces(handle)
+        if "traces/roi_z" not in handle:
+            raise ValueError(
+                f"{round_path} predates canonical trace z-scoring; re-extract it."
+            )
+        roi, source = handle["traces/roi_z"][:], "canonical_z"
         on_frames = handle["trials/odor_on_frame"][:].astype(int)
         frame_rate = float(handle.attrs["frame_rate"])
 
     roi = np.asarray(roi, float)
-    n_base = max(1, int(round(float(baseline_s) * frame_rate)))
     n_window = max(2, int(round((float(odor_s) + float(post_s)) * frame_rate)))
     windows = np.full((roi.shape[0], roi.shape[1], n_window), np.nan, float)
 
@@ -246,11 +247,7 @@ def traces_from_round(
                 f"Trial {trial} cannot provide {odor_s:g} s odor + {post_s:g} s post "
                 f"from frame {onset}; trace length is {roi.shape[2]}."
             )
-        baseline = roi[:, trial, max(0, onset - n_base):onset]
-        f0 = np.nanmean(baseline, axis=1, keepdims=True)
-        windows[:, trial] = (
-            roi[:, trial, onset:stop] - f0
-        ) / np.maximum(np.abs(f0), 1e-6)
+        windows[:, trial] = roi[:, trial, onset:stop]
 
     if smooth_sigma_frames > 0:
         windows = gaussian_filter1d(

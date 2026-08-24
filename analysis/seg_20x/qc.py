@@ -88,52 +88,44 @@ def aggregate_raw_units(raw, areas, manifest, groups=None, *, only=None) -> dict
     return {key: build(*spec) for key, spec in selected.items()}
 
 
-def _dff(raw, on_frames, frame_rate, baseline_s=4.0):
-    out = np.full_like(raw, np.nan, dtype=np.float32)
-    n_base = max(1, int(round(baseline_s * frame_rate)))
-    for trial, onset in enumerate(np.asarray(on_frames, int)):
-        f0 = np.nanmean(raw[:, trial, max(0, onset - n_base):onset], axis=1)
-        out[:, trial] = (raw[:, trial] - f0[:, None]) / np.maximum(np.abs(f0[:, None]), 1e-6)
-    return out
-
-
-def _snr(raw, on_frames, frame_rate, baseline_s=4.0):
-    n_base = max(1, int(round(baseline_s * frame_rate)))
-    pieces = [raw[:, i, max(0, int(on) - n_base):int(on)] for i, on in enumerate(on_frames)]
-    baseline = np.concatenate(pieces, axis=1)
-    return np.nanmean(baseline, axis=1) / np.maximum(np.nanstd(baseline, axis=1), 1e-9)
-
-
 def _analyse(populations, *, on, off, odor_ids, states, state_levels, frame_rate,
-             usable=None, deglobal=None, target_fdr=0.05, report=lambda message: None):
+             report=lambda message: None):
     from ..session.detrend import detrend_traces
-    from ..session.pc1 import fixed_pc1
-    from ..session.responders import population_sparsity, trial_calls
+    from ..session.pc1 import trial_pc1
+    from ..session.trace_analysis import epoch_scores, standardize_traces
 
     analysed = {}
     for key, pop in populations.items():
         report(f"{key}: detrending {len(pop.unit_ids)} analysis units")
         corrected, fit = detrend_traces(pop.raw, odor_on_frames=on,
                                         odor_off_frames=off, frame_rate=frame_rate)
-        # The aggregated raw matrix is the same size as corrected and is no
-        # longer needed. Releasing it here is essential for 1000-ROI rounds.
-        pop.raw = np.empty((0, 0, 0), np.float32)
-        report(f"{key}: calculating dF/F and trial response z-scores")
-        snr = _snr(corrected, on, frame_rate)
-        dff = _dff(corrected, on, frame_rate)
+        if not fit.get("ok"):
+            raise RuntimeError(
+                f"{key} detrending failed; refusing to continue with a "
+                f"normalization fallback. Details: {fit}"
+            )
+        report(f"{key}: per-trial baseline centering and SD z-scoring")
+        standardized = standardize_traces(
+            corrected, odor_on_frames=on, states=states,
+            n_state_levels=len(state_levels), frame_rate=frame_rate,
+        )
+        standardized.state_levels = list(state_levels)
+        snr = np.nanmedian(
+            standardized.baseline_mean /
+            np.maximum(standardized.baseline_sd_trial, 1e-9), axis=1,
+        )
         del corrected
-        calls = trial_calls(dff, odor_on_frames=on, odor_ids=odor_ids,
-                            usable=usable, deglobal=deglobal, target_fdr=target_fdr)
-        masks = {"pooled": np.ones(len(odor_ids), bool)}
-        masks.update({name: states == i for i, name in enumerate(state_levels)})
-        report(f"{key}: fitting fixed time-resolved PC1")
-        time_pc1 = fixed_pc1(dff, progress=lambda text: report(f"{key}: {text}"))
+        scores = epoch_scores(
+            standardized.z, odor_on_frames=on, odor_off_frames=off,
+            frame_rate=frame_rate,
+        )
+        report(f"{key}: fitting odor-protected trial PC1")
+        pc1 = trial_pc1(scores.mean["odor"], odor_ids)
         analysed[key] = {
             "population": pop,
-            "dff": dff, "fit": fit, "calls": calls,
-            "time_pc1": time_pc1,
-            "sparsity": {name: population_sparsity(calls, odor_ids, trials=mask)
-                         for name, mask in masks.items()},
+            "z": standardized.z, "standardized": standardized,
+            "scores": scores, "fit": fit,
+            "pc1": pc1,
             "snr": snr,
         }
     return analysed
@@ -158,81 +150,51 @@ def _spatial_figure(path, structural, masks, manifest, groups, analysed):
         ax.imshow(structural, cmap="gray", vmin=base_lo, vmax=base_hi)
         image = ax.imshow(np.ma.masked_invalid(values), cmap="viridis",
                           norm=LogNorm(lo, hi), alpha=.85)
-        ax.set_title(pop.name + ": baseline SNR")
+        ax.set_title(pop.name + ": median trial baseline SNR")
         ax.set(xticks=[], yticks=[])
-    fig.colorbar(image, ax=axes[:3], label="baseline F / SD", shrink=.75)
+    fig.colorbar(image, ax=axes[:3], label="median trial baseline F / SD", shrink=.75)
     for key, colour in zip(("groups", "somas", "processes"),
                            ("black", "deepskyblue", "magenta")):
         axes[3].scatter(analysed[key]["population"].area_px,
                         analysed[key]["snr"], s=14, alpha=.45, color=colour,
                         label=key)
-    axes[3].set(xlabel="component area (px)", ylabel="baseline F / SD",
+    axes[3].set(xlabel="component area (px)", ylabel="median trial baseline F / SD",
                 title="size versus SNR")
     axes[3].legend(fontsize=8)
     fig.savefig(path, dpi=160, bbox_inches="tight"); plt.close(fig)
 
 
-def _atlas(stem, key, item, on, off, frame_rate, rows_per_page=24,
-           report=lambda message: None):
-    import matplotlib.pyplot as plt
-
-    pop, dff = item["population"], item["dff"]
-    paths = []
-    t = (np.arange(dff.shape[2]) - int(np.median(on))) / frame_rate
-    odor_end = np.median(np.asarray(off) - np.asarray(on)) / frame_rate
-    n_pages = int(np.ceil(len(pop.unit_ids) / rows_per_page))
-    for page, start in enumerate(range(0, len(pop.unit_ids), rows_per_page), 1):
-        report(f"trace atlas {key}: page {page}/{n_pages}")
-        stop = min(start + rows_per_page, len(pop.unit_ids))
-        fig, axes = plt.subplots(stop - start, 1, figsize=(13, max(3, .8 * (stop-start))),
-                                 sharex=True, squeeze=False)
-        for ax, i in zip(axes[:, 0], range(start, stop)):
-            ax.plot(t, dff[i].T, color="0.72", lw=.35, alpha=.45)
-            ax.plot(t, np.nanmean(dff[i], axis=0), color="black", lw=1)
-            ax.axvspan(0, odor_end, color="gold", alpha=.16)
-            ax.text(.002, .82, f"{pop.unit_ids[i]}  {pop.area_px[i]:.0f}px  SNR {item['snr'][i]:.1f}",
-                    transform=ax.transAxes, fontsize=7)
-            ax.axhline(0, color="0.5", lw=.4)
-        axes[-1, 0].set_xlabel("seconds from odor onset")
-        fig.suptitle(pop.name + " — detrend then dF/F; trials gray, mean black")
-        out = Path(f"{stem}_traceatlas_{key}_p{page:02d}.png")
-        fig.savefig(out, dpi=130, bbox_inches="tight"); plt.close(fig); paths.append(str(out))
-    return paths
+def _response_figure(path, analysed, odor_ids, states, state_levels,
+                     normalization_label="per-trial baseline SD"):
+    from ..session.trace_qc import continuous_response_figure
+    path = Path(path)
+    outputs = {}
+    for key, item in analysed.items():
+        out = path.with_name(path.stem + f"_{key}" + path.suffix)
+        outputs[key] = continuous_response_figure(
+            out, scores=item["scores"], odor_ids=odor_ids, states=states,
+            state_levels=state_levels, unit_label=item["population"].name,
+            normalization_label=normalization_label,
+            pc1_scores=item["pc1"]["trial_score"],
+            pc1_variance=item["pc1"]["explained_variance_fraction"],
+        )
+    return outputs
 
 
-def _response_figure(path, analysed, odor_ids, states, state_levels):
-    import matplotlib.pyplot as plt
-    from matplotlib.colors import TwoSlopeNorm
-    from ..session.responders import _display_order, _sparsity_panel
-
-    keys = np.unique(odor_ids); levels, rank = _display_order(list(state_levels))
-    columns = np.lexsort((np.arange(len(odor_ids)), rank[states], odor_ids))
-    fig, axes = plt.subplots(3, 3, figsize=(19, 14), constrained_layout=True)
-    norm = TwoSlopeNorm(vmin=-5, vcenter=0, vmax=5)
-    for row, key in enumerate(("groups", "somas", "processes")):
-        item = analysed[key]; z = item["calls"]["z"]
-        # Whole units containing a soma first, then process-only units. The
-        # component displays naturally contain only one type.
-        type_rank = np.array([0 if "soma" in kinds else 1
-                              for kinds in item["population"].member_types])
-        order = np.lexsort((-np.nanmax(np.abs(np.nan_to_num(z)), axis=1), type_rank))
-        axes[row, 0].imshow(z[np.ix_(order, columns)], aspect="auto", cmap="RdBu_r",
-                            norm=norm, interpolation="nearest")
-        axes[row, 0].set(title=f"{item['population'].name}: single-trial z",
-                         ylabel="analysis unit")
-        sorted_odor, sorted_rank = odor_ids[columns], rank[states][columns]
-        for edge in np.flatnonzero(np.diff(sorted_odor)) + 1:
-            axes[row, 0].axvline(edge-.5, color="black", lw=1)
-        for edge in np.flatnonzero((np.diff(sorted_rank) != 0) & (np.diff(sorted_odor) == 0)) + 1:
-            axes[row, 0].axvline(edge-.5, color="0.4", ls=":", lw=.7)
-        axes[row, 0].set_xticks([np.mean(np.flatnonzero(sorted_odor == k)) for k in keys],
-                                [str(int(k)) for k in keys])
-        _sparsity_panel(axes[row, 1], item["sparsity"]["pooled"], keys,
-                        title="excited / suppressed (pooled)")
-        by_state = {name: item["sparsity"][name] for name in levels}
-        _sparsity_panel(axes[row, 2], by_state, keys,
-                        title="excited / suppressed by state", grouped=True)
-    fig.savefig(path, dpi=120, bbox_inches="tight"); plt.close(fig)
+def _baseline_figures(path, analysed, states, state_levels):
+    from ..session.trace_qc import baseline_qc_figure
+    path = Path(path)
+    outputs = {}
+    for key, item in analysed.items():
+        out = path.with_name(path.stem + f"_{key}" + path.suffix)
+        standardized = item["standardized"]
+        outputs[key] = baseline_qc_figure(
+            out, baseline_mean=standardized.baseline_mean,
+            baseline_sd=standardized.baseline_sd_trial,
+            states=states, state_levels=state_levels,
+            unit_label=item["population"].name,
+        )
+    return outputs
 
 
 def _snr_figure(path, analysed):
@@ -242,13 +204,14 @@ def _snr_figure(path, analysed):
         values = analysed[key]["snr"]; values = values[np.isfinite(values)]
         ax.hist(values, bins=35, histtype="step", lw=2, color=colour,
                 label=f"{analysed[key]['population'].name} (n={len(values)})")
-    ax.set(xlabel="baseline SNR (mean F / SD)", ylabel="analysis units", title="20x baseline SNR")
+    ax.set(xlabel="median trial baseline SNR (mean F / SD)",
+           ylabel="analysis units", title="20x baseline SNR")
     ax.legend(fontsize=8); fig.savefig(path, dpi=150, bbox_inches="tight"); plt.close(fig)
 
 
-def qc_20x(round_path, *, groups=None, structural=None, usable=None,
-           deglobal=None, target_fdr=0.05, save=True, progress=True) -> dict:
-    """Generate grouped 20x QC; all transformations follow raw-F aggregation."""
+def qc_20x(round_path, *, groups=None, structural=None,
+           save=True, progress=True) -> dict:
+    """Grouped 20x continuous QC using the sole canonical z-score path."""
     from ..session.h5io import open_h5
     round_path = Path(round_path)
     started = time.perf_counter()
@@ -271,63 +234,89 @@ def qc_20x(round_path, *, groups=None, structural=None, usable=None,
     manifest = parameters["segmentation"]["roi_manifest"]
     effective_groups = _manifest_groups(parameters) if groups is None else groups
     stem = round_path.with_suffix("")
-    outputs = {"trace_atlas": {}}
+    outputs = {}
     analysed = {}
-
-    # Open the small PC1 sidecar before analysis so each population can be
-    # written and released immediately. Only the source ROI matrix remains
-    # resident throughout; grouped/detrended/dF/F matrices exist one at a time.
-    pc1_handle = None
-    time_pc1_path = Path(f"{stem}_20x_pc1_timeseries.h5")
+    grouped_h5 = Path(f"{stem}_20x_grouped.h5")
     if save:
         import h5py
-        pc1_handle = h5py.File(time_pc1_path, "w")
-        pc1_handle.attrs["description"] = (
-            "Fixed spatial PC1 timecourses from grouped detrended dF/F; "
-            "recorded without subtraction from traces"
-        )
-        pc1_handle.create_dataset("time_s", data=(
-            np.arange(raw.shape[2]) - int(np.median(on))
-        ) / frame_rate)
-        pc1_handle.create_dataset("trial_index", data=np.arange(len(odor_ids)))
-        pc1_handle.create_dataset("odor_id", data=odor_ids)
-        pc1_handle.create_dataset("state", data=states)
+        with h5py.File(grouped_h5, "w") as grouped_file:
+            grouped_file.attrs["source_round"] = str(round_path)
+            grouped_file.attrs["description"] = (
+                "Grouped 20x raw and canonical traces, continuous responses, "
+                "baseline diagnostics, membership, and one PC1 scalar per trial"
+            )
+            grouped_file.create_dataset("trial_id", data=np.arange(len(odor_ids)))
+            grouped_file.create_dataset("odor_id", data=odor_ids)
+            grouped_file.create_dataset("state", data=states)
+            grouped_file.create_dataset(
+                "state_levels", data=np.asarray(state_levels, dtype=h5py.string_dtype("utf-8"))
+            )
 
-    try:
-        for key in ("groups", "somas", "processes"):
+    for key in ("groups", "somas", "processes"):
             report(f"{key}: pixel-weighting raw fluorescence")
             populations = aggregate_raw_units(
                 raw, areas, manifest, effective_groups, only=(key,),
             )
             item = _analyse(
                 populations, on=on, off=off, odor_ids=odor_ids, states=states,
-                state_levels=state_levels, frame_rate=frame_rate, usable=usable,
-                deglobal=deglobal, target_fdr=target_fdr, report=report,
+                state_levels=state_levels, frame_rate=frame_rate,
+                report=report,
             )[key]
 
             if save:
-                outputs["trace_atlas"][key] = _atlas(
-                    stem, key, item, on, off, frame_rate, report=report,
+                from ..session.trace_analysis import (
+                    aggregate_epoch_table, trial_epoch_table,
                 )
-                group = pc1_handle.create_group(key)
-                pc = item["time_pc1"]
-                group.create_dataset("timecourse", data=pc["timecourse"], compression="gzip")
-                group.create_dataset("loadings", data=pc["loadings"])
-                group.create_dataset("area_px", data=item["population"].area_px)
-                group.create_dataset("unit_id", data=np.asarray(
-                    item["population"].unit_ids, dtype=h5py.string_dtype("utf-8")
-                ))
-                group.attrs["explained_variance_fraction"] = pc["explained_variance_fraction"]
-                group.attrs["method"] = pc["method"]
+                pop = item["population"]
+                trial_table = trial_epoch_table(
+                    item["scores"], unit_ids=pop.unit_ids, odor_ids=odor_ids,
+                    states=states, state_levels=state_levels,
+                    unit_types=["+".join(v) for v in pop.member_types],
+                    group_ids=[u if u.startswith("g") else None for u in pop.unit_ids],
+                )
+                summary_table = aggregate_epoch_table(trial_table)
+                import h5py
+                from ..session.store import _write_table
+                with h5py.File(grouped_h5, "a") as grouped_file:
+                    destination = grouped_file.create_group(key)
+                    destination.create_dataset("unit_id", data=np.asarray(
+                        pop.unit_ids, dtype=h5py.string_dtype("utf-8")
+                    ))
+                    members = destination.create_dataset(
+                        "member_roi_ids", (len(pop.members),),
+                        dtype=h5py.vlen_dtype(np.dtype("int64")),
+                    )
+                    for index, member_ids in enumerate(pop.members):
+                        members[index] = np.asarray(member_ids, np.int64)
+                    destination.create_dataset("area_px", data=pop.area_px)
+                    destination.create_dataset("raw", data=pop.raw, compression="gzip")
+                    destination.create_dataset("z", data=item["z"], compression="gzip")
+                    standard = item["standardized"]
+                    destination.create_dataset("baseline_mean", data=standard.baseline_mean)
+                    destination.create_dataset("baseline_sd_trial", data=standard.baseline_sd_trial)
+                    destination.create_dataset("baseline_sd_block", data=standard.baseline_sd_block)
+                    responses = destination.create_group("responses")
+                    for name in ("odor", "post_odor"):
+                        epoch = responses.create_group(name)
+                        epoch.create_dataset("mean_z", data=item["scores"].mean[name])
+                        epoch.create_dataset("peak_positive_z", data=item["scores"].peak_positive[name])
+                        epoch.create_dataset("peak_negative_z", data=item["scores"].peak_negative[name])
+                    pc = destination.create_group("pc1")
+                    pc.create_dataset("trial_score", data=item["pc1"]["trial_score"])
+                    pc.create_dataset("loadings", data=item["pc1"]["loadings"])
+                    pc.attrs["explained_variance_fraction"] = item["pc1"]["explained_variance_fraction"]
+                    pc.attrs["method"] = item["pc1"]["method"]
+                    _write_table(destination.create_group("response_summary"), summary_table)
+                outputs.setdefault("response_tables", {})[key] = (
+                    f"{grouped_h5}:/{key}/response_summary"
+                )
 
             # Retain only compact summaries needed by the combined figures.
-            del item["dff"]
-            del item["time_pc1"]["timecourse"]
+            del item["z"]
+            item["standardized"].z = np.empty((0, 0, 0), np.float32)
+            item["population"].raw = np.empty((0, 0, 0), np.float32)
             analysed[key] = item
             del populations
-    finally:
-        if pc1_handle is not None:
-            pc1_handle.close()
 
     if save:
         report("rendering spatial quality map")
@@ -335,31 +324,35 @@ def qc_20x(round_path, *, groups=None, structural=None, usable=None,
         if structural is None:
             structural = np.where(masks["labels"] > 0, masks["labels"], 0)
         _spatial_figure(spatial, np.asarray(structural), masks, manifest, effective_groups, analysed)
-        report("rendering trial-z heatmaps and response bars")
-        response = Path(f"{stem}_20x_responseqc.png"); _response_figure(response, analysed, odor_ids, states, state_levels)
+        report("rendering continuous odor and post-odor response distributions")
+        response = _response_figure(
+            Path(f"{stem}_20x_continuousqc.png"), analysed,
+            odor_ids, states, state_levels,
+        )
+        report("rendering trial F0 and baseline SD QC")
+        baseline = _baseline_figures(
+            Path(f"{stem}_20x_baselineqc.png"), analysed, states, state_levels,
+        )
         report("rendering SNR distributions")
         snr = Path(f"{stem}_20x_snrqc.png"); _snr_figure(snr, analysed)
-        outputs.update(spatial=str(spatial), response=str(response), snr=str(snr))
-        report("writing trial-level PC1 scores")
-        pc1_path = Path(f"{stem}_20x_pc1.json")
-        pc1_path.write_text(json.dumps({
-            "description": "Odor-protected PC1 trial score; recorded, not subtracted"
-                           if deglobal is None else f"Odor-protected PC1; deglobal={deglobal}",
-            "trial_index": list(range(len(odor_ids))),
-            "odor_id": [int(v) for v in odor_ids],
-            "state": [state_levels[int(v)] for v in states],
-            "populations": {
-                key: [None if not np.isfinite(v) else round(float(v), 8)
-                      for v in item["calls"]["pc1_component"]]
-                for key, item in analysed.items()
-            },
-        }, indent=2))
-        outputs["pc1"] = str(pc1_path)
-        outputs["pc1_timecourse"] = str(time_pc1_path)
+        outputs.update(spatial=str(spatial), response=response,
+                       baseline=baseline, snr=str(snr))
+        outputs["pc1_trial_variance"] = {
+            key: float(item["pc1"]["explained_variance_fraction"])
+            for key, item in analysed.items()
+        }
+        outputs["grouped_h5"] = str(grouped_h5)
     outputs["n_units"] = {
         key: len(item["population"].unit_ids) for key, item in analysed.items()
     }
-    outputs["analysis_order"] = "raw pixel-weighted aggregation -> detrend -> dF/F and trial z/calls"
+    outputs["analysis_order"] = (
+        "raw pixel-weighted aggregation -> detrend -> canonical z -> "
+        "continuous odor/post-odor summaries"
+    )
     outputs["elapsed_s"] = round(time.perf_counter() - started, 3)
+    if save:
+        report_path = Path(f"{stem}_20x_qc.json")
+        report_path.write_text(json.dumps(outputs, indent=2))
+        outputs["json"] = str(report_path)
     report(f"complete in {outputs['elapsed_s']:.1f} s")
     return outputs

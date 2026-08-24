@@ -126,16 +126,11 @@ class Segmentation20xState:
 
     @classmethod
     def load(cls, path):
-        """Resume a saved round, from a bundle or a legacy NPZ checkpoint."""
+        """Resume a saved portable HDF5 round."""
         path = Path(path)
-        if path.suffix == ".h5":
-            return cls.load_portable(path)
-        with np.load(path, allow_pickle=False) as arrays:
-            images = {name: arrays[name] for name in arrays.files}
-        config = json.loads(path.with_suffix(".json").read_text())
-        state = cls._from_config(images.get("structural"), images.get("correlation"), config)
-        state._restore_masks(images, config, source=path)
-        return state
+        if path.suffix != ".h5":
+            raise ValueError("20x segmentation state must be a portable .h5 bundle")
+        return cls.load_portable(path)
 
     @classmethod
     def load_portable(cls, path):

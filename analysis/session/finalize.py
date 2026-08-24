@@ -28,7 +28,6 @@ def finalize_session(
     curation: None | dict = None,
     pre_s: float = 2.0,
     post_s: float = 2.0,
-    neuropil: bool = True,
     full_acquisition: bool = True,
     checkpoint_every: int = 1,
     extract: bool = True,
@@ -52,7 +51,7 @@ def finalize_session(
         "merge": merge_params,
         "curation": curation,
         "window": {
-            "pre_s": pre_s, "post_s": post_s, "neuropil": neuropil,
+            "pre_s": pre_s, "post_s": post_s,
             "full_acquisition": full_acquisition,
             "checkpoint_every": checkpoint_every,
         },
@@ -81,14 +80,21 @@ def finalize_session(
             acq_ids=session.acq_ids,
             frame_rate=session.frame_rate,
             full_acquisition=full_acquisition,
-            pre_s=pre_s, post_s=post_s, neuropil=neuropil,
+            pre_s=pre_s, post_s=post_s,
             checkpoint_every=checkpoint_every,
             checkpoint_dir=checkpoint, mask_hash=digest,
         )
 
     detrend_result = None
+    standardized_result = None
+    epoch_result = None
     pc1_result = None
-    if extract and traces is not None and detrend:
+    if extract and traces is not None and not detrend:
+        raise ValueError(
+            "Canonical trace analysis requires detrend=True; there is no "
+            "undetrended normalization fallback."
+        )
+    if extract and traces is not None:
         from .detrend import detrend_traces
 
         corrected, info = detrend_traces(
@@ -97,20 +103,38 @@ def finalize_session(
             odor_off_frames=traces.odor_off_frames,
             frame_rate=traces.frame_rate,
         )
-        if info.get("ok"):
-            info["traces"] = corrected
-            detrend_result = info
-            from .pc1 import pc1_from_detrended
-            pc1_result = pc1_from_detrended(
-                corrected, traces.odor_on_frames, traces.frame_rate,
+        if not info.get("ok"):
+            raise RuntimeError(
+                "Trace detrending failed; refusing to write a partially analysed "
+                f"round. Details: {info}"
             )
+        info["traces"] = corrected
+        detrend_result = info
+        from .pc1 import trial_pc1
+        from .trace_analysis import epoch_scores, standardize_traces
+        state_levels, state_codes = np.unique(traces.states.astype(str), return_inverse=True)
+        standardized_result = standardize_traces(
+            corrected,
+            odor_on_frames=traces.odor_on_frames,
+            states=state_codes,
+            n_state_levels=len(state_levels),
+            frame_rate=traces.frame_rate,
+        )
+        epoch_result = epoch_scores(
+            standardized_result.z,
+            odor_on_frames=traces.odor_on_frames,
+            odor_off_frames=traces.odor_off_frames,
+            frame_rate=traces.frame_rate,
+        )
+        pc1_result = trial_pc1(epoch_result.mean["odor"], traces.odor_ids)
+        standardized_result.state_levels = state_levels.tolist()
 
     _write_round(
         path, scratch,
         labels=labels, traces=traces, per_group_masks=per_group_masks,
         exp_name=session.exp_name, group_id=session.group_id,
         mask_hash=digest, parameters=parameters, detrend=detrend_result,
-        pc1=pc1_result,
+        standardized=standardized_result, epochs=epoch_result, pc1=pc1_result,
     )
 
     if checkpoint is not None and checkpoint.exists():

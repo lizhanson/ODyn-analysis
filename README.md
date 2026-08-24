@@ -55,9 +55,12 @@ Session outputs are written under the experiment directory:
 ├── group<group_id>_<experiment>_10x_masks_processed_<YYYYMMDD>.h5
 ├── group<group_id>_<experiment>_processed_<YYYYMMDD>.h5
 ├── group<group_id>_<experiment>_masks_processed_<YYYYMMDD>.png
-├── group<group_id>_<experiment>_processed_<YYYYMMDD>_responseqc.json
-├── group<group_id>_<experiment>_processed_<YYYYMMDD>_responseqc.png
+├── group<group_id>_<experiment>_processed_<YYYYMMDD>_continuousqc.json
+├── group<group_id>_<experiment>_processed_<YYYYMMDD>_continuousqc.png
+├── group<group_id>_<experiment>_processed_<YYYYMMDD>_baselineqc.png
 ├── group<group_id>_<experiment>_processed_<YYYYMMDD>_groups.png
+├── group<group_id>_<experiment>_processed_<YYYYMMDD>_20x_grouped.h5
+├── group<group_id>_<experiment>_processed_<YYYYMMDD>_20x_qc.json
 └── aux/
     ├── group<group_id>_<experiment>_pupil.h5
     ├── group<group_id>_<experiment>_pupil.png
@@ -69,7 +72,13 @@ Session outputs are written under the experiment directory:
 
 The 10x mask bundle is the portable segmentation output. It contains the curated labels, per-group masks, reference image, and GUI configuration, allowing extraction on another computer without copying caches or rerunning segmentation.
 
-The processed HDF5 is the final 10x or 20x round. It contains `/masks`, `/traces`, `/rois`, and `/trials`; the PNG is a mask overlay. No `.mat` or trace `.npz` is written.
+The processed HDF5 is the final 10x or 20x round. It contains `/masks`,
+`/traces`, `/responses`, `/rois`, and `/trials`; the PNG is a mask overlay. Raw
+fluorescence is detrended, centred by each trial's immediate four-second
+pre-odor mean, and divided by that unit-trial's SD from the same baseline
+window. Equal-trial-weighted session and block baseline SDs are also recorded
+as diagnostics, but are not used to scale responses. There is no
+dF/F, PC1 subtraction, alternate normalization, or binary responder test.
 
 Pupil and respiration outputs live in `processed/python/aux/`. Their `acq_id` arrays align trial rows to `/trials/acq_id` in the processed round. `respiration_from_round()` uses the processed-round filename stem.
 
@@ -82,15 +91,15 @@ The 20x GUI checkpoint is local:
 It contains the reference images, automatic and curated masks, parameters, edits, ROI table, and groups. The finalized server HDF5 contains the 20x masks and extracted traces.
 
 After trace-based grouping, the 20x notebook also writes grouped QC sidecars:
-`*_20x_spatialqc.png`, `*_20x_responseqc.png`, `*_20x_snrqc.png`, and paged
-`*_traceatlas_{groups,somas,processes}_pNN.png` files. Group traces are formed by
-pixel-weighting raw ROI fluorescence before detrending, dF/F, z-scoring, response
-calls, or baseline metrics; ROIs without a group remain singleton analysis units.
-Response calls at both 10x and 20x use traces without PC1 subtraction. The
-odor-protected PC1 trial score is still calculated and recorded for later
-state/block analysis.
-Finalized rounds also store `/traces/pc1_timecourse` (trial x imaging frame) and
-`/traces/pc1_loadings`. The fixed loading vector is fitted once over concatenated
-detrended dF/F and projected back into every trial; it is never subtracted. After
-20x grouping, `*_20x_pc1_timeseries.h5` provides the corresponding timecourses
-for whole groups, soma components, and process components.
+`*_20x_spatialqc.png`, `*_20x_snrqc.png`, separate
+`*_20x_continuousqc_{groups,somas,processes}.png` and
+`*_20x_baselineqc_{groups,somas,processes}.png` figures. Group traces are formed by
+pixel-weighting raw ROI fluorescence before the canonical detrend and z-score;
+ROIs without a group remain singleton analysis units. Continuous mean and peak
+z scores are stored for both odor onset-to-offset and offset-to-offset+4 s.
+Finalized rounds store one odor-protected PC1 scalar per trial plus its unit
+loadings under `/responses`. PC1 is calculated from the unit-by-trial odor
+response matrix, displayed in continuous QC, and never subtracted. Grouped 20x
+traces, responses, memberships, response summaries, baseline diagnostics, and
+trial PC1 scalars live together in `*_20x_grouped.h5`; no CSV or PC1-timeseries
+sidecars are written.

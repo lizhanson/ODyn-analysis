@@ -12,6 +12,27 @@ from .state import (
 )
 from .gui import Segmentation20xGUI
 from .qc import aggregate_raw_units
+from .segmentation import build_reference_images
+
+
+def test_reference_samples_odor_windows_across_session(tmp_path):
+    import tifffile
+
+    pattern = np.arange(25, dtype=np.float32).reshape(5, 5)
+    paths = []
+    for trial, offset in enumerate((0, 100)):
+        movie = np.stack([pattern + offset + frame for frame in range(10)])
+        path = tmp_path / f"trial{trial}.tif"
+        tifffile.imwrite(path, movie)
+        paths.append(path)
+    images, meta = build_reference_images(
+        paths, odor_on_frames=[2, 5], odor_off_frames=[5, 8],
+        n_frames=4, structural_sigma_px=0,
+    )
+    # Endpoints from both odor windows: 2, 4, 105, 107.
+    np.testing.assert_allclose(images["structural"], pattern + 54.5)
+    assert len(meta["sampled_trials"]) == 2
+    assert meta["sampling"].startswith("frames distributed")
 
 
 def test_group_qc_aggregates_raw_f_by_pixels_and_keeps_singletons():
@@ -378,20 +399,18 @@ def test_proximity_profile_reports_correlation_against_gap():
     assert nearest.correlation > 0.9
 
 
-def test_traces_from_round_are_smoothed_dff_event_windows(tmp_path):
+def test_traces_from_round_are_smoothed_canonical_z_event_windows(tmp_path):
     import h5py
     from .grouping import traces_from_round
 
     shape = np.array([0., 1., 2., 1., 0., -.5, 0., 0.])
     roi = np.zeros((2, 2, 12), float)
     for trial, scale in enumerate((1.0, 1.5)):
-        roi[0, trial, :4] = 10 * scale
-        roi[0, trial, 4:] = 10 * scale * (1 + shape)
-        roi[1, trial, :4] = 100 * scale
-        roi[1, trial, 4:] = 100 * scale * (1 + shape)
+        roi[0, trial, 4:] = scale * shape
+        roi[1, trial, 4:] = scale * shape
     path = tmp_path / "round.h5"
     with h5py.File(path, "w") as handle:
-        handle.create_dataset("traces/roi", data=roi)
+        handle.create_dataset("traces/roi_z", data=roi)
         handle.create_dataset("trials/odor_on_frame", data=[4, 4])
         handle.attrs["frame_rate"] = 1.0
 
@@ -400,11 +419,11 @@ def test_traces_from_round_are_smoothed_dff_event_windows(tmp_path):
         {"roi_id": 2, "roi_type": "process", "source_roi_id": 1},
     ]
     traces, source = traces_from_round(
-        path, manifest, baseline_s=4, odor_s=4, post_s=4,
+        path, manifest, odor_s=4, post_s=4,
         smooth_sigma_frames=1,
     )
 
-    assert source == "raw"
+    assert source == "canonical_z"
     assert set(traces) == {("soma", 1), ("process", 1)}
     assert traces[("soma", 1)].shape == (2, 8)
     np.testing.assert_allclose(traces[("soma", 1)], traces[("process", 1)], atol=1e-6)

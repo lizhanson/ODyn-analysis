@@ -39,8 +39,6 @@ COLUMN_DOCS = {
     "area_px": ("Number of pixels in the ROI.", "pixels"),
     "diameter_px": ("Diameter of a circle with the same area. Convenience for "
                     "comparing against expected glomerulus size.", "pixels"),
-    "neuropil_area_px": ("Pixels in this ROI's surrounding annulus (3 px gap, "
-                         "12 px wide, other ROIs removed).", "pixels"),
     "centroid_y": ("Row of the ROI centre of mass in /masks/labels.", "pixels"),
     "centroid_x": ("Column of the ROI centre of mass in /masks/labels.", "pixels"),
     "baseline_fluorescence": ("Mean raw F over all pre-odor frames of all "
@@ -92,12 +90,14 @@ WHAT IS HERE
   /masks/labels     the final ROI mask. 0 = background, N = ROI number N.
   /masks/<odor>     the mask found from that odor alone, before merging.
   /traces/roi       raw fluorescence, axes (roi, trial, frame).
-  /traces/neuropil  the surrounding ring, same axes. Measured, not subtracted.
+  /traces/roi_z     canonical detrended z trace, using each trial's own
+                    immediate pre-odor mean and SD.
   /traces/time_s    seconds from the MEDIAN odor onset, one per frame.
                     Onset varies by a frame or two; /trials/odor_on_frame has
                     the exact frame for each trial.
   /rois/*           one row per ROI. Row order matches axis 0 of /traces/roi.
   /trials/*         one row per trial. Row order matches axis 1 of /traces/roi.
+  /responses/*      continuous odor and post-odor mean/peak z summaries.
 
 HOW TO LINE THINGS UP
   Trace of ROI in row i, trial in row j:  /traces/roi[i, j, :]
@@ -115,10 +115,10 @@ COVERAGE
   everything after it. Nothing is cropped, so post-odor dynamics and baseline
   drift are all still here.
 
-WHAT HAS NOT BEEN DONE
-  These are raw fluorescence values. No dF/F, no baseline subtraction, no
-  neuropil correction, no filtering. Those are later decisions, kept out of
-  here deliberately so this file does not commit you to any of them.
+RAW DATA PRESERVATION
+  /traces/roi remains raw fluorescence: no dF/F or baseline subtraction.
+  /traces/roi_z is a separate derived
+  dataset; PC1 is recorded separately and is never subtracted.
 
 MATLAB
   h5disp(file) lists everything with these descriptions.
@@ -184,6 +184,8 @@ def write_session(
     mask_hash: str,
     parameters: None | dict = None,
     detrend: None | dict = None,
+    standardized=None,
+    epochs=None,
     pc1: None | dict = None,
 ) -> Path:
     """Write one processing round. Overwrites only a file of the same name."""
@@ -247,7 +249,7 @@ def write_session(
             "Raw fluorescence per ROI per trial. Axes are "
             "(roi, trial, frame): roi follows /rois row order, trial follows "
             "/trials/trial_index, frame is /traces/time_s. No dF/F, no "
-            "baseline subtraction, no neuropil correction."
+            "baseline subtraction."
         )
 
         roi_data = group.create_dataset("roi", data=traces.roi, compression="gzip")
@@ -257,20 +259,6 @@ def write_session(
         )
         roi_data.attrs["units"] = "a.u."
         roi_data.attrs["dimensions"] = "roi, trial, frame"
-
-        if traces.neuropil is not None:
-            ring = group.create_dataset(
-                "neuropil", data=traces.neuropil, compression="gzip"
-            )
-            ring.attrs["description"] = (
-                "Mean raw fluorescence of the surrounding annulus, same axes. "
-                "Measured, NOT subtracted -- apply a correction downstream with "
-                "a coefficient chosen against the data. Treat as diagnostic at "
-                "10x, where the annulus falls in inter-glomerular space rather "
-                "than out-of-focus neuropil."
-            )
-            ring.attrs["units"] = "a.u."
-            ring.attrs["dimensions"] = "roi, trial, frame"
 
         if detrend is not None and detrend.get("ok"):
             corrected = group.create_dataset(
@@ -317,29 +305,55 @@ def write_session(
         )
         times.attrs["units"] = "seconds"
 
-        if pc1 is not None:
-            pc = group.create_dataset(
-                "pc1_timecourse", data=np.asarray(pc1["timecourse"], np.float32),
-                compression="gzip",
+        if standardized is not None:
+            zdata = group.create_dataset(
+                "roi_z", data=np.asarray(standardized.z, np.float32), compression="gzip"
             )
-            pc.attrs["description"] = (
-                "Fixed spatial PC1 score at every imaging frame. One loading "
-                "vector was fitted over all concatenated detrended dF/F samples "
-                "and projected without subtracting PC1 from any ROI trace."
+            zdata.attrs["description"] = (
+                "Canonical trace: detrended F centred by each trial's immediate "
+                "pre-odor mean and divided by that ROI-trial's own pre-odor "
+                "baseline SD. Session- and block-pooled SDs are diagnostics "
+                "only. No dF/F, PC1 subtraction, or "
+                "additional normalization."
             )
-            pc.attrs["dimensions"] = "trial, frame"
-            pc.attrs["explained_variance_fraction"] = float(
-                pc1["explained_variance_fraction"]
+            zdata.attrs["dimensions"] = "roi, trial, frame"
+            zdata.attrs["units"] = "trial baseline SD"
+            group.create_dataset("baseline_mean", data=standardized.baseline_mean)
+            group.create_dataset("baseline_sd_session", data=standardized.baseline_sd_session)
+            group.create_dataset("baseline_sd_trial", data=standardized.baseline_sd_trial)
+            block = group.create_dataset("baseline_sd_block", data=standardized.baseline_sd_block)
+            block.attrs["dimensions"] = "roi, state"
+            group.create_dataset(
+                "baseline_sd_block_levels",
+                data=np.asarray(standardized.state_levels, dtype=h5_string_dtype()),
             )
-            pc.attrs["method"] = pc1["method"]
-            loading = group.create_dataset(
-                "pc1_loadings", data=np.asarray(pc1["loadings"], np.float32),
+            group.attrs["baseline_frames"] = int(standardized.baseline_frames)
+
+        if epochs is not None:
+            response = f.create_group("responses")
+            response.attrs["description"] = (
+                "Continuous summaries of canonical z traces. No significance "
+                "tests, p values, q values, or excited/suppressed calls."
             )
-            loading.attrs["description"] = (
-                "Fixed PC1 spatial loading; row order matches /rois and "
-                "/traces/roi. PC1 was recorded, never subtracted."
-            )
-            loading.attrs["dimensions"] = "roi"
+            names = ("odor", "post_odor")
+            response.create_dataset("epoch_levels", data=np.asarray(names, dtype=h5_string_dtype()))
+            for field, source in (
+                ("mean_z", epochs.mean),
+                ("peak_positive_z", epochs.peak_positive),
+                ("peak_negative_z", epochs.peak_negative),
+            ):
+                data = np.stack([source[name] for name in names], axis=2)
+                dataset = response.create_dataset(field, data=data, compression="gzip")
+                dataset.attrs["dimensions"] = "roi, trial, epoch"
+            response.attrs["post_odor_frames"] = int(epochs.post_odor_frames)
+            if pc1 is not None:
+                score = response.create_dataset("pc1_trial_score", data=pc1["trial_score"])
+                score.attrs["dimensions"] = "trial"
+                score.attrs["method"] = pc1["method"]
+                score.attrs["explained_variance_fraction"] = float(
+                    pc1["explained_variance_fraction"]
+                )
+                response.create_dataset("pc1_loadings", data=pc1["loadings"])
 
         f.attrs["frame_rate"] = float(traces.frame_rate)
         f.attrs["n_pre"] = int(traces.n_pre)
@@ -392,6 +406,14 @@ def read_session(path: str | Path) -> dict:
 
         if "traces" in f:
             out["traces"] = {k: f[f"traces/{k}"][:] for k in f["traces"]}
+
+        if "responses" in f:
+            def read_group(group):
+                return {
+                    name: (read_group(value) if hasattr(value, "keys") else value[:])
+                    for name, value in group.items()
+                }
+            out["responses"] = read_group(f["responses"])
 
         for table in ("rois", "trials"):
             if table not in f:

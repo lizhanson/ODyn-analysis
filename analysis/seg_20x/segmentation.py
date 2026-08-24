@@ -50,41 +50,48 @@ PROCESS_DEFAULTS = {
 
 
 def build_reference_images(
-    movie_path: str | Path,
+    movie_paths,
     *,
-    start_frame: int | None = None,
+    odor_on_frames,
+    odor_off_frames,
     n_frames: int = 120,
     structural_sigma_px: float = 0.8,
     correlation_sigma_px: float = 0.7,
 ) -> tuple[dict[str, np.ndarray], dict]:
-    """Build structural and local-correlation images from one approved movie."""
+    """Average frames sampled across all session odor windows."""
 
     import tifffile
     from skimage.filters import gaussian
 
-    movie_path = Path(movie_path)
-    with tifffile.TiffFile(movie_path) as tif:
-        total = len(tif.pages)
-        span = min(int(n_frames), total)
-        start = max(0, (total - span) // 2) if start_frame is None else int(start_frame)
-        stop = min(start + span, total)
-        if start < 0 or stop <= start:
-            raise ValueError(f"Invalid frame interval [{start}, {stop}) for {total} frames.")
-        movie = np.stack([tif.pages[i].asarray() for i in range(start, stop)]).astype(np.float32)
+    paths = [Path(p) for p in movie_paths]
+    on = np.asarray(odor_on_frames, int)
+    off = np.asarray(odor_off_frames, int)
+    if not (len(paths) == len(on) == len(off)) or not paths:
+        raise ValueError("movie paths and odor windows must align and be nonempty")
+    per_trial = max(1, int(np.ceil(int(n_frames) / len(paths))))
+    blocks, sampled = [], []
+    for path, left, right in zip(paths, on, off):
+        if right <= left:
+            raise ValueError(f"invalid odor window [{left}, {right}) for {path.name}")
+        indices = np.unique(np.linspace(left, right - 1, min(per_trial, right-left)).round().astype(int))
+        with tifffile.TiffFile(path) as tif:
+            block = np.stack([tif.pages[int(i)].asarray() for i in indices]).astype(np.float32)
+        blocks.append(block)
+        sampled.append({"movie_path": str(path), "frames": indices.tolist()})
+    movie = np.concatenate(blocks, axis=0)
 
     structural = gaussian(
         movie.mean(axis=0), sigma=structural_sigma_px, preserve_range=True
     ).astype(np.float32)
-    correlation, corr_meta = concatenated_local_correlation([movie], center_each_block=True)
+    correlation, corr_meta = concatenated_local_correlation(blocks, center_each_block=True)
     correlation = gaussian(
         correlation, sigma=correlation_sigma_px, preserve_range=True
     ).astype(np.float32)
 
     return {"structural": structural, "correlation": correlation}, {
-        "movie_path": str(movie_path),
-        "frame_start": start,
-        "frame_stop": stop,
-        "n_frames": stop - start,
+        "sampling": "frames distributed across every session odor window",
+        "sampled_trials": sampled,
+        "n_frames": int(len(movie)),
         "structural_sigma_px": float(structural_sigma_px),
         "correlation_sigma_px": float(correlation_sigma_px),
         "correlation": corr_meta,
