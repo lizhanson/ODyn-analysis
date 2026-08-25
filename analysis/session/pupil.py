@@ -66,10 +66,35 @@ def iter_gray_frames(video_path):
             yield frame.to_ndarray(format="gray")
 
 
-def count_video_frames(video_path) -> int:
+def count_video_frames(video_path, *, progress_desc=None) -> int:
     """Exact decoded frame count from a bounded-memory streaming pass."""
 
-    return sum(1 for _ in iter_gray_frames(video_path))
+    frames = iter_gray_frames(video_path)
+    progress = None
+    if progress_desc is not None:
+        total = None
+        metadata_path = Path(video_path).with_name(
+            f"{Path(video_path).stem}_metadata.json"
+        )
+        try:
+            import json
+            total = int(json.loads(metadata_path.read_text()).get("n_frames"))
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            pass
+        try:
+            from tqdm.auto import tqdm
+            progress = tqdm(
+                frames, total=total, desc=progress_desc, unit="frame",
+                leave=False, dynamic_ncols=True,
+            )
+            frames = progress
+        except ImportError:
+            pass
+    try:
+        return sum(1 for _ in frames)
+    finally:
+        if progress is not None:
+            progress.close()
 
 
 def video_recording_timestamp(video_path) -> tuple[datetime, str]:
@@ -384,6 +409,20 @@ def fit_ellipse_ransac(mask, *, residual_px=2.0, max_trials=200,
     from scipy import ndimage
     from skimage.measure import EllipseModel, LineModelND, ransac
 
+    # scikit-image renamed ``random_state`` to ``rng``. Select by signature;
+    # retrying after an arbitrary internal TypeError can mask the real fitting
+    # failure with an unsupported-keyword error from the other API version.
+    import inspect
+    seed_parameter = getattr(fit_ellipse_ransac, "_seed_parameter", None)
+    if seed_parameter is None:
+        seed_parameter = ("rng" if "rng" in inspect.signature(ransac).parameters
+                          else "random_state")
+        fit_ellipse_ransac._seed_parameter = seed_parameter
+    def seeded(seed):
+        if seed_parameter == "rng":
+            return {"rng": np.random.default_rng(seed)}
+        return {"random_state": seed}
+
     boundary = mask & ~ndimage.binary_erosion(mask)
     yy, xx = np.nonzero(boundary)
     if xx.size < 12:
@@ -401,16 +440,9 @@ def fit_ellipse_ransac(mask, *, residual_px=2.0, max_trials=200,
         line, line_inliers = ransac(
             points_all, LineModelND, min_samples=2,
             residual_threshold=chord_detect_px,
-            max_trials=line_trials,
-            rng=np.random.default_rng(random_seed + 104729),
+            max_trials=line_trials, **seeded(random_seed + 104729),
         )
-    except TypeError:
-        line, line_inliers = ransac(
-            points_all, LineModelND, min_samples=2,
-            residual_threshold=chord_detect_px,
-            max_trials=line_trials, random_state=random_seed + 104729,
-        )
-    except (ValueError, ArithmeticError):
+    except (TypeError, ValueError, ArithmeticError):
         line = line_inliers = None
     if line is not None and line_inliers is not None:
         line_points = points_all[line_inliers]
@@ -589,17 +621,10 @@ def fit_ellipse_ransac(mask, *, residual_px=2.0, max_trials=200,
         try:
             model, inliers = ransac(
                 points, EllipseModel, min_samples=5, residual_threshold=residual_px,
-                max_trials=max_trials, rng=np.random.default_rng(random_seed),
+                max_trials=max_trials, **seeded(random_seed),
             )
-        except (TypeError, ValueError):
-            try:
-                model, inliers = ransac(
-                    points, EllipseModel, min_samples=5,
-                    residual_threshold=residual_px, max_trials=max_trials,
-                    random_state=random_seed,
-                )
-            except (ValueError, ArithmeticError):
-                return None
+        except (TypeError, ValueError, ArithmeticError):
+            return None
         if model is None or inliers is None or not np.any(inliers):
             return None
         parameters = unpack(model)
@@ -750,8 +775,19 @@ def _checkpoint_signature(video_paths, counts, sync_path, config):
 
     files = []
     for path in [*map(Path, video_paths), Path(sync_path)]:
-        stat = path.stat()
-        files.append((str(path), int(stat.st_size), int(stat.st_mtime_ns)))
+        manifest_path = path.with_suffix(path.suffix + ".source.json")
+        source = None
+        if manifest_path.exists():
+            try:
+                manifest = json.loads(manifest_path.read_text())
+                source = (str(manifest["source"]), int(manifest["size"]),
+                          int(manifest["mtime_ns"]))
+            except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+                pass
+        if source is None:
+            stat = path.stat()
+            source = (str(path), int(stat.st_size), int(stat.st_mtime_ns))
+        files.append(source)
     return json.dumps(
         {"fitter_version": PUPIL_FITTER_VERSION,
          "files": files, "counts": list(map(int, counts)),
@@ -834,7 +870,7 @@ def _verify_local_pupil_output(path, report):
 def pupil_from_round(video_path, round_path, *, sync_path=None,
                      frametimes_path=None, out_dir=None, config=PupilConfig(),
                      save=True, validate_counts=True, validated_counts=None,
-                     workers=None, batch_size=128, checkpoint_every=1000,
+                     workers=None, batch_size=256, checkpoint_every=5000,
                      checkpoint_dir=None, resume=True, _metadata=None):
     """Extract, align, save, and plot pupil diameter for one processing round."""
 
@@ -893,8 +929,12 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
                         else [find_frametimes_csv(path) for path in video_paths])
     if validate_counts:
         counts = []
-        for path, csv_path in zip(video_paths, frametimes_paths):
-            count = count_video_frames(path)
+        for video_index, (path, csv_path) in enumerate(
+                zip(video_paths, frametimes_paths), start=1):
+            count = count_video_frames(
+                path,
+                progress_desc=f"Pupil preflight {video_index}/{len(video_paths)}",
+            )
             if csv_path is not None and count_csv_frames(csv_path) != count:
                 raise ValueError(
                     f"{Path(path).name}: decoded frame count does not match "
@@ -967,6 +1007,7 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
 
     def accept(results):
         nonlocal done, last_checkpoint_done
+        accepted = 0
         for i, threshold, fit in results:
             values["threshold"][i] = threshold
             if fit:
@@ -974,20 +1015,31 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
                     values[name][i] = value
             completed[i] = True
             done += 1
-        elapsed = max(time.monotonic() - started, 1e-6)
-        rate = max((done - resumed_done) / elapsed, 1e-9)
-        eta_min = (active_total - done) / rate / 60
-        print(
-            f"  {done:,}/{active_total:,} ({done/active_total:.1%}) · "
-            f"{rate:.1f} frames/s · ETA {eta_min:.1f} min",
-            flush=True,
-        )
+            accepted += 1
+        if progress is not None:
+            progress.update(accepted)
+        elif accepted and (done == active_total or done % 1000 < accepted):
+            elapsed = max(time.monotonic() - started, 1e-6)
+            rate = max((done - resumed_done) / elapsed, 1e-9)
+            eta_min = (active_total - done) / rate / 60
+            print(
+                f"  {done:,}/{active_total:,} ({done/active_total:.1%}) · "
+                f"{rate:.1f} frames/s · ETA {eta_min:.1f} min", flush=True,
+            )
         if (checkpoint_path is not None and
                 done - last_checkpoint_done >= checkpoint_every):
             _save_pupil_checkpoint(checkpoint_path, values, completed, signature)
             last_checkpoint_done = done
 
     resumed_done = done
+    try:
+        from tqdm.auto import tqdm
+        progress = tqdm(
+            total=active_total, initial=done, desc=f"Pupil {exp_name}",
+            unit="frame", leave=False, dynamic_ncols=True,
+        )
+    except ImportError:
+        progress = None
     offset = 0
     executor = None
     try:
@@ -1006,12 +1058,14 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
                 batch.append((i, frame, config))
                 if len(batch) >= batch_size:
                     results = (map(_analyze_pupil_frame, batch) if executor is None
-                               else executor.map(_analyze_pupil_frame, batch))
+                               else executor.map(_analyze_pupil_frame, batch,
+                                                 chunksize=8))
                     accept(results)
                     batch = []
             if batch:
                 results = (map(_analyze_pupil_frame, batch) if executor is None
-                           else executor.map(_analyze_pupil_frame, batch))
+                           else executor.map(_analyze_pupil_frame, batch,
+                                             chunksize=8))
                 accept(results)
             if decoded != expected:
                 raise RuntimeError(
@@ -1027,6 +1081,8 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
     finally:
         if executor is not None:
             executor.shutdown(wait=True, cancel_futures=True)
+        if progress is not None:
+            progress.close()
     if checkpoint_path is not None:
         _save_pupil_checkpoint(checkpoint_path, values, completed, signature)
 
@@ -1151,7 +1207,7 @@ def extract_pupil(
     odor_on_frames, odor_off_frames, frame_rate, exp_name,
     trial_ids=None, out_dir, config=PupilConfig(), save=True,
     validate_counts=True, validated_counts=None,
-    workers=None, batch_size=128, checkpoint_every=1000,
+    workers=None, batch_size=256, checkpoint_every=5000,
     checkpoint_dir=None, resume=True,
 ):
     """Round-independent pupil extraction on the acquisition frame grid."""

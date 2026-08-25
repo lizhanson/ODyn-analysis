@@ -263,6 +263,11 @@ def trace_qc(round_path, *, save=True):
         pc1_variance = float(handle["responses/pc1_trial_score"].attrs[
             "explained_variance_fraction"
         ])
+        baseline_sd_mode = handle["traces"].attrs.get(
+            "baseline_sd_mode", "per_trial"
+        )
+        if isinstance(baseline_sd_mode, bytes):
+            baseline_sd_mode = baseline_sd_mode.decode()
 
     trials = trial_epoch_table(
         scores, unit_ids=unit_ids, odor_ids=odor_ids, states=states,
@@ -272,7 +277,10 @@ def trace_qc(round_path, *, save=True):
     stem = round_path.with_suffix("")
     report = {
         "file": round_path.name,
-        "method": "detrend -> per-trial baseline mean and SD z-score",
+        "method": (
+            "detrend -> per-trial baseline mean -> " + str(baseline_sd_mode) + " SD z-score"
+        ),
+        "baseline_sd_mode": str(baseline_sd_mode),
         "n_units": len(unit_ids), "n_trials": len(trial_ids),
         "epochs": epoch_levels,
         "median_baseline_sd_session": float(np.nanmedian(session_sd)),
@@ -288,6 +296,11 @@ def trace_qc(round_path, *, save=True):
             figure, scores=scores, odor_ids=odor_ids, states=states,
             state_levels=state_levels, pc1_scores=pc1_scores,
             pc1_variance=pc1_variance,
+            normalization_label=(
+                "pre-anesthesia pooled baseline SD"
+                if baseline_sd_mode == "pre_block_pooled"
+                else "per-trial baseline SD"
+            ),
         )
         baseline_figure = Path(f"{stem}_baselineqc.png")
         baseline_qc_figure(

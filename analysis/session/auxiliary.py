@@ -28,13 +28,16 @@ class AuxiliarySession:
     odor_on_frames: list[int]
     odor_off_frames: list[int]
     table: object
+    trial_source: str = "database"
+    sync_path: Path | None = None
 
     @property
     def output_dir(self):
         return self.exp_dir / "processed" / "python"
 
 
-def resolve_auxiliary(group, *, group_id, manipulation="ketamine/xylazine"):
+def resolve_auxiliary(group, *, group_id, manipulation="ketamine/xylazine",
+                      sync_path=None):
     """Resolve trials and clocks without requiring images or motion correction."""
     from .resolve import _resolve_path, experiments_in_group
     from .respiration import find_behavior_sync
@@ -51,10 +54,19 @@ def resolve_auxiliary(group, *, group_id, manipulation="ketamine/xylazine"):
         )
     exp_id = exp_ids[0]
     experiment = group.experiments.query("exp_id == @exp_id").iloc[0]
-    table = trial_table(group, exp_id=exp_id, manipulation=manipulation)
     acquisition = group.acquisitions.query("exp_id == @exp_id").iloc[0]
     exp_dir = _resolve_path(Path(group.main_folder), acquisition.raw_path).parent.parent
-    sync_path = find_behavior_sync(exp_dir)
+    try:
+        table = trial_table(group, exp_id=exp_id, manipulation=manipulation)
+        trial_source = "database"
+    except ValueError as error:
+        if f"No trials for exp_id={exp_id}" not in str(error):
+            raise
+        table = _trial_table_from_events(
+            group, exp_id=exp_id, exp_dir=exp_dir, manipulation=manipulation
+        )
+        trial_source = "olfactometer_events+database_acquisitions"
+    sync_path = Path(sync_path) if sync_path is not None else find_behavior_sync(exp_dir)
     sync = open_sync(sync_path)
     blocks = group_frames_into_acquisitions(
         frame_onset_samples(sync), rate_hz=sync.rate_hz
@@ -77,8 +89,71 @@ def resolve_auxiliary(group, *, group_id, manipulation="ketamine/xylazine"):
         states=table.state.astype(str).tolist(),
         odor_on_frames=[int(window[0]) for window in windows],
         odor_off_frames=[int(window[1]) for window in windows],
-        table=table,
+        table=table, trial_source=trial_source, sync_path=sync_path,
     )
+
+
+def _trial_table_from_events(group, *, exp_id, exp_dir, manipulation):
+    """Recover absent DB trials from exactly matched olfactometer events."""
+    import csv
+    import re
+    import pandas as pd
+
+    event_paths = sorted(Path(exp_dir).glob("**/*-Events.csv"))
+    if len(event_paths) != 2:
+        raise ValueError(
+            f"No trials for exp_id={exp_id}; recovery requires exactly two "
+            f"olfactometer Events.csv files, found {len(event_paths)}."
+        )
+    odor_blocks = []
+    for path in event_paths:
+        odors = []
+        with path.open(encoding="utf-8-sig", newline="") as stream:
+            for row in csv.reader(stream):
+                if len(row) >= 2:
+                    match = re.search(r"\bOdor I\s+(\d+)\s+-", row[1])
+                    if match:
+                        odors.append(int(match.group(1)))
+        if not odors:
+            raise ValueError(f"No odor events found in {path}.")
+        odor_blocks.append(odors)
+
+    acqs = group.acquisitions.query("exp_id == @exp_id").copy()
+    acqs["acq_start"] = pd.to_datetime(acqs["acq_start"])
+    acqs = acqs.sort_values("acq_start").reset_index(drop=True)
+    odor_ids = [odor for values in odor_blocks for odor in values]
+    if len(odor_ids) != len(acqs):
+        raise ValueError(
+            f"Events contain {len(odor_ids)} odors but exp_id={exp_id} has "
+            f"{len(acqs)} acquisitions."
+        )
+    known_odors = set(map(int, group.odors.odor_id))
+    unknown = sorted(set(odor_ids) - known_odors)
+    if unknown:
+        raise ValueError(f"Events reference unknown odor IDs: {unknown}.")
+    block = np.concatenate([
+        np.full(len(values), index, dtype=np.int8)
+        for index, values in enumerate(odor_blocks)
+    ])
+    table = acqs[["acq_id", "acq_start", "odor_start", "odor_end"]].copy()
+    for name in ("odor_start", "odor_end"):
+        table[name] = pd.to_datetime(table[name])
+    table["trial_id"] = np.arange(1, len(table) + 1, dtype=np.int32)
+    table["trial_start"] = table["acq_start"]
+    table["odor_id"] = odor_ids
+    table["program_id"] = block
+    table["block"] = block
+    table["state"] = np.where(block == 0, "pre", "post")
+    table["trial_in_block"] = table.groupby("block").cumcount() + 1
+    table["odor_duration_s"] = (
+        table["odor_end"] - table["odor_start"]
+    ).dt.total_seconds()
+    table["baseline_s"] = (
+        table["odor_start"] - table["trial_start"]
+    ).dt.total_seconds()
+    table["odor_minus_acq_start_s"] = table["baseline_s"]
+    table["manipulation"] = manipulation
+    return table
 
 
 def _state_codes(states):
@@ -237,7 +312,8 @@ def write_auxiliary(path, *, metadata, respiration, pupil, treadmill, sources):
             "the imaging acquisition grid; join later rounds by /trials/acq_id."
         )
         handle.attrs["schema_version"] = "1.0"
-        for name in ("exp_name", "group_id", "mouse", "date", "manipulation"):
+        for name in ("exp_name", "group_id", "mouse", "date", "manipulation",
+                     "trial_source"):
             if metadata.get(name) is not None:
                 handle.attrs[name] = metadata[name]
         handle.attrs["n_trial"] = n_trial
@@ -416,6 +492,8 @@ def process_auxiliary(
     session,
     *,
     video_paths=None,
+    source_video_paths=None,
+    source_sync_path=None,
     pupil_config=None,
     out_dir=None,
     workers=None,
@@ -426,7 +504,9 @@ def process_auxiliary(
     from .pupil import PupilConfig, extract_pupil, pupil_figure
     from .respiration import extract_respiration, find_behavior_sync, respiration_figure
 
-    sync_path = find_behavior_sync(session.exp_dir)
+    sync_path = (Path(session.sync_path) if session.sync_path is not None
+                 else find_behavior_sync(session.exp_dir))
+    source_sync_path = sync_path if source_sync_path is None else Path(source_sync_path)
     out_dir = Path(out_dir) if out_dir else session.output_dir / "aux"
     out_dir.mkdir(parents=True, exist_ok=True)
     states, state_levels = _state_codes(session.states)
@@ -435,6 +515,7 @@ def process_auxiliary(
         "exp_name": session.exp_name, "group_id": session.group_id,
         "mouse": session.exp_name.split("_")[1],
         "date": session.exp_name.split("_")[0],
+        "trial_source": session.trial_source,
         "manipulation": session.manipulation,
         "frame_rate": session.frame_rate,
         "acq_ids": np.asarray(session.acq_ids), "trial_ids": trial_ids,
@@ -442,11 +523,18 @@ def process_auxiliary(
         "odor_on_frames": np.asarray(session.odor_on_frames),
         "odor_off_frames": np.asarray(session.odor_off_frames),
     }
+    try:
+        from tqdm.auto import tqdm
+        stage_message = tqdm.write
+    except ImportError:
+        stage_message = print
+    stage_message(f"group {session.group_id}: respiration")
     respiration = extract_respiration(
         sync_path, acq_ids=session.acq_ids, odor_ids=session.odor_ids,
         states=states, state_levels=state_levels, trial_ids=trial_ids,
         exp_name=session.exp_name, manipulation=session.manipulation, save=False,
     )
+    stage_message(f"group {session.group_id}: treadmill")
     treadmill = extract_treadmill(
         sync_path, odor_on_frames=session.odor_on_frames,
         running_threshold_cm_s=running_threshold_cm_s,
@@ -458,6 +546,9 @@ def process_auxiliary(
             video_paths = None
     pupil = None
     if video_paths:
+        stage_message(
+            f"group {session.group_id}: pupil preflight, alignment, and fitting"
+        )
         if pupil_config is None:
             pupil_config, tuning_path = saved_pupil_config(
                 session.exp_dir, group_id=session.group_id, exp_name=session.exp_name
@@ -474,13 +565,16 @@ def process_auxiliary(
             config=pupil_config, save=False,
             workers=workers, checkpoint_dir=checkpoint_dir,
         )
+    stage_message(f"group {session.group_id}: writing auxiliary outputs and QC")
+    source_video_paths = video_paths if source_video_paths is None else source_video_paths
     stem = f"group{session.group_id}_{session.exp_name}_auxiliary"
     outputs = {
         "h5": write_auxiliary(
             out_dir / f"{stem}.h5", metadata=metadata, respiration=respiration,
             pupil=pupil, treadmill=treadmill,
-            sources={"sync": str(sync_path),
-                     "pupil_videos": [] if video_paths is None else list(map(str, video_paths)),
+            sources={"sync": str(source_sync_path),
+                     "pupil_videos": [] if source_video_paths is None
+                                     else list(map(str, source_video_paths)),
                      "pupil_tuning": None if pupil is None or tuning_path is None
                                      else str(tuning_path)},
         ),

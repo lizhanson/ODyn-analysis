@@ -214,7 +214,9 @@ def serve_queue(queue_path, *, port=0, include_complete=False):
     app = Application(FunctionHandler(
         lambda doc: TuningQueueApp(doc, queue_path, include_complete=include_complete)
     ))
-    server = Server({"/": app}, port=int(port), allow_websocket_origin=["localhost:*", "127.0.0.1:*"])
+    # Bokeh automatically permits the local host/port it binds. Do not use a
+    # wildcard port here: Bokeh 3.x treats ``localhost:*`` as invalid.
+    server = Server({"/": app}, port=int(port), address="localhost")
     server.start()
     print(f"Tuning queue: http://localhost:{server.port}/", flush=True)
     server.io_loop.add_callback(server.show, "/")

@@ -1,8 +1,8 @@
 """The one canonical transformation from detrended F to response summaries.
 
-There are deliberately no alternate normalizations or responder calls here.
-Traces are centred and scaled independently using their own immediate pre-odor
-window. Session- and block-pooled baseline SDs are retained only as diagnostics.
+There are deliberately no responder calls here. Traces are always centred by
+their own immediate pre-odor mean. By default they are scaled by the SD pooled
+from pre-anesthesia baseline epochs; per-trial SD scaling is an explicit toggle.
 Odor and post-odor epochs are then summarized as continuous z scores.
 """
 
@@ -14,6 +14,7 @@ import numpy as np
 
 BASELINE_S = 4.0
 POST_ODOR_S = 4.0
+BASELINE_SD_MODES = ("pre_block_pooled", "per_trial")
 
 
 @dataclass
@@ -23,6 +24,8 @@ class StandardizedTraces:
     baseline_sd_session: np.ndarray       # unit
     baseline_sd_trial: np.ndarray         # unit x trial
     baseline_sd_block: np.ndarray         # unit x state level
+    normalization_sd: np.ndarray          # unit x trial, denominator actually used
+    baseline_sd_mode: str
     baseline_frames: int
     state_levels: list[str] | None = None
 
@@ -43,8 +46,10 @@ def standardize_traces(
     n_state_levels,
     frame_rate,
     baseline_s=BASELINE_S,
+    baseline_sd_mode="pre_block_pooled",
+    pre_state_code=None,
 ) -> StandardizedTraces:
-    """Centre and scale detrended F using each trial's pre-odor baseline."""
+    """Centre per trial; scale by pooled pre-block or per-trial baseline SD."""
     traces = np.asarray(detrended, np.float32)
     on = np.asarray(odor_on_frames, int)
     states = np.asarray(states, int)
@@ -52,6 +57,11 @@ def standardize_traces(
         raise ValueError("detrended traces must be unit x trial x frame")
     if on.shape != (traces.shape[1],) or states.shape != (traces.shape[1],):
         raise ValueError("odor_on_frames and states must align with the trial axis")
+    if baseline_sd_mode not in BASELINE_SD_MODES:
+        raise ValueError(
+            f"baseline_sd_mode must be one of {BASELINE_SD_MODES}, "
+            f"not {baseline_sd_mode!r}"
+        )
     n_base = max(2, int(round(float(baseline_s) * float(frame_rate))))
     if np.any(on - n_base < 0):
         bad = np.flatnonzero(on - n_base < 0)
@@ -73,14 +83,11 @@ def standardize_traces(
         ).astype(np.float32)
         z[:, trial] = traces[:, trial] - mu[:, None]
 
-    # Pooled estimates remain useful QC diagnostics, but are not the z-score
-    # denominator. Equal trial weighting prevents imbalanced blocks from
-    # dominating those diagnostic estimates.
+    # Pool within-trial residual variance, leaving every trial's mean distinct.
+    # Baseline windows have equal length, so averaging their variances is the
+    # pooled within-trial estimate without between-trial F0 drift.
     session_sd = np.sqrt(np.nanmean(baseline_var, axis=1)).astype(np.float32)
     trial_sd = np.sqrt(baseline_var).astype(np.float32)
-    safe = np.where(trial_sd > 1e-9, trial_sd, np.nan)
-    z /= safe[:, :, None]
-
     block_sd = np.full((n_unit, int(n_state_levels)), np.nan, np.float32)
     for code in range(int(n_state_levels)):
         selected = states == code
@@ -89,12 +96,33 @@ def standardize_traces(
                 np.nanmean(baseline_var[:, selected], axis=1)
             ).astype(np.float32)
 
+    if baseline_sd_mode == "per_trial":
+        normalization_sd = trial_sd
+    else:
+        if pre_state_code is None:
+            raise ValueError(
+                "pre_state_code is required for pre_block_pooled SD scaling"
+            )
+        pre_state_code = int(pre_state_code)
+        if not 0 <= pre_state_code < int(n_state_levels):
+            raise ValueError("pre_state_code is outside the state-level range")
+        if not np.any(states == pre_state_code):
+            raise ValueError("no pre-anesthesia trials are available for pooled SD")
+        normalization_sd = np.broadcast_to(
+            block_sd[:, pre_state_code, None], (n_unit, n_trial)
+        )
+    normalization_sd = np.asarray(normalization_sd, np.float32)
+    safe = np.where(normalization_sd > 1e-9, normalization_sd, np.nan)
+    z /= safe[:, :, None]
+
     return StandardizedTraces(
         z=z,
         baseline_mean=baseline_mean,
         baseline_sd_session=session_sd,
         baseline_sd_trial=trial_sd,
         baseline_sd_block=block_sd,
+        normalization_sd=normalization_sd,
+        baseline_sd_mode=baseline_sd_mode,
         baseline_frames=n_base,
     )
 

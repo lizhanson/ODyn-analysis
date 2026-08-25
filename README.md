@@ -96,6 +96,15 @@ Add `--execute` only after pupil tuning files have been reviewed; unattended
 pupil extraction refuses to use a generic ROI when a session has videos but no
 saved tuning.
 
+Execution validates existing auxiliary HDF5 structure and required QC figures,
+then reports and skips intact groups as `already_complete`. Use `--force` to
+regenerate them. During execution the sync file and pupil videos are staged to
+local scratch because processing reads them repeatedly. Those staged copies are
+deleted immediately after their group publishes successfully, but retained on
+failure so it can restart efficiently; `--keep-staged-inputs` opts out of
+cleanup and `--no-stage-videos` avoids video staging. Pupil checkpoints remain
+resumable and are rewritten every 5,000 fitted frames.
+
 Prepare the manifest-wide pupil-tuning queue with:
 
 ```bash

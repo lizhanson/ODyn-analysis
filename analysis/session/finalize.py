@@ -35,6 +35,7 @@ def finalize_session(
     processed_on: None | str = None,
     scratch_dir: None | str | Path = None,
     detrend: bool = True,
+    baseline_sd_mode: str = "pre_block_pooled",
 ) -> dict:
     """Write the mask and its traces together, linked by the mask's hash."""
 
@@ -56,6 +57,7 @@ def finalize_session(
             "checkpoint_every": checkpoint_every,
         },
         "session": session.summary(),
+        "trace_analysis": {"baseline_sd_mode": baseline_sd_mode},
     }
 
     path = output / session_filename(
@@ -113,12 +115,16 @@ def finalize_session(
         from .pc1 import trial_pc1
         from .trace_analysis import epoch_scores, standardize_traces
         state_levels, state_codes = np.unique(traces.states.astype(str), return_inverse=True)
+        if "pre" not in state_levels:
+            raise ValueError("A pre state is required for canonical trace normalization")
         standardized_result = standardize_traces(
             corrected,
             odor_on_frames=traces.odor_on_frames,
             states=state_codes,
             n_state_levels=len(state_levels),
             frame_rate=traces.frame_rate,
+            baseline_sd_mode=baseline_sd_mode,
+            pre_state_code=int(np.flatnonzero(state_levels == "pre")[0]),
         )
         epoch_result = epoch_scores(
             standardized_result.z,
@@ -220,6 +226,9 @@ def verify(output_dir: str | Path) -> dict:
         labels = f["masks/labels"][:]
         recorded = f.attrs.get("mask_hash")
         has_traces = "traces" in f
+        baseline_sd_mode = (
+            f["traces"].attrs.get("baseline_sd_mode") if has_traces else None
+        )
 
     current = mask_hash(labels)
 
@@ -231,6 +240,7 @@ def verify(output_dir: str | Path) -> dict:
         "traces_built_from": recorded,
         "match": current == recorded,
         "n_rois": int(labels.max()),
+        "baseline_sd_mode": baseline_sd_mode,
     }
 
     if not has_traces:

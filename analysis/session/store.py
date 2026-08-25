@@ -322,9 +322,8 @@ def write_session(
             )
             zdata.attrs["description"] = (
                 "Canonical trace: detrended F centred by each trial's immediate "
-                "pre-odor mean and divided by that ROI-trial's own pre-odor "
-                "baseline SD. Session- and block-pooled SDs are diagnostics "
-                "only. No dF/F, PC1 subtraction, or "
+                "pre-odor mean and divided by the baseline SD specified in "
+                "/traces:baseline_sd_mode. No dF/F, PC1 subtraction, or "
                 "additional normalization."
             )
             zdata.attrs["dimensions"] = "roi, trial, frame"
@@ -332,6 +331,10 @@ def write_session(
             group.create_dataset("baseline_mean", data=standardized.baseline_mean)
             group.create_dataset("baseline_sd_session", data=standardized.baseline_sd_session)
             group.create_dataset("baseline_sd_trial", data=standardized.baseline_sd_trial)
+            used = group.create_dataset(
+                "normalization_sd", data=standardized.normalization_sd
+            )
+            used.attrs["description"] = "SD denominator actually used for roi_z."
             block = group.create_dataset("baseline_sd_block", data=standardized.baseline_sd_block)
             block.attrs["dimensions"] = "roi, state"
             group.create_dataset(
@@ -339,6 +342,7 @@ def write_session(
                 data=np.asarray(standardized.state_levels, dtype=h5_string_dtype()),
             )
             group.attrs["baseline_frames"] = int(standardized.baseline_frames)
+            group.attrs["baseline_sd_mode"] = standardized.baseline_sd_mode
 
         if epochs is not None:
             response = f.create_group("responses")

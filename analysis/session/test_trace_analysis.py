@@ -14,7 +14,7 @@ def test_standardize_uses_each_trials_own_baseline_mean_and_sd():
     traces[0, 1, 4:] = 104
     result = standardize_traces(
         traces, odor_on_frames=[4, 4], states=[0, 1], n_state_levels=2,
-        frame_rate=1, baseline_s=4,
+        frame_rate=1, baseline_s=4, baseline_sd_mode="per_trial",
     )
     expected = np.sqrt(np.mean([
         np.var([8, 9, 11, 12], ddof=1), np.var([96, 98, 102, 104], ddof=1)
@@ -27,6 +27,27 @@ def test_standardize_uses_each_trials_own_baseline_mean_and_sd():
         [[np.std([8, 9, 11, 12], ddof=1), np.std([96, 98, 102, 104], ddof=1)]],
     )
     assert result.baseline_sd_block[0, 1] > result.baseline_sd_block[0, 0]
+
+
+def test_standardize_can_apply_pre_block_pooled_sd_to_every_trial():
+    traces = np.zeros((1, 3, 8), np.float32)
+    traces[0, 0, :4] = [8, 9, 11, 12]
+    traces[0, 1, :4] = [18, 19, 21, 22]
+    traces[0, 2, :4] = [80, 90, 110, 120]
+    traces[:, :, 4:] = traces[:, :, :4].mean(axis=2, keepdims=True) + 10
+    result = standardize_traces(
+        traces, odor_on_frames=[4, 4, 4], states=[1, 1, 0],
+        n_state_levels=2, frame_rate=1, baseline_s=4,
+        baseline_sd_mode="pre_block_pooled", pre_state_code=1,
+    )
+
+    pre_sd = np.sqrt(np.mean([
+        np.var([8, 9, 11, 12], ddof=1),
+        np.var([18, 19, 21, 22], ddof=1),
+    ]))
+    np.testing.assert_allclose(result.normalization_sd, pre_sd)
+    np.testing.assert_allclose(result.z[0, :, 4:].mean(axis=1), 10 / pre_sd)
+    assert result.baseline_sd_mode == "pre_block_pooled"
 
 
 def test_epoch_scores_requires_exact_odor_and_four_second_post_windows():

@@ -89,6 +89,7 @@ def aggregate_raw_units(raw, areas, manifest, groups=None, *, only=None) -> dict
 
 
 def _analyse(populations, *, on, off, odor_ids, states, state_levels, frame_rate,
+             baseline_sd_mode="pre_block_pooled",
              report=lambda message: None):
     from ..session.detrend import detrend_traces
     from ..session.pc1 import trial_pc1
@@ -104,10 +105,16 @@ def _analyse(populations, *, on, off, odor_ids, states, state_levels, frame_rate
                 f"{key} detrending failed; refusing to continue with a "
                 f"normalization fallback. Details: {fit}"
             )
-        report(f"{key}: per-trial baseline centering and SD z-scoring")
+        report(
+            f"{key}: per-trial baseline centering; {baseline_sd_mode} SD scaling"
+        )
+        if "pre" not in state_levels:
+            raise ValueError("A pre state is required for canonical trace normalization")
         standardized = standardize_traces(
             corrected, odor_on_frames=on, states=states,
             n_state_levels=len(state_levels), frame_rate=frame_rate,
+            baseline_sd_mode=baseline_sd_mode,
+            pre_state_code=state_levels.index("pre"),
         )
         standardized.state_levels = list(state_levels)
         snr = np.nanmedian(
@@ -216,7 +223,7 @@ def _snr_figure(path, analysed):
 
 
 def qc_20x(round_path, *, groups=None, structural=None,
-           save=True, progress=True) -> dict:
+           baseline_sd_mode="pre_block_pooled", save=True, progress=True) -> dict:
     """Grouped 20x continuous QC using the sole canonical z-score path."""
     from ..session.h5io import open_h5
     round_path = Path(round_path)
@@ -251,6 +258,7 @@ def qc_20x(round_path, *, groups=None, structural=None,
                 "Grouped 20x raw and canonical traces, continuous responses, "
                 "baseline diagnostics, membership, and one PC1 scalar per trial"
             )
+            grouped_file.attrs["baseline_sd_mode"] = baseline_sd_mode
             grouped_file.create_dataset("trial_id", data=np.arange(len(odor_ids)))
             grouped_file.create_dataset("odor_id", data=odor_ids)
             grouped_file.create_dataset("state", data=states)
@@ -266,6 +274,7 @@ def qc_20x(round_path, *, groups=None, structural=None,
             item = _analyse(
                 populations, on=on, off=off, odor_ids=odor_ids, states=states,
                 state_levels=state_levels, frame_rate=frame_rate,
+                baseline_sd_mode=baseline_sd_mode,
                 report=report,
             )[key]
 
@@ -300,6 +309,9 @@ def qc_20x(round_path, *, groups=None, structural=None,
                     standard = item["standardized"]
                     destination.create_dataset("baseline_mean", data=standard.baseline_mean)
                     destination.create_dataset("baseline_sd_trial", data=standard.baseline_sd_trial)
+                    destination.create_dataset(
+                        "normalization_sd", data=standard.normalization_sd
+                    )
                     destination.create_dataset("baseline_sd_block", data=standard.baseline_sd_block)
                     responses = destination.create_group("responses")
                     for name in ("odor", "post_odor"):
@@ -334,6 +346,11 @@ def qc_20x(round_path, *, groups=None, structural=None,
         response = _response_figure(
             Path(f"{stem}_20x_continuousqc.png"), analysed,
             odor_ids, states, state_levels,
+            normalization_label=(
+                "pre-anesthesia pooled baseline SD"
+                if baseline_sd_mode == "pre_block_pooled"
+                else "per-trial baseline SD"
+            ),
         )
         report("rendering trial F0 and baseline SD QC")
         baseline = _baseline_figures(
@@ -355,6 +372,7 @@ def qc_20x(round_path, *, groups=None, structural=None,
         "raw pixel-weighted aggregation -> detrend -> canonical z -> "
         "continuous odor/post-odor summaries"
     )
+    outputs["baseline_sd_mode"] = baseline_sd_mode
     outputs["elapsed_s"] = round(time.perf_counter() - started, 3)
     if save:
         report_path = Path(f"{stem}_20x_qc.json")
