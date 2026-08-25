@@ -236,5 +236,9 @@ def launch(
             soma_params=soma_params, process_params=process_params,
         )
     gui = Segmentation20xGUI(state, save_path)
-    bpl.show(gui.modify_doc)
+    # VS Code Remote/SSH may take longer than Bokeh's five-minute default to
+    # establish the proxied websocket, especially after an interactive kernel
+    # has been idle.  Keep the one-time session-creation token valid for a day;
+    # this does not change the lifetime of an already connected session.
+    bpl.show(gui.modify_doc, session_token_expiration=24 * 60 * 60)
     return gui

@@ -408,9 +408,17 @@ def _mean_band(ax, time, values, mask, color, label):
     selected = np.asarray(values)[mask]
     if not len(selected):
         return
-    mean = np.nanmean(selected, axis=0)
-    n = np.sum(np.isfinite(selected), axis=0)
-    sem = np.nanstd(selected, axis=0) / np.sqrt(np.maximum(n, 1))
+    finite = np.isfinite(selected)
+    n = np.sum(finite, axis=0)
+    mean = np.divide(
+        np.nansum(selected, axis=0), n,
+        out=np.full(selected.shape[1:], np.nan, dtype=float), where=n > 0,
+    )
+    squared = np.nansum((selected - mean) ** 2, axis=0)
+    variance = np.divide(
+        squared, n, out=np.full_like(mean, np.nan), where=n > 0,
+    )
+    sem = np.sqrt(variance) / np.sqrt(np.maximum(n, 1))
     ax.plot(time, mean, color=color, lw=1.5, label=label)
     ax.fill_between(time, mean - 1.96 * sem, mean + 1.96 * sem,
                     color=color, alpha=.2, lw=0)
