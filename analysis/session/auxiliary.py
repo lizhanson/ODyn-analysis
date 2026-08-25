@@ -44,7 +44,7 @@ def resolve_auxiliary(group, *, group_id, manipulation="ketamine/xylazine",
     from .sync import (acquisition_odor_windows, frame_onset_samples,
                        group_frames_into_acquisitions, open_sync,
                        pulse_intervals, read_channel)
-    from .trials import trial_table
+    from .trials import trial_table, trial_table_from_events
 
     exp_ids = experiments_in_group(group, int(group_id))
     if len(exp_ids) != 1:
@@ -62,7 +62,7 @@ def resolve_auxiliary(group, *, group_id, manipulation="ketamine/xylazine",
     except ValueError as error:
         if f"No trials for exp_id={exp_id}" not in str(error):
             raise
-        table = _trial_table_from_events(
+        table = trial_table_from_events(
             group, exp_id=exp_id, exp_dir=exp_dir, manipulation=manipulation
         )
         trial_source = "olfactometer_events+database_acquisitions"
@@ -91,69 +91,6 @@ def resolve_auxiliary(group, *, group_id, manipulation="ketamine/xylazine",
         odor_off_frames=[int(window[1]) for window in windows],
         table=table, trial_source=trial_source, sync_path=sync_path,
     )
-
-
-def _trial_table_from_events(group, *, exp_id, exp_dir, manipulation):
-    """Recover absent DB trials from exactly matched olfactometer events."""
-    import csv
-    import re
-    import pandas as pd
-
-    event_paths = sorted(Path(exp_dir).glob("**/*-Events.csv"))
-    if len(event_paths) != 2:
-        raise ValueError(
-            f"No trials for exp_id={exp_id}; recovery requires exactly two "
-            f"olfactometer Events.csv files, found {len(event_paths)}."
-        )
-    odor_blocks = []
-    for path in event_paths:
-        odors = []
-        with path.open(encoding="utf-8-sig", newline="") as stream:
-            for row in csv.reader(stream):
-                if len(row) >= 2:
-                    match = re.search(r"\bOdor I\s+(\d+)\s+-", row[1])
-                    if match:
-                        odors.append(int(match.group(1)))
-        if not odors:
-            raise ValueError(f"No odor events found in {path}.")
-        odor_blocks.append(odors)
-
-    acqs = group.acquisitions.query("exp_id == @exp_id").copy()
-    acqs["acq_start"] = pd.to_datetime(acqs["acq_start"])
-    acqs = acqs.sort_values("acq_start").reset_index(drop=True)
-    odor_ids = [odor for values in odor_blocks for odor in values]
-    if len(odor_ids) != len(acqs):
-        raise ValueError(
-            f"Events contain {len(odor_ids)} odors but exp_id={exp_id} has "
-            f"{len(acqs)} acquisitions."
-        )
-    known_odors = set(map(int, group.odors.odor_id))
-    unknown = sorted(set(odor_ids) - known_odors)
-    if unknown:
-        raise ValueError(f"Events reference unknown odor IDs: {unknown}.")
-    block = np.concatenate([
-        np.full(len(values), index, dtype=np.int8)
-        for index, values in enumerate(odor_blocks)
-    ])
-    table = acqs[["acq_id", "acq_start", "odor_start", "odor_end"]].copy()
-    for name in ("odor_start", "odor_end"):
-        table[name] = pd.to_datetime(table[name])
-    table["trial_id"] = np.arange(1, len(table) + 1, dtype=np.int32)
-    table["trial_start"] = table["acq_start"]
-    table["odor_id"] = odor_ids
-    table["program_id"] = block
-    table["block"] = block
-    table["state"] = np.where(block == 0, "pre", "post")
-    table["trial_in_block"] = table.groupby("block").cumcount() + 1
-    table["odor_duration_s"] = (
-        table["odor_end"] - table["odor_start"]
-    ).dt.total_seconds()
-    table["baseline_s"] = (
-        table["odor_start"] - table["trial_start"]
-    ).dt.total_seconds()
-    table["odor_minus_acq_start_s"] = table["baseline_s"]
-    table["manipulation"] = manipulation
-    return table
 
 
 def _state_codes(states):
@@ -378,6 +315,8 @@ def write_auxiliary(path, *, metadata, respiration, pupil, treadmill, sources):
             mapping = {
                 "diameter_px": "diameter_masked",
                 "diameter_unmasked_px": "diameter",
+                "equivalent_diameter_px": "equivalent_diameter_masked",
+                "equivalent_diameter_unmasked_px": "equivalent_diameter",
                 "area_px2": "area",
                 "axis_ratio": "axis_ratio",
                 "fit_inlier_fraction": "inlier_fraction",
@@ -396,6 +335,20 @@ def write_auxiliary(path, *, metadata, respiration, pupil, treadmill, sources):
             }
             for name, key in mapping.items():
                 eye.create_dataset(name, data=pupil[key], compression="gzip")
+            eye["diameter_px"].attrs["description"] = (
+                "Full fitted major-axis length, with quality masking."
+            )
+            eye["diameter_unmasked_px"].attrs["description"] = (
+                "Full fitted major-axis length before quality masking."
+            )
+            eye["equivalent_diameter_px"].attrs["description"] = (
+                "2 * sqrt(major * minor), with quality masking."
+            )
+            for name in (
+                "diameter_px", "diameter_unmasked_px",
+                "equivalent_diameter_px", "equivalent_diameter_unmasked_px",
+            ):
+                eye[name].attrs["units"] = "pixels"
             eye.attrs["config_json"] = json.dumps(asdict(pupil["config"]), default=str)
             eye.attrs["camera_imaging_fraction"] = pupil["camera_imaging_fraction"]
             eye.attrs["camera_alignment_json"] = json.dumps(
@@ -424,6 +377,34 @@ def _mean_band(ax, time, values, mask, color, label):
                     color=color, alpha=.2, lw=0)
 
 
+def _median_iqr_traces(ax, time, values, mask, color, label):
+    """Fine individual traces beneath a median and interquartile band."""
+    selected = np.asarray(values)[mask]
+    if not len(selected):
+        return
+    for trace in selected:
+        ax.plot(time, trace, color=color, lw=.45, alpha=.16, zorder=1)
+    median = np.nanmedian(selected, axis=0)
+    q25, q75 = np.nanpercentile(selected, (25, 75), axis=0)
+    ax.fill_between(time, q25, q75, color=color, alpha=.20, lw=0, zorder=2)
+    ax.plot(time, median, color=color, lw=1.7,
+            label=f"{label} median", zorder=3)
+
+
+def _representative_trial(values, mask):
+    """Trial whose median finite value is closest to its state's median."""
+    indices = np.flatnonzero(mask)
+    if not len(indices):
+        return None
+    scores = np.nanmedian(np.asarray(values)[indices], axis=1)
+    finite = np.isfinite(scores)
+    if not finite.any():
+        return int(indices[0])
+    target = np.nanmedian(scores)
+    local = np.flatnonzero(finite)[np.argmin(np.abs(scores[finite] - target))]
+    return int(indices[local])
+
+
 def combined_qc_figure(path, *, metadata, respiration, pupil, treadmill):
     """One-page overview of all available auxiliary modalities."""
     import matplotlib
@@ -436,25 +417,59 @@ def combined_qc_figure(path, *, metadata, respiration, pupil, treadmill):
     fig, axes = plt.subplots(4, 1, figsize=(14, 11), sharex=True,
                              constrained_layout=True)
     datasets = [
-        (respiration["filtered"] if respiration else None, "respiration filtered (V)"),
         (respiration["rate"] if respiration else None, "sniff frequency (Hz)"),
         (pupil["diameter_masked"] if pupil else None, "pupil diameter (px)"),
         (treadmill["velocity"], "treadmill velocity (cm/s)"),
     ]
-    for ax, (values, ylabel) in zip(axes, datasets):
+    top = axes[0]
+    if respiration is None:
+        top.text(.5, .5, "not available", transform=top.transAxes,
+                 ha="center", va="center")
+    else:
+        snr_axis = top.twinx()
+        for code, level in enumerate(levels):
+            index = _representative_trial(
+                respiration["quality"], state_codes == code
+            )
+            if index is None:
+                continue
+            color = colors[code % len(colors)]
+            acq_id = np.asarray(metadata["acq_ids"])[index]
+            median_snr = np.nanmedian(respiration["quality"][index])
+            top.plot(time, respiration["filtered"][index], color=color, lw=1.1,
+                     label=(f"{level} example: acq {acq_id}, "
+                            f"median SNR {median_snr:.2f}"))
+            snr_axis.plot(time, respiration["quality"][index], color=color,
+                          lw=.9, ls="--", alpha=.75)
+        threshold = float(respiration["quality_threshold"])
+        snr_axis.axhline(threshold, color="0.25", lw=.8, ls=":",
+                         label=f"SNR cutoff {threshold:g}")
+        snr_axis.set_ylabel("SNR (dashed)")
+        snr_axis.set_yscale("log")
+        handles, labels = top.get_legend_handles_labels()
+        handles2, labels2 = snr_axis.get_legend_handles_labels()
+        top.legend(handles + handles2, labels + labels2, frameon=False, ncol=3)
+    top.set_ylabel("filtered respiration (V)")
+    top.grid(alpha=.25)
+
+    for ax, (values, ylabel) in zip(axes[1:], datasets):
         if values is None:
             ax.text(.5, .5, "not available", transform=ax.transAxes,
                     ha="center", va="center")
         else:
             for code, level in enumerate(levels):
-                _mean_band(ax, time, values, state_codes == code,
-                           colors[code % len(colors)], level)
-        ax.axvspan(0, np.nanmedian(
-            (np.asarray(metadata["odor_off_frames"]) -
-             np.asarray(metadata["odor_on_frames"])) / metadata["frame_rate"]
-        ), color="goldenrod", alpha=.12)
+                plot = (_median_iqr_traces
+                        if ylabel.startswith("treadmill") else _mean_band)
+                plot(ax, time, values, state_codes == code,
+                     colors[code % len(colors)], level)
         ax.set_ylabel(ylabel); ax.grid(alpha=.25)
-    axes[0].legend(frameon=False, ncol=len(levels))
+    odor_end = np.nanmedian(
+        (np.asarray(metadata["odor_off_frames"]) -
+         np.asarray(metadata["odor_on_frames"])) / metadata["frame_rate"]
+    )
+    for ax in axes:
+        ax.axvspan(0, odor_end, color="goldenrod", alpha=.12)
+    axes[1].legend(frameon=False, ncol=len(levels))
     axes[-1].set_xlabel("seconds from odor onset")
     fig.suptitle(f"auxiliary QC — {metadata['exp_name']}")
     fig.savefig(path, dpi=140)
@@ -463,7 +478,7 @@ def combined_qc_figure(path, *, metadata, respiration, pupil, treadmill):
 
 
 def treadmill_figure(path, *, metadata, treadmill):
-    """Odor-averaged treadmill velocity, pre versus post."""
+    """Individual treadmill traces with median and IQR, pre versus post."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -479,9 +494,11 @@ def treadmill_figure(path, *, metadata, treadmill):
     for index, odor in enumerate(keys):
         ax = axes.flat[index]
         for code, level in enumerate(levels):
-            _mean_band(ax, time, treadmill["velocity"],
-                       (odors == odor) & (states == code),
-                       ("steelblue", "indianred")[code % 2], level)
+            _median_iqr_traces(
+                ax, time, treadmill["velocity"],
+                (odors == odor) & (states == code),
+                ("steelblue", "indianred")[code % 2], level,
+            )
         ax.axhline(0, color="0.4", lw=.7)
         ax.set_title(f"odor {int(odor)}"); ax.grid(alpha=.25)
     for ax in axes.flat[len(keys):]:
@@ -506,6 +523,7 @@ def process_auxiliary(
     out_dir=None,
     workers=None,
     checkpoint_dir=None,
+    pupil_resume=True,
     running_threshold_cm_s=RUNNING_THRESHOLD_CM_S,
 ):
     """Run all auxiliary modalities for one resolved session and publish outputs."""
@@ -572,6 +590,7 @@ def process_auxiliary(
             trial_ids=trial_ids, out_dir=out_dir,
             config=pupil_config, save=False,
             workers=workers, checkpoint_dir=checkpoint_dir,
+            resume=pupil_resume,
         )
     stage_message(f"group {session.group_id}: writing auxiliary outputs and QC")
     source_video_paths = video_paths if source_video_paths is None else source_video_paths

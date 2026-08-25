@@ -231,7 +231,7 @@ def test_csv_count_accepts_header_or_numeric_first_row(tmp_path):
     assert pupil.count_csv_frames(numeric) == 2
 
 
-def test_blink_needs_two_signals_but_clipping_is_retained():
+def test_blink_needs_two_signals_and_bad_fit_is_clipped():
     metrics = {
         "area": np.array([100., 100., 10.]),
         "axis_ratio": np.array([.8, .8, .1]),
@@ -257,3 +257,22 @@ def test_inactive_dark_frames_are_neither_blinks_nor_clipping():
     )
     assert not blink[1]
     assert not clipped[1]
+
+
+def test_qc_examples_are_three_bad_fits_and_diameter_diverse_accepted():
+    values = {
+        "diameter": np.arange(1, 21, dtype=float),
+        "inlier_fraction": np.full(20, .9),
+        "residual": np.ones(20),
+    }
+    bad = np.asarray([2, 8, 15, 18])
+    values["inlier_fraction"][bad] = .1
+    values["residual"][bad] = [4., 5., 6., 7.]
+    excluded, accepted = pupil.pupil_qc_frame_indices(
+        values, np.ones(20, bool), counts=[10, 10]
+    )
+    assert excluded.tolist() == [18, 15, 8]
+    assert len(accepted) == 9
+    assert 0 in accepted and 9 in accepted
+    assert 10 in accepted and 19 in accepted
+    assert not set(excluded) & set(accepted)

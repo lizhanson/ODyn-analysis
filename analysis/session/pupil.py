@@ -10,7 +10,7 @@ import re
 
 import numpy as np
 
-PUPIL_FITTER_VERSION = 6  # invalidate checkpoints made by older fit algorithms
+PUPIL_FITTER_VERSION = 7  # invalidate checkpoints made by older fit algorithms
 
 
 @dataclass(frozen=True)
@@ -548,7 +548,8 @@ def fit_ellipse_ransac(mask, *, residual_px=2.0, max_trials=200,
             theta += np.pi / 2.0
         return {
             "x": xc, "y": yc, "major": major, "minor": minor,
-            "theta": theta, "diameter": 2.0 * np.sqrt(major * minor),
+            "theta": theta, "diameter": 2.0 * major,
+            "equivalent_diameter": 2.0 * np.sqrt(major * minor),
             "area": np.pi * major * minor,
             "axis_ratio": minor / major if major > 0 else np.nan,
             "inlier_fraction": direct_fraction,
@@ -641,7 +642,8 @@ def fit_ellipse_ransac(mask, *, residual_px=2.0, max_trials=200,
         theta += np.pi / 2.0
     return {
         "x": xc, "y": yc, "major": major, "minor": minor,
-        "theta": theta, "diameter": 2.0 * np.sqrt(major * minor),
+        "theta": theta, "diameter": 2.0 * major,
+        "equivalent_diameter": 2.0 * np.sqrt(major * minor),
         "area": np.pi * major * minor,
         "axis_ratio": minor / major if major > 0 else np.nan,
         # Fraction is against the complete boundary, not only the points left
@@ -711,7 +713,7 @@ def fit_pupil_mask(mask, config=PupilConfig(), *, random_seed=0):
 
 
 def classify_frames(metrics: dict, camera_time_s, config=PupilConfig(), active=None):
-    """Separate blinks (NaN) from partial clipping (flagged but retained)."""
+    """Classify blinks and fits that must be excluded from the pupil trace."""
 
     area = metrics["area"]
     ratio = metrics["axis_ratio"]
@@ -726,12 +728,45 @@ def classify_frames(metrics: dict, camera_time_s, config=PupilConfig(), active=N
     dt = np.diff(camera_time_s, prepend=np.nan)
     rate = np.abs(np.diff(diameter, prepend=np.nan)) / dt
     jump = rate > config.max_diameter_rate_px_s
-    # Two independent symptoms constitute a blink. A poor fit alone is the
-    # partial-clipping flag and remains available in the masked trace.
+    # Two independent temporal/shape symptoms constitute a blink. Poor ellipse
+    # fits are invalid independently: keeping them creates plausible-looking
+    # diameter values from a failed fit.
     active = np.ones(area.shape, dtype=bool) if active is None else np.asarray(active, bool)
     blink = active & ((collapse.astype(int) + fit_bad.astype(int) + jump.astype(int)) >= 2)
     clipped = active & fit_bad & ~blink
     return blink, clipped, rate
+
+
+def pupil_qc_frame_indices(values, active, counts, config=PupilConfig(),
+                           n_excluded=3, n_accepted=9):
+    """Three worst fit exclusions plus diameter-diverse accepted frames."""
+    active = np.asarray(active, bool)
+    fit_bad = active & (
+        (values["inlier_fraction"] < config.min_inlier_fraction)
+        | (values["residual"] > config.max_residual_px)
+        | ~np.isfinite(values["diameter"])
+    )
+    score = np.nan_to_num(values["residual"], nan=np.inf) + 5 * (
+        1 - np.nan_to_num(values["inlier_fraction"])
+    )
+    bad = np.flatnonzero(fit_bad)
+    excluded = bad[np.argsort(score[bad])[-int(n_excluded):]][::-1]
+
+    accepted_mask = active & ~fit_bad & np.isfinite(values["diameter"])
+    accepted = []
+    offsets = np.r_[0, np.cumsum(np.asarray(counts, dtype=int))]
+    n_video = max(len(counts), 1)
+    allocations = [int(n_accepted) // n_video] * n_video
+    for index in range(int(n_accepted) % n_video):
+        allocations[index] += 1
+    for start, stop, number in zip(offsets[:-1], offsets[1:], allocations):
+        candidates = np.flatnonzero(accepted_mask[start:stop]) + start
+        if not len(candidates) or number <= 0:
+            continue
+        ordered = candidates[np.argsort(values["diameter"][candidates])]
+        positions = np.linspace(0, len(ordered) - 1, min(number, len(ordered)))
+        accepted.extend(map(int, ordered[np.rint(positions).astype(int)]))
+    return np.asarray(excluded, dtype=int), np.asarray(accepted, dtype=int)
 
 
 def _nearest(source_t, target_t):
@@ -974,7 +1009,8 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
         hi = np.searchsorted(camera_time_s, block[-1] / sync.rate_hz, side="right")
         imaging_active[lo:hi] = True
 
-    names = ("diameter", "area", "axis_ratio", "inlier_fraction", "chord_fraction",
+    names = ("diameter", "equivalent_diameter", "area", "axis_ratio",
+             "inlier_fraction", "chord_fraction",
              "concavity_fraction", "residual",
              "used_ransac",
              "x", "y", "major", "minor", "theta", "threshold",
@@ -1086,19 +1122,27 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
     if checkpoint_path is not None:
         _save_pupil_checkpoint(checkpoint_path, values, completed, signature)
 
-    # Re-read once (fast relative to fitting) to collect session-spanning and
-    # globally worst QC frames without sending image arrays back from workers.
-    score = np.nan_to_num(values["residual"], nan=np.inf) + 5 * (
-        1 - np.nan_to_num(values["inlier_fraction"])
-    )
     illumination_active = values["illumination_active"] == 1
     measurement_active = imaging_active & illumination_active
-    active_indices = np.flatnonzero(measurement_active)
-    worst_indices = active_indices[np.argsort(score[active_indices])[-6:]]
-    span_indices = active_indices[
-        np.linspace(0, len(active_indices) - 1, min(6, len(active_indices))).astype(int)
-    ]
-    target_indices = set(map(int, np.r_[worst_indices, span_indices]))
+    blink, clipped, diameter_rate = classify_frames(
+        values, camera_time_s, config, active=measurement_active
+    )
+    values["diameter_rate"] = diameter_rate
+    values["blink"] = blink
+    values["clipped"] = clipped
+    values["imaging_active"] = imaging_active
+    values["illumination_active"] = illumination_active
+    values["diameter_masked"] = values["diameter"].copy()
+    values["diameter_masked"][blink | clipped] = np.nan
+    values["equivalent_diameter_masked"] = values["equivalent_diameter"].copy()
+    values["equivalent_diameter_masked"][blink | clipped] = np.nan
+
+    # Re-read once (fast relative to fitting) for exactly three excluded fits
+    # and accepted examples spanning each video's fitted diameter range.
+    excluded_indices, accepted_indices = pupil_qc_frame_indices(
+        values, measurement_active, counts, config
+    )
+    target_indices = set(map(int, np.r_[excluded_indices, accepted_indices]))
     example_frames = {}
     offset = 0
     for path, expected in zip(video_paths, counts):
@@ -1120,17 +1164,6 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
                 if len(example_frames) == len(target_indices):
                     break
         offset += expected
-
-    blink, clipped, diameter_rate = classify_frames(
-        values, camera_time_s, config, active=measurement_active
-    )
-    values["diameter_rate"] = diameter_rate
-    values["blink"] = blink
-    values["clipped"] = clipped
-    values["imaging_active"] = imaging_active
-    values["illumination_active"] = illumination_active
-    values["diameter_masked"] = values["diameter"].copy()
-    values["diameter_masked"][blink] = np.nan
 
     flat_2p = np.concatenate(blocks) / sync.rate_hz
     nearest = _nearest(camera_time_s, flat_2p)
@@ -1170,7 +1203,8 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
                   blink_fraction=blink_fraction,
                   clipped_fraction=clipped_fraction, flagged=flagged,
                   camera_values=values, camera_time_s=camera_time_s,
-                  worst_frame_indices=np.asarray(worst_indices),
+                  worst_frame_indices=np.asarray(excluded_indices),
+                  accepted_frame_indices=np.asarray(accepted_indices),
                   example_frames=example_frames)
     if save:
         if out_dir is None and round_path is None:
@@ -1266,7 +1300,8 @@ def _write_pupil(path, report):
             [value or "" for value in alignment["frametimes_paths"]], dtype="S"
         )
         p = f.create_group("pupil")
-        for key in ("diameter", "diameter_masked", "area", "axis_ratio",
+        for key in ("diameter", "diameter_masked", "equivalent_diameter",
+                    "equivalent_diameter_masked", "area", "axis_ratio",
                     "inlier_fraction", "chord_fraction", "concavity_fraction",
                     "residual", "used_ransac", "threshold", "illumination_peak",
                     "illumination_active", "blink",
@@ -1275,7 +1310,14 @@ def _write_pupil(path, report):
                     "nearest_frame_error_s"):
             p.create_dataset(key, data=report[key], compression="gzip")
         p["diameter"].attrs["units"] = "pixels"
-        p["diameter_masked"].attrs["description"] = "Diameter with blink frames set to NaN."
+        p["diameter"].attrs["description"] = "Full fitted major-axis length."
+        p["equivalent_diameter"].attrs["units"] = "pixels"
+        p["equivalent_diameter"].attrs["description"] = (
+            "Area-equivalent ellipse diameter: 2 * sqrt(major * minor)."
+        )
+        p["diameter_masked"].attrs["description"] = (
+            "Diameter with blink and bad-fit frames set to NaN."
+        )
         p["imaging_active"].attrs["description"] = (
             "1 where camera time falls inside a 2p acquisition; dark inter-acquisition frames are 0."
         )
@@ -1307,11 +1349,12 @@ def pupil_figure(report, out_path):
 
     camera = report["camera_values"]
     examples = report["example_frames"]
-    worst = report["worst_frame_indices"]
-    available = np.array(sorted(examples))
-    chosen = list(available[np.linspace(0, max(0, len(available)-1), min(6, len(available))).astype(int)])
-    chosen += [int(i) for i in worst]
-    chosen = list(dict.fromkeys(chosen))[:12]
+    excluded = list(map(int, report["worst_frame_indices"]))
+    accepted = list(map(int, report.get("accepted_frame_indices", ())))
+    if not accepted:  # Compatibility with reports produced before this layout.
+        accepted = [int(index) for index in sorted(examples)
+                    if int(index) not in excluded]
+    chosen = list(dict.fromkeys(excluded[:3] + accepted[:9]))
     fig = plt.figure(figsize=(15, 9), constrained_layout=True)
     gs = fig.add_gridspec(4, 4)
     for slot, idx in enumerate(chosen):
@@ -1329,9 +1372,12 @@ def pupil_figure(report, out_path):
                                  2*camera["major"][idx], 2*camera["minor"][idx],
                                  angle=np.degrees(camera["theta"][idx]), fill=False,
                                  edgecolor="magenta", linewidth=1))
+        status = "EXCLUDED: fit" if idx in excluded else "accepted"
         ax.set_title(
-            f"frame {idx}  in={camera['inlier_fraction'][idx]:.2f}  "
-            f"tail={camera['concavity_fraction'][idx]:.2f}"
+            f"{status} · frame {idx}\n"
+            f"in={camera['inlier_fraction'][idx]:.2f}  "
+            f"res={camera['residual'][idx]:.2f}px  "
+            f"diam={camera['diameter'][idx]:.1f}px"
         )
         ax.axis("off")
     trace_grid = gs[3, :].subgridspec(1, 2, wspace=0.12)
@@ -1355,7 +1401,7 @@ def pupil_figure(report, out_path):
         ax.set(title=f"{state} ({len(selected)} trials)",
                xlabel="seconds from odor onset")
         if panel == 0:
-            ax.set_ylabel("equivalent diameter (px)")
+            ax.set_ylabel("major-axis diameter (px)")
         else:
             ax.tick_params(labelleft=False)
         for odor in unique_odors:

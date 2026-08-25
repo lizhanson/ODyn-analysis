@@ -174,6 +174,7 @@ def main(argv=None):
                     source_video_paths=source_videos, source_sync_path=source_sync,
                     workers=args.workers,
                     checkpoint_dir=checkpoint_dir,
+                    pupil_resume=not args.force,
                 )
                 item["status"] = "complete"
                 item["outputs"] = {key: str(value)

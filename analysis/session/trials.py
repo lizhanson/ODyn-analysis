@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import csv
+import re
+from pathlib import Path
+
+import numpy as np
 import pandas as pd
 
 BEFORE = "pre"
@@ -53,6 +58,126 @@ def trial_table(
     table = _assign_state(table)
     table["manipulation"] = manipulation
 
+    return table
+
+
+def trial_table_from_events(
+    group,
+    *,
+    exp_id: int,
+    exp_dir: str | Path,
+    manipulation: str = DEFAULT_MANIPULATION,
+) -> pd.DataFrame:
+    """Recover missing DB trials from two olfactometer event files.
+
+    This deliberately supports only the unambiguous two-block case.  It keeps
+    the database acquisition IDs (and therefore existing mcor approvals), but
+    refuses to proceed unless event counts, odor IDs, block timestamps, and
+    acquisition timing all agree exactly enough to establish the pairing.
+    """
+
+    exp_dir = Path(exp_dir)
+    event_paths = sorted(exp_dir.glob("**/*-Events.csv"))
+    if len(event_paths) != 2:
+        raise ValueError(
+            f"No trials for exp_id={exp_id}; event recovery requires exactly "
+            f"two *-Events.csv files under {exp_dir}, found {len(event_paths)}."
+        )
+
+    odor_blocks: list[list[int]] = []
+    program_starts: list[pd.Timestamp] = []
+    timestamp_pattern = re.compile(
+        r"(\d{4}_\d{2}_\d{2})-(\d{2}_\d{2}_\d{2})-Events\.csv$"
+    )
+
+    for path in event_paths:
+        match = timestamp_pattern.search(path.name)
+        if match is None:
+            raise ValueError(
+                f"Cannot recover trials: event filename has no program timestamp: {path}"
+            )
+        program_starts.append(
+            pd.to_datetime(f"{match.group(1)} {match.group(2)}", format="%Y_%m_%d %H_%M_%S")
+        )
+
+        odors: list[int] = []
+        with path.open(encoding="utf-8-sig", newline="") as stream:
+            for row in csv.reader(stream):
+                if len(row) >= 2:
+                    odor = re.search(r"\bOdor I\s+(\d+)\s+-", row[1])
+                    if odor:
+                        odors.append(int(odor.group(1)))
+        if not odors:
+            raise ValueError(f"No odor events found in {path}.")
+        odor_blocks.append(odors)
+
+    order = np.argsort(np.asarray(program_starts, dtype="datetime64[ns]"))
+    event_paths = [event_paths[int(i)] for i in order]
+    odor_blocks = [odor_blocks[int(i)] for i in order]
+    program_starts = [program_starts[int(i)] for i in order]
+
+    acqs = group.acquisitions.query("exp_id == @exp_id").copy()
+    required = {"acq_id", "acq_start", "odor_start", "odor_end"}
+    missing_columns = required - set(acqs.columns)
+    if missing_columns:
+        raise ValueError(
+            f"Cannot recover exp_id={exp_id} trials; acquisitions lack columns "
+            f"{sorted(missing_columns)}."
+        )
+    for name in ("acq_start", "odor_start", "odor_end"):
+        acqs[name] = pd.to_datetime(acqs[name])
+    acqs = acqs.sort_values("acq_start").reset_index(drop=True)
+    if acqs[list(required - {"acq_id"})].isna().any().any():
+        raise ValueError(
+            f"Cannot recover exp_id={exp_id} trials; acquisition/odor timestamps "
+            "contain missing values."
+        )
+
+    odor_ids = [odor for values in odor_blocks for odor in values]
+    if len(odor_ids) != len(acqs):
+        raise ValueError(
+            f"Events contain {len(odor_ids)} odors but exp_id={exp_id} has "
+            f"{len(acqs)} acquisitions."
+        )
+
+    known_odors = set(map(int, group.odors.odor_id))
+    unknown = sorted(set(odor_ids) - known_odors)
+    if unknown:
+        raise ValueError(f"Events reference unknown odor IDs: {unknown}.")
+
+    # Each event program begins with its first trial.  Verify that its absolute
+    # filename timestamp identifies the corresponding acquisition block rather
+    # than relying on file ordering alone.
+    offsets = np.cumsum([0] + [len(values) for values in odor_blocks[:-1]])
+    for path, start, offset in zip(event_paths, program_starts, offsets):
+        delta_s = abs((acqs.iloc[int(offset)].acq_start - start).total_seconds())
+        if delta_s > 2.0:
+            raise ValueError(
+                f"Event block {path.name} starts {delta_s:.3f}s from acquisition "
+                f"{int(acqs.iloc[int(offset)].acq_id)}; refusing positional pairing."
+            )
+
+    block = np.concatenate([
+        np.full(len(values), index, dtype=np.int8)
+        for index, values in enumerate(odor_blocks)
+    ])
+    table = acqs[["acq_id", "acq_start", "odor_start", "odor_end"]].copy()
+    table["trial_id"] = np.arange(1, len(table) + 1, dtype=np.int32)
+    table["trial_start"] = table["acq_start"]
+    table["odor_id"] = odor_ids
+    table["program_id"] = block
+    table["block"] = block
+    table["state"] = np.where(block == 0, BEFORE, AFTER)
+    table["trial_in_block"] = table.groupby("block").cumcount() + 1
+    table["odor_duration_s"] = (
+        table["odor_end"] - table["odor_start"]
+    ).dt.total_seconds()
+    table["baseline_s"] = (
+        table["odor_start"] - table["trial_start"]
+    ).dt.total_seconds()
+    table["odor_minus_acq_start_s"] = table["baseline_s"]
+    table["manipulation"] = manipulation
+    table["trial_source"] = "olfactometer_events+database_acquisitions"
     return table
 
 

@@ -1,6 +1,11 @@
 import numpy as np
 
-from .auxiliary import discover_pupil_videos, extract_treadmill, write_auxiliary
+from .auxiliary import (
+    _representative_trial,
+    discover_pupil_videos,
+    extract_treadmill,
+    write_auxiliary,
+)
 
 
 def _sync_file(path):
@@ -46,6 +51,36 @@ def test_discovers_videos_in_named_sibling_directory(tmp_path):
         movie.touch()
         expected.append(movie)
     assert discover_pupil_videos(exp_dir) == expected
+
+
+def test_representative_trial_uses_state_median_quality():
+    quality = np.array([
+        [0.5, 0.5, 0.5],
+        [1.5, 1.5, 1.5],
+        [9.0, 9.0, 9.0],
+        [20.0, 20.0, 20.0],
+    ])
+    assert _representative_trial(quality, [True, True, True, False]) == 1
+    assert _representative_trial(quality, [False, False, False, True]) == 3
+
+
+def test_default_respiration_snr_threshold_is_three():
+    from .respiration import QUALITY_THRESHOLD
+
+    assert QUALITY_THRESHOLD == 3.0
+
+
+def test_respiration_onsets_ignore_fast_structure_outside_sniff_band():
+    from .respiration import instantaneous_frequency
+
+    rate_hz = 500.0
+    time = np.arange(20 * int(rate_hz)) / rate_hz
+    raw = np.sin(2 * np.pi * 3 * time) + 0.8 * np.sin(2 * np.pi * 30 * time)
+    result = instantaneous_frequency(
+        raw, rate_hz=rate_hz, at_s=np.arange(0.5, 19.5, 0.04),
+        quality_threshold=0,
+    )
+    assert 2.8 < np.nanmedian(result["frequency"]) < 3.2
 
 
 def test_combined_h5_joins_by_acq_id_and_marks_missing_modalities(tmp_path):

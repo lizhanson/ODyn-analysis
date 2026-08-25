@@ -105,6 +105,21 @@ failure so it can restart efficiently; `--keep-staged-inputs` opts out of
 cleanup and `--no-stage-videos` avoids video staging. Pupil checkpoints remain
 resumable and are rewritten every 5,000 fitted frames.
 
+To revise already-published auxiliary products after changing respiration
+detection or pupil fit-masking rules, without reopening pupil videos, first
+inventory the targets and then execute:
+
+```bash
+python -m analysis.batch_auxiliary_revise --groups 220
+python -m analysis.batch_auxiliary_revise --groups 220 --execute
+```
+
+The revision command rereads only the recorded sync file, recomputes
+respiration with the current SNR threshold, remasks pupil diameter from the fit
+metrics stored in the auxiliary HDF5, and atomically replaces the HDF5 plus the
+combined, respiration, and treadmill QC figures. The image-based pupil-fit QC is preserved
+because its example video frames are not stored in the consolidated HDF5.
+
 Prepare the manifest-wide pupil-tuning queue with:
 
 ```bash

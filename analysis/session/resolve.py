@@ -369,7 +369,7 @@ def resolve_session(
 ) -> SessionInputs:
     """Gather one session's motion-corrected paths, odor windows, and labels."""
 
-    from .trials import DEFAULT_MANIPULATION, trial_table
+    from .trials import DEFAULT_MANIPULATION, trial_table, trial_table_from_events
 
     experiment = group.experiments.query("exp_id == @exp_id")
     if experiment.empty:
@@ -379,11 +379,26 @@ def resolve_session(
     frame_rate = float(experiment.frame_rate)
     main_folder = Path(group.main_folder)
 
-    table = trial_table(
-        group,
-        exp_id=exp_id,
-        manipulation=manipulation or DEFAULT_MANIPULATION,
-    )
+    experiment_acqs = group.acquisitions.query("exp_id == @exp_id")
+    if experiment_acqs.empty:
+        raise ValueError(f"No acquisitions for exp_id={exp_id}.")
+    exp_dir = _resolve_path(main_folder, experiment_acqs.iloc[0].raw_path).parent.parent
+
+    try:
+        table = trial_table(
+            group,
+            exp_id=exp_id,
+            manipulation=manipulation or DEFAULT_MANIPULATION,
+        )
+    except ValueError as error:
+        if str(error) != f"No trials for exp_id={exp_id}.":
+            raise
+        table = trial_table_from_events(
+            group,
+            exp_id=exp_id,
+            exp_dir=exp_dir,
+            manipulation=manipulation or DEFAULT_MANIPULATION,
+        )
 
     # mcor path per acquisition, straight from the database.
     mcor = group.mcor_files
@@ -413,11 +428,8 @@ def resolve_session(
     by_acq = {int(a): p for a, p in zip(mcor.acq_id, mcor.mcor_path)}
     path_source = "database"
 
-    exp_dir = _resolve_path(main_folder, table.iloc[0].raw_path).parent.parent \
-        if "raw_path" in table else None
-    if exp_dir is None or not exp_dir.is_dir():
-        acq_path = group.acquisitions.query("exp_id == @exp_id").iloc[0].raw_path
-        exp_dir = _resolve_path(main_folder, acq_path).parent.parent
+    if not exp_dir.is_dir():
+        raise FileNotFoundError(f"Experiment directory not found: {exp_dir}")
 
     if not by_acq:
         # Not registered in odyn. Fall back to the directory, matching on the

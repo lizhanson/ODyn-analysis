@@ -33,7 +33,7 @@ MIN_EXCURSION_FRAC = 0.7
 # that shifts mid-session.
 QUALITY_WINDOW_S = 1.0
 
-QUALITY_THRESHOLD = 5.0
+QUALITY_THRESHOLD = 3.0
 
 MIN_SESSION_RETENTION = 0.70
 
@@ -172,7 +172,12 @@ def instantaneous_frequency(
     # is treated identically regardless of what the rig happened to store.
     filtered = bandpass(raw, rate_hz=rate_hz, band=band)
 
-    onsets = inhalation_onsets(filtered, rate_hz=rate_hz)
+    # Detect breaths on the physiological sniff band, not on the wider
+    # waveform retained for phase/amplitude QC. Passing the 1--50 Hz display
+    # trace into the crossing detector admits fast structure that can turn one
+    # breath into two or more apparent inhalations.
+    detection_filtered = bandpass(raw, rate_hz=rate_hz, band=SNIFF_BAND_HZ)
+    onsets = inhalation_onsets(detection_filtered, rate_hz=rate_hz)
 
     result = {
         "onsets_s": onsets / rate_hz,
@@ -285,7 +290,7 @@ def _median_over_breaths(rates: np.ndarray, k: int) -> np.ndarray:
     return out
 
 
-def quality_report(score: np.ndarray, thresholds=(0.1, 0.2, 0.25, 0.3, 0.4, 0.5)) -> str:
+def quality_report(score: np.ndarray, thresholds=(0.5, 1.0, 1.5, 2.0, 3.0, 5.0)) -> str:
     """What each candidate threshold would keep, as a printable table."""
 
     rows = [f"{'SNR threshold':>14}{'% windows kept':>17}", "-" * 31]
@@ -655,14 +660,12 @@ def respiration_figure(report: dict, out_path):
     def band(ax, values, colour, label):
         finite = np.isfinite(values)
         n = finite.sum(axis=0)
-        mean = np.where(n > 0, np.nansum(np.nan_to_num(values), axis=0)
-                        / np.maximum(n, 1), np.nan)
-        sd = np.array([np.nanstd(values[:, i]) if n[i] > 1 else np.nan
-                       for i in range(values.shape[1])])
-        sem = sd / np.sqrt(np.maximum(n, 1))
-        ax.plot(time_s, mean, color=colour, lw=1.6, label=f"{label} (n={int(np.median(n))})")
-        ax.fill_between(time_s, mean - 1.96 * sem, mean + 1.96 * sem,
-                        color=colour, alpha=0.22, lw=0)
+        median = np.nanmedian(values, axis=0)
+        q25, q75 = np.nanpercentile(values, (25, 75), axis=0)
+        ax.plot(time_s, median, color=colour, lw=1.6,
+                label=f"{label} median (n={int(np.median(n))})")
+        ax.fill_between(time_s, q25, q75, color=colour, alpha=0.22, lw=0,
+                        label="IQR" if label == levels[0] else None)
 
     for i, key in enumerate(keys):
         ax = axes[i // n_col, i % n_col]
