@@ -23,7 +23,10 @@ def stop_notebook_servers() -> int:
     stopped = 0
     for server_id, server in list(servers.items()):
         try:
-            server.stop()
+            # Notebook Bokeh servers share the kernel's Tornado IOLoop. Waiting
+            # synchronously for that same loop to finish its callbacks can
+            # deadlock a GUI relaunch or kernel shutdown.
+            server.stop(wait=False)
             stopped += 1
         except (AssertionError, RuntimeError):
             # It was already stopped but remained registered in notebook state.
