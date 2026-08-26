@@ -1603,9 +1603,11 @@ def launch_pupil_tuner(dim_frame, bright_frame, *, save_path, roi=None,
         threshold_offset=threshold_offset,
         bright_percentile=bright_percentile,
     )
-    # Avoid collisions with hidden Bokeh servers left by earlier notebook
-    # launches by requesting a fresh ephemeral port.
-    bpl.show(gui.modify_doc, port=0)
+    from .bokeh import free_local_port, stop_notebook_servers
+
+    # VS Code needs the concrete selected port in the embedded application URL.
+    stop_notebook_servers()
+    bpl.show(gui.modify_doc, port=free_local_port())
     return gui
 
 

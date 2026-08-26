@@ -463,8 +463,10 @@ def launch(images: dict, *, save_path: str | Path, params: None | dict = None):
         output_notebook()
 
     gui = SegmentationGUI(SegmentationState(images, params), save_path)
-    # A fixed notebook port can remain occupied by an earlier hidden Bokeh
-    # server. Let the OS allocate a free port for every launch.
-    bpl.show(gui.modify_doc, port=0)
+    from ..session.bokeh import free_local_port, stop_notebook_servers
+
+    # VS Code needs the concrete selected port in the embedded application URL.
+    stop_notebook_servers()
+    bpl.show(gui.modify_doc, port=free_local_port())
 
     return gui

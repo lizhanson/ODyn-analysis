@@ -222,6 +222,7 @@ def launch(
     import bokeh.plotting as bpl
 
     from bokeh.io import output_notebook
+    from ..session.bokeh import free_local_port, stop_notebook_servers
 
     if "ipykernel" in sys.modules:
         os.environ["BOKEH_ALLOW_WS_ORIGIN"] = "*"
@@ -236,15 +237,15 @@ def launch(
             soma_params=soma_params, process_params=process_params,
         )
     gui = Segmentation20xGUI(state, save_path)
+    stop_notebook_servers()
     # VS Code Remote/SSH may take longer than Bokeh's five-minute default to
     # establish the proxied websocket, especially after an interactive kernel
     # has been idle.  Keep the one-time session-creation token valid for a day;
     # this does not change the lifetime of an already connected session.
-    # Let the OS choose a free ephemeral port. A fixed notebook port remains
-    # occupied by an earlier Bokeh server after its output is closed or the
-    # launch cell is rerun, producing EADDRINUSE even though no GUI is visible.
+    # Pass a concrete free port rather than Bokeh's ``port=0``. VS Code's
+    # notebook renderer needs the real number when it builds the proxied URL.
     bpl.show(
-        gui.modify_doc, port=0,
+        gui.modify_doc, port=free_local_port(),
         session_token_expiration=24 * 60 * 60,
     )
     return gui
