@@ -1421,13 +1421,22 @@ def pupil_figure(report, out_path):
 
 
 class PupilTuningGUI:
-    """Two-frame Bokeh editor for a shared ROI and adaptive-threshold offset."""
+    """Multi-frame Bokeh editor with live segmentation and ellipse-fit QC."""
 
-    def __init__(self, dim_frame, bright_frame, *, save_path, roi=None,
-                 threshold_offset=0.0, bright_percentile=97.0, on_save=None):
-        self.frames = [np.asarray(dim_frame), np.asarray(bright_frame)]
-        if self.frames[0].shape != self.frames[1].shape:
-            raise ValueError("Dimmest and brightest tuning frames differ in shape.")
+    def __init__(self, frames, bright_frame=None, *, save_path, frame_labels=None,
+                 roi=None, threshold_offset=0.0, bright_percentile=97.0,
+                 on_save=None):
+        # Retain the old two-positional-frame API for notebook callers.
+        values = ([np.asarray(frames), np.asarray(bright_frame)]
+                  if bright_frame is not None else list(np.asarray(frames)))
+        self.frames = values
+        if len(self.frames) < 2 or any(
+                frame.shape != self.frames[0].shape for frame in self.frames):
+            raise ValueError("Tuning frames must contain at least two equally shaped images.")
+        self.frame_labels = (list(map(str, frame_labels)) if frame_labels is not None
+                             else [f"example {i + 1}" for i in range(len(values))])
+        if len(self.frame_labels) != len(self.frames):
+            raise ValueError("frame_labels and tuning frames differ in length.")
         self.save_path = Path(save_path)
         self.bright_percentile = float(bright_percentile)
         h, w = self.frames[0].shape
@@ -1447,7 +1456,7 @@ class PupilTuningGUI:
         return rgba.view(np.uint32).reshape(mask.shape)
 
     def modify_doc(self, doc):
-        from bokeh.layouts import column, row
+        from bokeh.layouts import column, gridplot, row
         from bokeh.models import (Button, ColumnDataSource, Div,
                                   LinearColorMapper, Slider)
         from bokeh.palettes import Greys256
@@ -1460,13 +1469,15 @@ class PupilTuningGUI:
             width=[x1 - x0], height=[y1 - y0],
         ))
         self.mask_sources = []
+        self.ellipse_sources = []
         figures = []
         values = np.concatenate([frame.ravel() for frame in self.frames])
         mapper = LinearColorMapper(palette=Greys256,
                                    low=float(np.percentile(values, 1)),
                                    high=float(np.percentile(values, 99.5)))
-        for label, frame in zip(("dimmest", "brightest"), self.frames):
-            fig = figure(width=500, height=int(500 * h / w) + 35,
+        plot_width = 230
+        for label, frame in zip(self.frame_labels, self.frames):
+            fig = figure(width=plot_width, height=int(plot_width * h / w) + 35,
                          x_range=(0, w), y_range=(h, 0),
                          title=label, tools="pan,wheel_zoom,reset",
                          active_scroll="wheel_zoom")
@@ -1479,11 +1490,15 @@ class PupilTuningGUI:
             ))
             fig.image_rgba("image", x=0, y=0, dw=w, dh=h,
                            source=mask_source)
+            ellipse_source = ColumnDataSource(dict(x=[], y=[]))
+            fig.line("x", "y", source=ellipse_source, line_color="lime",
+                     line_width=3, line_alpha=0.9)
             fig.rect("x", "y", "width", "height",
                      source=self.roi_source, fill_alpha=0.03,
                      fill_color="yellow", line_color="yellow",
                      line_width=2)
             self.mask_sources.append(mask_source)
+            self.ellipse_sources.append(ellipse_source)
             figures.append(fig)
 
         self.slider = Slider(start=-80, end=80, step=1,
@@ -1502,7 +1517,7 @@ class PupilTuningGUI:
             slider.on_change("value_throttled", self._changed)
         save.on_click(self._save)
         doc.add_root(column(
-            row(*figures),
+            gridplot(figures, ncols=min(5, len(figures)), toolbar_location=None),
             row(self.roi_sliders["x0"], self.roi_sliders["x1"]),
             row(self.roi_sliders["y0"], self.roi_sliders["y1"]),
             self.slider, save, self.status,
@@ -1534,21 +1549,32 @@ class PupilTuningGUI:
             x=[(x0 + x1) / 2], y=[(y0 + y1) / 2],
             width=[x1 - x0], height=[y1 - y0],
         )
-        thresholds = []
-        areas = []
-        for frame, source in zip(self.frames, self.mask_sources):
+        thresholds, areas, fits = [], [], []
+        for index, (frame, source, ellipse_source) in enumerate(zip(
+                self.frames, self.mask_sources, self.ellipse_sources)):
             mask, threshold = segment_bright_pupil(
                 frame, roi=self.roi,
                 bright_percentile=self.bright_percentile,
                 threshold_offset=self.threshold_offset,
             )
             source.data = dict(image=[self._rgba(mask)])
+            _, fit = fit_pupil_mask(mask, random_seed=index)
+            if fit is None:
+                ellipse_source.data = dict(x=[], y=[])
+                fits.append("failed")
+            else:
+                angle = np.linspace(0, 2 * np.pi, 181)
+                cos_t, sin_t = np.cos(fit["theta"]), np.sin(fit["theta"])
+                x = fit["x"] + fit["major"] * np.cos(angle) * cos_t - fit["minor"] * np.sin(angle) * sin_t
+                y = fit["y"] + fit["major"] * np.cos(angle) * sin_t + fit["minor"] * np.sin(angle) * cos_t
+                ellipse_source.data = dict(x=x, y=y)
+                fits.append(f'{2 * fit["major"]:.1f}px')
             thresholds.append(threshold)
             areas.append(int(mask.sum()))
         self.status.text = (
             f"ROI (y0, y1, x0, x1) = {self.roi} &nbsp; · &nbsp; "
-            f"thresholds dim/bright = {thresholds[0]:.0f}/{thresholds[1]:.0f} "
-            f"&nbsp; · &nbsp; mask areas = {areas[0]}/{areas[1]} px"
+            f"ellipse fits = {sum(value != 'failed' for value in fits)}/{len(fits)} "
+            f"&nbsp; · &nbsp; major-axis diameters = {' / '.join(fits)}"
         )
 
     def _save(self):
@@ -1577,7 +1603,9 @@ def launch_pupil_tuner(dim_frame, bright_frame, *, save_path, roi=None,
         threshold_offset=threshold_offset,
         bright_percentile=bright_percentile,
     )
-    bpl.show(gui.modify_doc)
+    # Avoid collisions with hidden Bokeh servers left by earlier notebook
+    # launches by requesting a fresh ephemeral port.
+    bpl.show(gui.modify_doc, port=0)
     return gui
 
 

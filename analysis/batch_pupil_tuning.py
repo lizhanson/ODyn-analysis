@@ -28,8 +28,8 @@ from analysis.session.sync import (
 )
 
 
-def representative_frames(video_paths, sync_path, *, samples_per_video=8):
-    """Decode once, validate camera counts, and retain active dim/bright frames."""
+def representative_frames(video_paths, sync_path, *, samples_per_video=5):
+    """Decode once and retain time-spread active examples from pre and post."""
     sync = open_sync(sync_path)
     camera_blocks = group_frames_into_acquisitions(
         frame_onset_samples(sync, channel="cameraFrameSync"), rate_hz=sync.rate_hz
@@ -56,8 +56,9 @@ def representative_frames(video_paths, sync_path, *, samples_per_video=8):
         active[lo:hi] = True
 
     retained = []
+    labels = []
     offset = 0
-    for path, expected in zip(video_paths, counts):
+    for video_index, (path, expected) in enumerate(zip(video_paths, counts)):
         local_active = np.flatnonzero(active[offset:offset + expected])
         if local_active.size == 0:
             raise ValueError(f"No acquisition-active camera frames in {path}")
@@ -69,6 +70,10 @@ def representative_frames(video_paths, sync_path, *, samples_per_video=8):
         for index, frame in enumerate(iter_gray_frames(path)):
             if index in targets:
                 retained.append(np.asarray(frame))
+                labels.append(
+                    f"{'pre' if video_index == 0 else 'post'} "
+                    f"frame {index + 1:,}"
+                )
             count = index + 1
         if count != expected:
             raise ValueError(
@@ -78,9 +83,7 @@ def representative_frames(video_paths, sync_path, *, samples_per_video=8):
         offset += expected
     if not retained:
         raise ValueError("No representative pupil frames were retained")
-    means = np.asarray([np.mean(frame) for frame in retained])
-    return (retained[int(np.argmin(means))], retained[int(np.argmax(means))],
-            counts, alignment_qc)
+    return np.stack(retained), labels, counts, alignment_qc
 
 
 def _atomic_json(path, value):
@@ -92,7 +95,7 @@ def _atomic_json(path, value):
 
 
 def prepare_queue(rows, *, imaging_root, scratch_root, refresh=False,
-                  samples_per_video=8):
+                  samples_per_video=5):
     """Build/update the queue, keeping failures visible and successful caches reusable."""
     scratch_root = Path(scratch_root)
     queue_path = scratch_root / "pupil_tuning" / "queue.json"
@@ -113,12 +116,13 @@ def prepare_queue(rows, *, imaging_root, scratch_root, refresh=False,
             exp_name = f"{row['date']}_{row['mouse']}_{row['exp']}"
             videos = discover_pupil_videos(exp_dir)
             sync_path = find_behavior_sync(exp_dir)
-            dim, bright, counts, alignment_qc = representative_frames(
+            frames, labels, counts, alignment_qc = representative_frames(
                 videos, sync_path, samples_per_video=samples_per_video
             )
             cache = scratch_root / "pupil_tuning" / f"group{group_id}_frames.npz"
             cache.parent.mkdir(parents=True, exist_ok=True)
-            np.savez_compressed(cache, dim=dim, bright=bright)
+            np.savez_compressed(cache, frames=frames,
+                                labels=np.asarray(labels, dtype="U"))
             output = (exp_dir / "processed" / "python" / "aux" /
                       f"group{group_id}_{exp_name}_pupil_tuning.json")
             item.update(status="prepared", exp_name=exp_name,
@@ -188,6 +192,14 @@ class TuningQueueApp:
         output = Path(item["output"])
         settings = load_pupil_tuning(output) if output.exists() else {}
         frames = np.load(item["cache"])
+        if "frames" in frames:
+            tuning_frames = frames["frames"]
+            frame_labels = frames["labels"].tolist()
+        else:
+            # Read old two-frame caches so an existing queue remains usable;
+            # --refresh upgrades it to balanced pre/post examples.
+            tuning_frames = np.stack((frames["dim"], frames["bright"]))
+            frame_labels = ["dimmest (legacy cache)", "brightest (legacy cache)"]
         self.header.text = (
             f"<h2>Pupil tuning {self.index + 1}/{len(self.items)} — group "
             f"{item['group_id']}</h2><p>{item['date']} · {item['mouse']} · "
@@ -195,7 +207,7 @@ class TuningQueueApp:
         )
         self.doc.add_root(self.header)
         gui = PupilTuningGUI(
-            frames["dim"], frames["bright"], save_path=output,
+            tuning_frames, save_path=output, frame_labels=frame_labels,
             roi=settings.get("roi"),
             threshold_offset=settings.get("threshold_offset", 0.0),
             bright_percentile=settings.get("bright_percentile", 97.0),
@@ -229,7 +241,7 @@ def main(argv=None):
     parser.add_argument("--imaging-root", default=os.environ.get("ODYN_IMAGING_ROOT", "/Volumes/MossLab/ImagingData"))
     parser.add_argument("--scratch-root", default=os.environ.get("ODYN_SCRATCH_ROOT", str(Path.home() / "odyn_scratch")))
     parser.add_argument("--groups", nargs="*", type=int, default=[])
-    parser.add_argument("--samples-per-video", type=int, default=8)
+    parser.add_argument("--samples-per-video", type=int, default=5)
     parser.add_argument("--refresh", action="store_true")
     parser.add_argument("--prepare", action="store_true")
     parser.add_argument("--serve", action="store_true")

@@ -463,6 +463,8 @@ def launch(images: dict, *, save_path: str | Path, params: None | dict = None):
         output_notebook()
 
     gui = SegmentationGUI(SegmentationState(images, params), save_path)
-    bpl.show(gui.modify_doc)
+    # A fixed notebook port can remain occupied by an earlier hidden Bokeh
+    # server. Let the OS allocate a free port for every launch.
+    bpl.show(gui.modify_doc, port=0)
 
     return gui

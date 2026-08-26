@@ -240,5 +240,11 @@ def launch(
     # establish the proxied websocket, especially after an interactive kernel
     # has been idle.  Keep the one-time session-creation token valid for a day;
     # this does not change the lifetime of an already connected session.
-    bpl.show(gui.modify_doc, session_token_expiration=24 * 60 * 60)
+    # Let the OS choose a free ephemeral port. A fixed notebook port remains
+    # occupied by an earlier Bokeh server after its output is closed or the
+    # launch cell is rerun, producing EADDRINUSE even though no GUI is visible.
+    bpl.show(
+        gui.modify_doc, port=0,
+        session_token_expiration=24 * 60 * 60,
+    )
     return gui
