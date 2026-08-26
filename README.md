@@ -72,6 +72,23 @@ Session outputs are written under the experiment directory:
 
 The 10x mask bundle is the portable segmentation output. It contains the curated labels, per-group masks, reference image, and GUI configuration, allowing extraction on another computer without copying caches or rerunning segmentation.
 
+The 10x workflow deliberately separates segmentation, component extraction,
+reviewed fragment joining, final grouped-unit QC, and cache deletion. Inventory
+or run extraction from all published 10x bundles with:
+
+```bash
+python -m analysis.batch_10x
+python -m analysis.batch_10x --execute --report 10x_extraction_report.json
+python -m analysis.batch_10x --groups 191 193 --execute
+```
+
+Return to the 10x notebook session by session after extraction. Its joining GUI
+ranks spatial neighbors by odor/post-odor trace correlation but saves only the
+joins explicitly reviewed by the user. The final `*_10x_grouped.h5` and 10x QC
+figures contain joined glomerular units and unassigned singleton ROIs; component
+traces remain only in the intermediate extracted round. Cache cleanup is a
+separate final notebook cell and refuses to run until every final output exists.
+
 The processed HDF5 is the final 10x or 20x round. It contains `/masks`,
 `/traces`, `/responses`, `/rois`, and `/trials`; the PNG is a mask overlay. Raw
 fluorescence is detrended, centred by each trial's immediate four-second
