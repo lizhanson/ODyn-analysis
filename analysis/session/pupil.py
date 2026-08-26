@@ -906,7 +906,8 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
                      frametimes_path=None, out_dir=None, config=PupilConfig(),
                      save=True, validate_counts=True, validated_counts=None,
                      workers=None, batch_size=256, checkpoint_every=5000,
-                     checkpoint_dir=None, resume=True, _metadata=None):
+                     checkpoint_dir=None, resume=True, acquisition_indices=None,
+                     _metadata=None):
     """Extract, align, save, and plot pupil diameter for one processing round."""
 
     from .h5io import open_h5
@@ -996,6 +997,8 @@ def pupil_from_round(video_path, round_path, *, sync_path=None,
 
     two_p_samples = frame_onset_samples(sync)
     blocks = group_frames_into_acquisitions(two_p_samples, rate_hz=sync.rate_hz)
+    if acquisition_indices is not None:
+        blocks = [blocks[int(index)] for index in acquisition_indices]
     if len(blocks) != n_trial:
         raise ValueError(f"2p clock has {len(blocks)} acquisitions but round has {n_trial} trials.")
     widths = {len(block) for block in blocks}
@@ -1243,6 +1246,7 @@ def extract_pupil(
     validate_counts=True, validated_counts=None,
     workers=None, batch_size=256, checkpoint_every=5000,
     checkpoint_dir=None, resume=True,
+    acquisition_indices=None,
 ):
     """Round-independent pupil extraction on the acquisition frame grid."""
 
@@ -1268,6 +1272,7 @@ def extract_pupil(
         workers=workers, batch_size=batch_size,
         checkpoint_every=checkpoint_every,
         checkpoint_dir=checkpoint_dir, resume=resume,
+        acquisition_indices=acquisition_indices,
         _metadata={"trial": trial, "frame_rate": frame_rate,
                    "n_pre": n_pre, "exp_name": exp_name},
     )

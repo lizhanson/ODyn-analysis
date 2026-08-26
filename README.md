@@ -157,6 +157,17 @@ The 20x GUI checkpoint is local:
 
 It contains the reference images, automatic and curated masks, parameters, edits, ROI table, and groups. The finalized server HDF5 contains the 20x masks and extracted traces.
 
+Published 20x mask bundles can be inventoried and finalized in a batch. The
+command is a dry run unless `--execute` is supplied; completed rounds whose
+mask and baseline mode already match are skipped, and interrupted extraction
+resumes from the scratch checkpoint:
+
+```bash
+python -m analysis.batch_20x
+python -m analysis.batch_20x --execute --report 20x_extraction_report.json
+python -m analysis.batch_20x --groups 175 176 177 --execute
+```
+
 After trace-based grouping, the 20x notebook also writes grouped QC sidecars:
 `*_20x_spatialqc.png`, `*_20x_snrqc.png`, separate
 `*_20x_continuousqc_{groups,somas,processes}.png` and

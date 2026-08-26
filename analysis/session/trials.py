@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import itertools
 import re
 from pathlib import Path
 
@@ -77,44 +78,9 @@ def trial_table_from_events(
     """
 
     exp_dir = Path(exp_dir)
-    event_paths = sorted(exp_dir.glob("**/*-Events.csv"))
-    if len(event_paths) != 2:
-        raise ValueError(
-            f"No trials for exp_id={exp_id}; event recovery requires exactly "
-            f"two *-Events.csv files under {exp_dir}, found {len(event_paths)}."
-        )
-
-    odor_blocks: list[list[int]] = []
-    program_starts: list[pd.Timestamp] = []
     timestamp_pattern = re.compile(
         r"(\d{4}_\d{2}_\d{2})-(\d{2}_\d{2}_\d{2})-Events\.csv$"
     )
-
-    for path in event_paths:
-        match = timestamp_pattern.search(path.name)
-        if match is None:
-            raise ValueError(
-                f"Cannot recover trials: event filename has no program timestamp: {path}"
-            )
-        program_starts.append(
-            pd.to_datetime(f"{match.group(1)} {match.group(2)}", format="%Y_%m_%d %H_%M_%S")
-        )
-
-        odors: list[int] = []
-        with path.open(encoding="utf-8-sig", newline="") as stream:
-            for row in csv.reader(stream):
-                if len(row) >= 2:
-                    odor = re.search(r"\bOdor I\s+(\d+)\s+-", row[1])
-                    if odor:
-                        odors.append(int(odor.group(1)))
-        if not odors:
-            raise ValueError(f"No odor events found in {path}.")
-        odor_blocks.append(odors)
-
-    order = np.argsort(np.asarray(program_starts, dtype="datetime64[ns]"))
-    event_paths = [event_paths[int(i)] for i in order]
-    odor_blocks = [odor_blocks[int(i)] for i in order]
-    program_starts = [program_starts[int(i)] for i in order]
 
     acqs = group.acquisitions.query("exp_id == @exp_id").copy()
     required = {"acq_id", "acq_start", "odor_start", "odor_end"}
@@ -132,6 +98,77 @@ def trial_table_from_events(
             f"Cannot recover exp_id={exp_id} trials; acquisition/odor timestamps "
             "contain missing values."
         )
+
+    # Older exports were placed beside the mouse folder instead of beneath
+    # the experiment. Include that date folder, then use absolute program
+    # timestamps and event counts to select this experiment's two files.
+    roots = [exp_dir]
+    date_root = next(
+        (parent for parent in (exp_dir, *exp_dir.parents)
+         if re.fullmatch(r"\d{8}", parent.name)),
+        None,
+    )
+    if date_root is not None and date_root != exp_dir:
+        roots.append(date_root)
+    event_paths = sorted({path for root in roots for path in root.glob("**/*-Events.csv")})
+
+    programs: list[tuple[Path, pd.Timestamp, list[int]]] = []
+    for path in event_paths:
+        match = timestamp_pattern.search(path.name)
+        if match is None:
+            continue
+        program_start = pd.to_datetime(
+            f"{match.group(1)} {match.group(2)}", format="%Y_%m_%d %H_%M_%S"
+        )
+
+        odors: list[int] = []
+        with path.open(encoding="utf-8-sig", newline="") as stream:
+            for row in csv.reader(stream):
+                if len(row) >= 2:
+                    odor = re.search(r"\bOdor I\s+(\d+)\s+-", row[1])
+                    if odor:
+                        odors.append(int(odor.group(1)))
+        if not odors:
+            continue
+        programs.append((path, program_start, odors))
+
+    # A recovered file may subsequently be copied into the experiment folder,
+    # leaving the original at the date level. Treat byte-equivalent program
+    # identities as one candidate and prefer the experiment-local copy.
+    unique_programs: dict[tuple[pd.Timestamp, tuple[int, ...]], tuple[Path, pd.Timestamp, list[int]]] = {}
+    for program in programs:
+        key = (program[1], tuple(program[2]))
+        current = unique_programs.get(key)
+        if current is None or (
+            exp_dir in program[0].parents and exp_dir not in current[0].parents
+        ):
+            unique_programs[key] = program
+    programs = list(unique_programs.values())
+
+    if len(programs) == 2:
+        selected = [tuple(sorted(programs, key=lambda item: item[1]))]
+    else:
+        selected = []
+        for pair in itertools.combinations(programs, 2):
+            pair = tuple(sorted(pair, key=lambda item: item[1]))
+            counts = [len(item[2]) for item in pair]
+            if sum(counts) != len(acqs):
+                continue
+            offsets = (0, counts[0])
+            if all(abs((acqs.iloc[offset].acq_start - item[1]).total_seconds()) <= 2.0
+                   for item, offset in zip(pair, offsets)):
+                selected.append(pair)
+    if len(selected) != 1:
+        raise ValueError(
+            f"No trials for exp_id={exp_id}; event recovery found {len(programs)} "
+            f"usable *-Events.csv files in {[str(root) for root in roots]}, but "
+            f"{len(selected)} unique two-block pairs matched {len(acqs)} acquisitions "
+            "by count and timestamp."
+        )
+
+    event_paths = [item[0] for item in selected[0]]
+    program_starts = [item[1] for item in selected[0]]
+    odor_blocks = [item[2] for item in selected[0]]
 
     odor_ids = [odor for values in odor_blocks for odor in values]
     if len(odor_ids) != len(acqs):

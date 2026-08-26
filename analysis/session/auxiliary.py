@@ -30,6 +30,9 @@ class AuxiliarySession:
     table: object
     trial_source: str = "database"
     sync_path: Path | None = None
+    sync_block_indices: list[int] | None = None
+    n_sync_blocks: int | None = None
+    excluded_sync_block_indices: list[int] | None = None
 
     @property
     def output_dir(self):
@@ -73,10 +76,14 @@ def resolve_auxiliary(group, *, group_id, manipulation="ketamine/xylazine",
     )
     pulses = pulse_intervals(read_channel(sync, "odorPulse"), rate_hz=sync.rate_hz)
     windows = acquisition_odor_windows(blocks, pulses, rate_hz=sync.rate_hz)
-    if len(windows) != len(table) or any(window is None for window in windows):
+    n_sync_blocks = len(blocks)
+    block_indices = _trial_block_indices(blocks, windows, len(table))
+    excluded_block_indices = sorted(set(range(n_sync_blocks)) - set(block_indices))
+    blocks = [blocks[index] for index in block_indices]
+    windows = [windows[index] for index in block_indices]
+    if any(window is None for window in windows):
         raise ValueError(
-            f"{experiment.exp_name}: {len(windows)} clock acquisitions and "
-            f"{len(table)} database trials do not form a complete one-to-one alignment."
+            f"{experiment.exp_name}: selected clock acquisitions lack odor pulses."
         )
     if table.acq_id.isna().any():
         raise ValueError(f"{experiment.exp_name}: trial table contains missing acq_id values.")
@@ -90,7 +97,39 @@ def resolve_auxiliary(group, *, group_id, manipulation="ketamine/xylazine",
         odor_on_frames=[int(window[0]) for window in windows],
         odor_off_frames=[int(window[1]) for window in windows],
         table=table, trial_source=trial_source, sync_path=sync_path,
+        sync_block_indices=block_indices,
+        n_sync_blocks=n_sync_blocks,
+        excluded_sync_block_indices=excluded_block_indices,
     )
+
+
+def _trial_block_indices(blocks, odor_windows, n_trial):
+    """Map trials to odor-bearing clock blocks, excluding pulse-free fragments."""
+    if len(blocks) == int(n_trial) and all(window is not None for window in odor_windows):
+        return list(range(len(blocks)))
+    odor_blocks = [index for index, window in enumerate(odor_windows)
+                   if window is not None]
+    if len(odor_blocks) != int(n_trial):
+        raise ValueError(
+            f"{len(blocks)} clock blocks contain {len(odor_blocks)} odor-bearing "
+            f"acquisitions for {n_trial} trials; cannot exclude fragments "
+            "without an ambiguous trial mapping."
+        )
+    selected_widths = {len(blocks[index]) for index in odor_blocks}
+    if len(selected_widths) != 1:
+        raise ValueError(
+            f"Odor-bearing acquisitions differ in length: {sorted(selected_widths)}."
+        )
+    selected_width = next(iter(selected_widths))
+    excluded = [index for index in range(len(blocks)) if index not in odor_blocks]
+    too_large = [index for index in excluded
+                 if len(blocks[index]) >= 0.5 * selected_width]
+    if too_large:
+        raise ValueError(
+            f"Pulse-free clock blocks {too_large[:8]} are at least half a real "
+            "acquisition long; refusing to classify them as harmless fragments."
+        )
+    return odor_blocks
 
 
 def _state_codes(states):
@@ -101,12 +140,14 @@ def _state_codes(states):
     return np.asarray([lookup[value] for value in values], dtype=np.int16), levels
 
 
-def _frame_layout(sync_path, n_trial):
+def _frame_layout(sync_path, n_trial, acquisition_indices=None):
     from .sync import frame_onset_samples, group_frames_into_acquisitions, open_sync
 
     sync = open_sync(sync_path)
     frames = frame_onset_samples(sync)
     blocks = group_frames_into_acquisitions(frames, rate_hz=sync.rate_hz)
+    if acquisition_indices is not None:
+        blocks = [blocks[int(index)] for index in acquisition_indices]
     if len(blocks) != int(n_trial):
         raise ValueError(
             f"{len(blocks)} imaging acquisitions in {Path(sync_path).name}, "
@@ -122,6 +163,7 @@ def extract_treadmill(
     sync_path,
     *,
     odor_on_frames,
+    acquisition_indices=None,
     running_threshold_cm_s=RUNNING_THRESHOLD_CM_S,
 ):
     """Encoder velocity and derived movement features on the imaging frame grid."""
@@ -129,7 +171,9 @@ def extract_treadmill(
     from .sync import read_channel
 
     on = np.asarray(odor_on_frames, dtype=int)
-    sync, frames, blocks, n_frame = _frame_layout(sync_path, len(on))
+    sync, frames, blocks, n_frame = _frame_layout(
+        sync_path, len(on), acquisition_indices=acquisition_indices
+    )
     with open_h5(sync.path) as handle:
         if "encoder" not in handle:
             raise KeyError(f"{sync.path.name} has no encoder channel.")
@@ -191,6 +235,11 @@ def saved_pupil_config(exp_dir, *, group_id, exp_name):
 
     aux = Path(exp_dir) / "processed" / "python" / "aux"
     candidates = sorted(aux.glob(f"group{group_id}_{exp_name}*pupil_tuning.json"))
+    if not candidates:
+        # Some older database experiment names spell YYYYMMDD as YYYY_MM_DD,
+        # while the manifest/tuning filenames use the compact date. Group ID
+        # is stable across both naming conventions and must still be unique.
+        candidates = sorted(aux.glob(f"group{group_id}_*pupil_tuning.json"))
     if len(candidates) != 1:
         raise FileNotFoundError(
             f"Expected one saved pupil tuning file for group {group_id} in {aux}; "
@@ -255,6 +304,12 @@ def write_auxiliary(path, *, metadata, respiration, pupil, treadmill, sources):
                 handle.attrs[name] = metadata[name]
         handle.attrs["n_trial"] = n_trial
         handle.attrs["n_frame"] = n_frame
+        handle.attrs["n_sync_blocks_detected"] = int(
+            metadata.get("n_sync_blocks", n_trial)
+        )
+        handle.attrs["n_sync_blocks_excluded"] = len(
+            metadata.get("excluded_sync_block_indices", ())
+        )
         handle.attrs["frame_rate_hz"] = float(metadata["frame_rate"])
         handle.attrs["respiration_available"] = int(respiration is not None)
         handle.attrs["pupil_available"] = int(pupil is not None)
@@ -264,6 +319,12 @@ def write_auxiliary(path, *, metadata, respiration, pupil, treadmill, sources):
         acquisition = handle.create_group("acquisition")
         acquisition.create_dataset("time_sync_s", data=treadmill["time_sync_s"],
                                    compression="gzip")
+        acquisition.create_dataset(
+            "excluded_sync_block_index",
+            data=np.asarray(
+                metadata.get("excluded_sync_block_indices", ()), dtype=np.int32
+            ),
+        )
         acquisition.create_dataset("time_from_odor_s",
                                    data=treadmill["time_from_odor_s"], compression="gzip")
         acquisition["time_from_odor_s"].attrs["units"] = "s"
@@ -273,6 +334,15 @@ def write_auxiliary(path, *, metadata, respiration, pupil, treadmill, sources):
         for name in ("acq_ids", "trial_ids", "odor_ids", "odor_on_frames",
                      "odor_off_frames"):
             trials.create_dataset(name.removesuffix("s"), data=np.asarray(metadata[name]))
+        trials.create_dataset(
+            "sync_block_index", data=np.asarray(
+                metadata.get("sync_block_indices", np.arange(n_trial))
+            )
+        )
+        trials["sync_block_index"].attrs["description"] = (
+            "Index of this trial's 2p frame-clock block before pulse-free "
+            "fragments were excluded."
+        )
         trials.create_dataset("state", data=state_codes)
         trials.create_dataset("state_levels",
                               data=np.asarray(state_levels, dtype=h5_string_dtype()))
@@ -545,6 +615,11 @@ def process_auxiliary(
         "manipulation": session.manipulation,
         "frame_rate": session.frame_rate,
         "acq_ids": np.asarray(session.acq_ids), "trial_ids": trial_ids,
+        "sync_block_indices": np.asarray(session.sync_block_indices),
+        "n_sync_blocks": session.n_sync_blocks,
+        "excluded_sync_block_indices": np.asarray(
+            session.excluded_sync_block_indices, dtype=int
+        ),
         "odor_ids": np.asarray(session.odor_ids), "states": np.asarray(session.states),
         "odor_on_frames": np.asarray(session.odor_on_frames),
         "odor_off_frames": np.asarray(session.odor_off_frames),
@@ -559,10 +634,12 @@ def process_auxiliary(
         sync_path, acq_ids=session.acq_ids, odor_ids=session.odor_ids,
         states=states, state_levels=state_levels, trial_ids=trial_ids,
         exp_name=session.exp_name, manipulation=session.manipulation, save=False,
+        acquisition_indices=session.sync_block_indices,
     )
     stage_message(f"group {session.group_id}: treadmill")
     treadmill = extract_treadmill(
         sync_path, odor_on_frames=session.odor_on_frames,
+        acquisition_indices=session.sync_block_indices,
         running_threshold_cm_s=running_threshold_cm_s,
     )
     if video_paths is None:
@@ -591,6 +668,7 @@ def process_auxiliary(
             config=pupil_config, save=False,
             workers=workers, checkpoint_dir=checkpoint_dir,
             resume=pupil_resume,
+            acquisition_indices=session.sync_block_indices,
         )
     stage_message(f"group {session.group_id}: writing auxiliary outputs and QC")
     source_video_paths = video_paths if source_video_paths is None else source_video_paths

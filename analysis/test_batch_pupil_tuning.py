@@ -3,7 +3,7 @@ import json
 import numpy as np
 
 from .batch_pupil_tuning import TuningQueueApp
-from .batch_auxiliary import cleanup_staged_inputs, completed_outputs
+from .batch_auxiliary import cleanup_staged_inputs, completed_outputs, inventory
 
 
 def test_queue_loads_pending_cache_and_existing_complete_is_optional(tmp_path):
@@ -52,6 +52,22 @@ def test_completed_auxiliary_requires_valid_h5_and_all_figures(tmp_path):
     assert completed_outputs(tmp_path, row, expect_pupil=True)["h5"].endswith(".h5")
     (aux / f"{stem}_pupil_qc.png").unlink()
     assert completed_outputs(tmp_path, row, expect_pupil=True) is None
+
+
+def test_inventory_selects_valid_behavior_sync_not_first_h5(tmp_path):
+    import h5py
+
+    row = {"group_id": "7", "date": "20260101", "mouse": "m1", "exp": "e1"}
+    sync = tmp_path / "20260101" / "m1" / "e1" / "sync"
+    sync.mkdir(parents=True)
+    with h5py.File(sync / "a_pre_artifact.h5", "w") as handle:
+        handle.attrs["samplerate"] = 5000
+        handle.create_dataset("ImagingWindow", data=[0])
+    with h5py.File(sync / "z_behavior.h5", "w") as handle:
+        for name in ("2pFrameSync", "respiration", "odorPulse"):
+            handle.create_dataset(name, data=np.zeros(10))
+    result = inventory(row, tmp_path)
+    assert result["sync"].endswith("z_behavior.h5")
 
 
 def test_cleanup_removes_only_staged_inputs_and_preserves_checkpoint(tmp_path):

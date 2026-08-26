@@ -384,6 +384,7 @@ def respiration_from_round(
     smooth_breaths: int = SMOOTH_BREATHS,
     quality_threshold: float = QUALITY_THRESHOLD,
     max_masked: float = MAX_MASKED_FRACTION,
+    acquisition_indices=None,
     save: bool = True,
 ) -> dict:
     """Sniff rate per trial, aligned to the imaging frames, written beside the round."""
@@ -418,6 +419,8 @@ def respiration_from_round(
     raw = read_channel(sync, "respiration", column=0)
     frames = frame_onset_samples(sync)
     groups = group_frames_into_acquisitions(frames, rate_hz=sync.rate_hz)
+    if acquisition_indices is not None:
+        groups = [groups[int(index)] for index in acquisition_indices]
 
     n_trial = len(odor_ids)
 
@@ -526,6 +529,19 @@ def find_behavior_sync(session_dir):
     session_dir = Path(session_dir)
 
     searched = [session_dir / "sync", session_dir, session_dir.parent]
+    date_root = next(
+        (parent for parent in (session_dir, *session_dir.parents)
+         if len(parent.name) == 8 and parent.name.isdigit()),
+        None,
+    )
+    if date_root is not None and date_root not in searched:
+        searched.append(date_root)
+    expected_mouse = next(
+        (parent.name for parent in (session_dir, *session_dir.parents)
+         if parent.name.lower().startswith("m") and parent.name[1:].isdigit()),
+        None,
+    )
+    expected_experiment = session_dir.name
     rejected = []
 
     for folder in searched:
@@ -533,7 +549,17 @@ def find_behavior_sync(session_dir):
             try:
                 with h5py.File(candidate, "r") as f:
                     if all(c in f for c in SYNC_CHANNELS):
-                        return candidate
+                        mouse = str(f.attrs.get("mouse", ""))
+                        experiment = str(f.attrs.get("experiment", ""))
+                        mouse_matches = not expected_mouse or not mouse or mouse == expected_mouse
+                        experiment_matches = (
+                            not experiment or experiment == expected_experiment
+                            or expected_experiment in experiment
+                        )
+                        if mouse_matches and experiment_matches:
+                            return candidate
+                        rejected.append((candidate.name, [mouse, experiment]))
+                        continue
                     rejected.append((candidate.name, sorted(f.keys())[:3]))
             except OSError:
                 continue
@@ -771,6 +797,7 @@ def extract_respiration(
     smooth_breaths: int = SMOOTH_BREATHS,
     quality_threshold: float = QUALITY_THRESHOLD,
     max_masked: float = MAX_MASKED_FRACTION,
+    acquisition_indices=None,
     save: bool = True,
 ) -> dict:
     """Sniff rate per acquisition, from the sync file alone."""
@@ -786,6 +813,8 @@ def extract_respiration(
     raw = read_channel(sync, "respiration", column=0)
     frames = frame_onset_samples(sync)
     groups = group_frames_into_acquisitions(frames, rate_hz=sync.rate_hz)
+    if acquisition_indices is not None:
+        groups = [groups[int(index)] for index in acquisition_indices]
 
     odor_ids = np.asarray(odor_ids)
     states = np.asarray(states)
@@ -881,6 +910,10 @@ def extract_respiration(
         "trial_ids": (np.arange(n_trial) if trial_ids is None
                       else np.asarray(trial_ids)),
         "acq_ids": np.asarray(acq_ids),
+        "sync_block_indices": (
+            np.arange(n_trial) if acquisition_indices is None
+            else np.asarray(acquisition_indices, dtype=int)
+        ),
         "on_frames": on_frames,
         "off_frames": off_frames,
     }

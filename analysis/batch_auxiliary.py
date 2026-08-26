@@ -25,10 +25,13 @@ def manifest_rows(path, groups=()):
 
 
 def inventory(row, imaging_root):
+    from analysis.session.respiration import find_behavior_sync
+
     exp_dir = (Path(imaging_root) / row["date"] / row["mouse"] / row["exp"])
-    candidates = sorted((exp_dir / "sync").glob("*.h5"))
-    candidates += sorted(exp_dir.parent.glob(f"*_{row['exp']}_*.h5"))
-    sync_path = candidates[0] if candidates else None
+    try:
+        sync_path = find_behavior_sync(exp_dir)
+    except FileNotFoundError:
+        sync_path = None
     try:
         videos = discover_pupil_videos(exp_dir)
     except FileNotFoundError:

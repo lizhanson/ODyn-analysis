@@ -52,6 +52,11 @@ def _existing_context(path):
             "state_levels": levels,
             "odor_on_frames": handle["trials/odor_on_frame"][:],
             "odor_off_frames": handle["trials/odor_off_frame"][:],
+            "sync_block_indices": (
+                handle["trials/sync_block_index"][:]
+                if "trials/sync_block_index" in handle
+                else np.arange(len(state_codes))
+            ),
         }
         treadmill = {
             "velocity": handle["treadmill/velocity"][:],
@@ -205,6 +210,7 @@ def revise_auxiliary(path, *, sync_path=None,
         state_levels=metadata["state_levels"], exp_name=metadata["exp_name"],
         manipulation=metadata["manipulation"],
         quality_threshold=float(snr_threshold), save=False,
+        acquisition_indices=metadata["sync_block_indices"],
     )
     if respiration["rate"].shape != treadmill["velocity"].shape:
         raise ValueError(

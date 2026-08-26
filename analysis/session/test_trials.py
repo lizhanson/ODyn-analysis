@@ -65,3 +65,23 @@ def test_event_recovery_refuses_unaligned_block_timestamp(tmp_path):
 
     with pytest.raises(ValueError, match="refusing positional pairing"):
         trial_table_from_events(_group(), exp_id=234, exp_dir=tmp_path)
+
+
+def test_event_recovery_selects_matching_pair_from_shared_date_folder(tmp_path):
+    date_root = tmp_path / "20260730"
+    exp_dir = date_root / "m466" / "e1"
+    exp_dir.mkdir(parents=True)
+    for timestamp, odors in (
+        ("2026_07_30-10_32_03", [1, 2]),
+        ("2026_07_30-11_22_02", [2, 0]),
+        ("2026_07_30-12_54_05", [1, 2]),
+        ("2026_07_30-13_42_27", [2, 0]),
+    ):
+        folder = date_root / f"events-{timestamp}"
+        folder.mkdir()
+        _write_events(folder, timestamp, odors)
+
+    table = trial_table_from_events(_group(), exp_id=234, exp_dir=exp_dir)
+
+    assert table.odor_id.tolist() == [1, 2, 2, 0]
+    assert table.state.tolist() == ["pre", "pre", "post", "post"]
