@@ -1603,11 +1603,11 @@ def launch_pupil_tuner(dim_frame, bright_frame, *, save_path, roi=None,
         threshold_offset=threshold_offset,
         bright_percentile=bright_percentile,
     )
-    from .bokeh import free_local_port, stop_notebook_servers
+    from .bokeh import stop_notebook_servers
 
-    # VS Code needs the concrete selected port in the embedded application URL.
+    # Use a stable VS Code-visible port after releasing the previous server.
     stop_notebook_servers()
-    bpl.show(gui.modify_doc, port=free_local_port())
+    bpl.show(gui.modify_doc, port=5009)
     return gui
 
 

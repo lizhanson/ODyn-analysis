@@ -222,7 +222,7 @@ def launch(
     import bokeh.plotting as bpl
 
     from bokeh.io import output_notebook
-    from ..session.bokeh import free_local_port, stop_notebook_servers
+    from ..session.bokeh import stop_notebook_servers
 
     if "ipykernel" in sys.modules:
         os.environ["BOKEH_ALLOW_WS_ORIGIN"] = "*"
@@ -242,10 +242,10 @@ def launch(
     # establish the proxied websocket, especially after an interactive kernel
     # has been idle.  Keep the one-time session-creation token valid for a day;
     # this does not change the lifetime of an already connected session.
-    # Pass a concrete free port rather than Bokeh's ``port=0``. VS Code's
-    # notebook renderer needs the real number when it builds the proxied URL.
+    # VS Code Remote reliably proxies this stable port. The previous notebook
+    # server is stopped above before the port is rebound.
     bpl.show(
-        gui.modify_doc, port=free_local_port(),
+        gui.modify_doc, port=5007,
         session_token_expiration=24 * 60 * 60,
     )
     return gui
