@@ -147,6 +147,11 @@ def test_pupil_tuner_settings_round_trip(tmp_path):
     assert loaded["threshold_offset"] == -7
 
 
+def test_pupil_qc_status_uses_frame_indices_not_pixel_mask():
+    assert pupil._pupil_qc_status(40_224, [40_224, 42_917, 40_000]) == "EXCLUDED: fit"
+    assert pupil._pupil_qc_status(6_948, [40_224, 42_917, 40_000]) == "accepted"
+
+
 def test_consensus_filter_removes_tail_but_rejects_tiny_corner_change():
     yy, xx = np.ogrid[:120, :150]
     pupil_mask = ((xx - 65) / 35) ** 2 + ((yy - 60) / 25) ** 2 <= 1

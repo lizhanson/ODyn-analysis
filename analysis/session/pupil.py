@@ -1344,6 +1344,12 @@ def _write_pupil(path, report):
     return path
 
 
+def _pupil_qc_status(index, excluded_indices):
+    """Human-readable QC label from frame-level exclusion indices."""
+
+    return "EXCLUDED: fit" if int(index) in set(map(int, excluded_indices)) else "accepted"
+
+
 def pupil_figure(report, out_path):
     """QC: session-spanning and worst fits, plus trace with odor shading."""
 
@@ -1354,22 +1360,22 @@ def pupil_figure(report, out_path):
 
     camera = report["camera_values"]
     examples = report["example_frames"]
-    excluded = list(map(int, report["worst_frame_indices"]))
+    excluded_indices = list(map(int, report["worst_frame_indices"]))
     accepted = list(map(int, report.get("accepted_frame_indices", ())))
     if not accepted:  # Compatibility with reports produced before this layout.
         accepted = [int(index) for index in sorted(examples)
-                    if int(index) not in excluded]
-    chosen = list(dict.fromkeys(excluded[:3] + accepted[:9]))
+                    if int(index) not in excluded_indices]
+    chosen = list(dict.fromkeys(excluded_indices[:3] + accepted[:9]))
     fig = plt.figure(figsize=(15, 9), constrained_layout=True)
     gs = fig.add_gridspec(4, 4)
     for slot, idx in enumerate(chosen):
         ax = fig.add_subplot(gs[slot // 4, slot % 4])
         frame, original_mask, mask = examples[idx]
         ax.imshow(frame, cmap="gray")
-        excluded = original_mask & ~mask
-        if np.any(excluded):
-            yellow = np.zeros((*excluded.shape, 4), dtype=float)
-            yellow[excluded] = (1.0, 0.85, 0.0, 0.75)
+        excluded_pixels = original_mask & ~mask
+        if np.any(excluded_pixels):
+            yellow = np.zeros((*excluded_pixels.shape, 4), dtype=float)
+            yellow[excluded_pixels] = (1.0, 0.85, 0.0, 0.75)
             ax.imshow(yellow)
         ax.contour(mask, levels=[0.5], colors="cyan", linewidths=.7)
         if np.isfinite(camera["major"][idx]):
@@ -1377,7 +1383,7 @@ def pupil_figure(report, out_path):
                                  2*camera["major"][idx], 2*camera["minor"][idx],
                                  angle=np.degrees(camera["theta"][idx]), fill=False,
                                  edgecolor="magenta", linewidth=1))
-        status = "EXCLUDED: fit" if idx in excluded else "accepted"
+        status = _pupil_qc_status(idx, excluded_indices)
         ax.set_title(
             f"{status} · frame {idx}\n"
             f"in={camera['inlier_fraction'][idx]:.2f}  "
