@@ -134,6 +134,11 @@ def main(argv=None):
                         help="Extract ready groups; otherwise print inventory only.")
     parser.add_argument("--force", action="store_true",
                         help="Re-extract even when the current mask is complete.")
+    parser.add_argument(
+        "--fresh", action="store_true",
+        help=("Re-extract from trial zero and discard any resumable extraction "
+              "checkpoint. Implies --force."),
+    )
     parser.add_argument("--report", type=Path, default=None)
     args = parser.parse_args(argv)
 
@@ -160,7 +165,7 @@ def main(argv=None):
                 items.set_postfix_str(f"group {item['group_id']}")
             if not item["ready"]:
                 continue
-            if item["current"] and not args.force:
+            if item["current"] and not (args.force or args.fresh):
                 item["status"] = "already_complete"
                 continue
             try:
@@ -169,6 +174,20 @@ def main(argv=None):
                     group, group_id=item["group_id"],
                     manipulation=args.manipulation, approved_only=True)
                 config = bundle["config"]
+                if args.fresh:
+                    checkpoint = scratch / f"extract_{item['group_id']}"
+                    cleared = False
+                    if checkpoint.is_dir():
+                        for stale in checkpoint.glob("*"):
+                            if stale.is_file():
+                                stale.unlink()
+                        try:
+                            checkpoint.rmdir()
+                        except OSError:
+                            pass
+                        cleared = True
+                    item["fresh_extraction"] = True
+                    item["checkpoint_cleared"] = cleared
                 result = finalize_session(
                     session, bundle["labels"],
                     per_group_masks=bundle["per_group_masks"],
