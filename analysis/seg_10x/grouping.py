@@ -118,18 +118,27 @@ class JoiningGUI:
     def __init__(self, state, save_path):
         self.state = state
         self.save_path = Path(save_path)
+        suggested = state.candidates[state.candidates.suggested].copy()
+        self.suggestions = (suggested if len(suggested)
+                            else state.candidates.copy()).head(100).reset_index(drop=True)
+        self.suggestion_index = 0
 
     def modify_doc(self, doc):
         from bokeh.events import Tap
         from bokeh.layouts import column, row
-        from bokeh.models import Button, ColumnDataSource, Div, LinearColorMapper, TextInput
+        from bokeh.models import (
+            Button, ColumnDataSource, DataTable, Div, LinearColorMapper,
+            NumberFormatter, TableColumn, TextInput,
+        )
         from bokeh.palettes import Greys256
         from bokeh.plotting import figure
-        from .gui import _grey_image, _label_rgba
+        from .gui import _grey_image
 
         h, w = self.state.labels.shape
         image, lo, hi = _grey_image(self.state.reference)
-        self.fig = figure(width=800, height=int(800 * h / w) + 30,
+        plot_width = 620
+        plot_height = min(570, max(380, int(plot_width * h / w) + 25))
+        self.fig = figure(width=plot_width, height=plot_height,
                           x_range=(0, w), y_range=(0, h),
                           tools="pan,wheel_zoom,reset", active_scroll="wheel_zoom")
         self.fig.axis.visible = False; self.fig.grid.visible = False
@@ -139,31 +148,96 @@ class JoiningGUI:
         self.fig.image_rgba(image="image", x=0, y=0, dw=w, dh=h,
                             source=self.overlay)
         self.fig.on_event(Tap, self._tap)
-        self.status = Div(width=800)
+        instructions = Div(width=360, text=(
+            "<b>How to join fragments</b><br>"
+            "<span style='color:#e67e00'>Orange</span> = current correlated-neighbor "
+            "suggestion; <span style='color:#b59b00'>yellow</span> = selected; "
+            "colored = saved join; gray = singleton.<br>"
+            "Click any ROI to toggle it, or click a candidate row and use "
+            "<b>Select orange pair</b>. Then assign. Only explicitly assigned "
+            "ROIs are joined."
+        ))
+        self.status = Div(width=980)
         self.group_id = TextInput(value=str(self.state.next_group_id()),
-                                  title="join group id", width=160)
-        assign = Button(label="Assign selected", button_type="primary", width=160)
+                                  title="join group id", width=150)
+        assign = Button(label="Assign selected", button_type="primary", width=175)
         assign.on_click(self._assign)
-        clear = Button(label="Make selected singleton", width=190)
+        clear = Button(label="Make selected singleton", width=175)
         clear.on_click(self._clear)
-        save = Button(label="Save reviewed groups", button_type="success", width=190)
+        save = Button(label="Save reviewed groups", button_type="success", width=350)
         save.on_click(self._save)
-        doc.add_root(column(self.status, self.fig,
-                            row(self.group_id, assign, clear, save)))
+        previous = Button(label="← Previous", width=105)
+        previous.on_click(lambda: self._move_suggestion(-1))
+        select_pair = Button(label="Select orange pair", width=140,
+                             button_type="warning")
+        select_pair.on_click(self._select_suggestion)
+        following = Button(label="Next →", width=105)
+        following.on_click(lambda: self._move_suggestion(1))
+
+        table_data = {name: self.suggestions[name].tolist()
+                      for name in ("roi_a", "roi_b", "gap_px", "correlation")}
+        self.candidate_source = ColumnDataSource(table_data)
+        self.candidate_source.selected.on_change("indices", self._table_selection)
+        candidate_table = DataTable(
+            source=self.candidate_source, width=360, height=250,
+            index_position=None, selectable=True,
+            columns=[
+                TableColumn(field="roi_a", title="ROI A", width=65),
+                TableColumn(field="roi_b", title="ROI B", width=65),
+                TableColumn(field="gap_px", title="gap px", width=75,
+                            formatter=NumberFormatter(format="0.0")),
+                TableColumn(field="correlation", title="r", width=75,
+                            formatter=NumberFormatter(format="0.000")),
+            ],
+        )
+        controls = column(
+            instructions,
+            Div(text=(f"<b>Ranked suggestions</b>: r ≥ "
+                      f"{self.state.params['min_correlation']:.2f}, gap ≤ "
+                      f"{self.state.params['max_gap_px']:g} px"), width=360),
+            candidate_table, row(previous, select_pair, following),
+            row(self.group_id, assign), clear, save, width=360,
+        )
+        doc.add_root(column(self.status, row(self.fig, controls)))
         self._refresh()
 
     def _overlay(self):
-        from .gui import _label_rgba
-        display = np.zeros_like(self.state.labels)
+        from .gui import _PALETTE
+        h, w = self.state.labels.shape
+        rgba = np.zeros((h, w, 4), dtype=np.uint8)
         for roi_id in np.unique(self.state.labels[self.state.labels > 0]):
             gid = self.state.groups.get(int(roi_id))
-            display[self.state.labels == roi_id] = 1 if gid is None else gid + 1
-        rgba = _label_rgba(display, alpha=115)
-        # Selected fragments are made opaque yellow.
-        view = rgba.view(np.uint8).reshape(*rgba.shape, 4)
+            colour = ((145, 145, 145) if gid is None
+                      else _PALETTE[(int(gid) - 1) % len(_PALETTE)])
+            rgba[self.state.labels == roi_id] = (*colour, 105 if gid is None else 145)
+        pair = self._suggestion_pair()
+        for roi_id in pair:
+            rgba[self.state.labels == roi_id] = (255, 125, 0, 190)
         for roi_id in self.state.selected:
-            view[self.state.labels == roi_id] = (255, 230, 0, 230)
-        return rgba
+            rgba[self.state.labels == roi_id] = (255, 230, 0, 235)
+        return rgba.view(np.uint32).reshape(h, w)
+
+    def _suggestion_pair(self):
+        if not len(self.suggestions):
+            return ()
+        item = self.suggestions.iloc[self.suggestion_index]
+        return int(item.roi_a), int(item.roi_b)
+
+    def _move_suggestion(self, step):
+        if len(self.suggestions):
+            self.suggestion_index = ((self.suggestion_index + int(step))
+                                     % len(self.suggestions))
+            self.candidate_source.selected.indices = [self.suggestion_index]
+            self._refresh()
+
+    def _select_suggestion(self):
+        self.state.selected = set(self._suggestion_pair())
+        self._refresh("Selected suggested pair")
+
+    def _table_selection(self, attr, old, new):
+        if new:
+            self.suggestion_index = int(new[-1])
+            self._refresh()
 
     def _tap(self, event):
         y, x = int(round(event.y)), int(round(event.x))
@@ -198,8 +272,17 @@ class JoiningGUI:
             if len(match):
                 row = match.iloc[0]
                 detail = f"; gap {row.gap_px:g}px, r={row.correlation:.3f}"
-        self.status.text = (f"<b>{message}</b> selected {chosen}{detail}; "
-                            f"{len(set(self.state.groups.values()))} joins")
+        suggestion = self._suggestion_pair()
+        suggestion_text = "none"
+        if suggestion:
+            item = self.suggestions.iloc[self.suggestion_index]
+            suggestion_text = (f"{self.suggestion_index + 1}/{len(self.suggestions)}: "
+                               f"ROI {suggestion[0]} + {suggestion[1]}, "
+                               f"gap {item.gap_px:g}px, r={item.correlation:.3f}")
+        self.status.text = (
+            f"<b>{message}</b> Current suggestion {suggestion_text}. "
+            f"Selected {chosen}{detail}; {len(set(self.state.groups.values()))} joins."
+        )
 
 
 def prepare_joining(round_path, reference, *, params=None, groups_path=None):
@@ -218,6 +301,9 @@ def prepare_joining(round_path, reference, *, params=None, groups_path=None):
 
 def launch_joining(state, save_path):
     import bokeh.plotting as bpl
+    from ..session.bokeh import ensure_notebook_output
+
+    ensure_notebook_output()
     gui = JoiningGUI(state, save_path)
     bpl.show(gui.modify_doc, session_token_expiration=24 * 60 * 60)
     return gui

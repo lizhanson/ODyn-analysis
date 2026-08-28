@@ -12,6 +12,22 @@ def free_local_port() -> int:
         return int(sock.getsockname()[1])
 
 
+def ensure_notebook_output() -> bool:
+    """Initialize Bokeh's notebook hook when running inside an IPython kernel."""
+    import sys
+
+    if "ipykernel" not in sys.modules:
+        return False
+    import os
+    from bokeh.io import output_notebook
+    from bokeh.io.state import curstate
+
+    if curstate().notebook_type is None:
+        os.environ["BOKEH_ALLOW_WS_ORIGIN"] = "*"
+        output_notebook(hide_banner=True)
+    return True
+
+
 def stop_notebook_servers() -> int:
     """Stop and unregister Bokeh servers left by earlier notebook outputs."""
     try:

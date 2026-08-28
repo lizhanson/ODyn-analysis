@@ -452,22 +452,12 @@ class SegmentationGUI:
 def launch(images: dict, *, save_path: str | Path, params: None | dict = None):
     """Open the segmentation GUI on `{odor key: image}` inside a notebook."""
 
-    import sys
-
     import bokeh.plotting as bpl
+    from ..session.bokeh import ensure_notebook_output, stop_notebook_servers
 
-    from bokeh.io import output_notebook
-    from bokeh.io.state import curstate
-
-    if "ipykernel" in sys.modules and not curstate().notebook:
-        import os
-
-        os.environ["BOKEH_ALLOW_WS_ORIGIN"] = "*"  # HACK: render inside VSCode
-        output_notebook()
+    ensure_notebook_output()
 
     gui = SegmentationGUI(SegmentationState(images, params), save_path)
-    from ..session.bokeh import stop_notebook_servers
-
     # Use a stable VS Code-visible port after releasing the previous server.
     stop_notebook_servers()
     bpl.show(gui.modify_doc, port=5008)
