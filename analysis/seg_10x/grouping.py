@@ -200,7 +200,17 @@ class JoiningGUI:
     def __init__(self, state, save_path):
         self.state = state
         self.save_path = Path(save_path)
-        self.suggestions = state.suggestions.head(100).reset_index(drop=True)
+        suggestions = getattr(state, "suggestions", None)
+        required = {"members", "n_rois", "max_gap_px", "min_correlation"}
+        if suggestions is None or not required.issubset(
+            getattr(suggestions, "columns", ())
+        ):
+            # Autoreload can update this GUI class while an existing state still
+            # carries the previous pair-level suggestion table. Upgrade it at
+            # the launch boundary rather than failing inside Tornado later.
+            suggestions = fully_connected_suggestions(state.candidates)
+            state.suggestions = suggestions
+        self.suggestions = suggestions.head(100).reset_index(drop=True)
         self.suggestion_index = 0
 
     def modify_doc(self, doc):
@@ -232,7 +242,7 @@ class JoiningGUI:
             "<b>How to join fragments</b><br>"
             "<span style='color:#e67e00'>Orange</span> = current fully connected "
             "correlated-neighbor set; "
-            "suggestion; <span style='color:#b59b00'>yellow</span> = selected; "
+            "<span style='color:#b59b00'>yellow</span> = selected; "
             "colored = saved join; gray = singleton.<br>"
             "A set may chain spatially, but its displayed minimum r is computed "
             "across <i>every</i> member pair.<br>"

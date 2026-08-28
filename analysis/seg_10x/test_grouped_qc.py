@@ -3,7 +3,7 @@ import json
 import numpy as np
 
 from .grouped_qc import aggregate_joined_raw, cleanup_10x_caches
-from .grouping import JoiningState, fully_connected_suggestions, load_groups
+from .grouping import JoiningGUI, JoiningState, fully_connected_suggestions, load_groups
 
 
 def test_joined_raw_is_pixel_weighted_and_components_are_absent():
@@ -55,6 +55,21 @@ def test_multi_roi_suggestions_require_every_pair_to_pass():
     suggestions = fully_connected_suggestions(chain)
     assert set(suggestions.members) == {(1, 2), (2, 3)}
     assert not any(len(members) == 3 for members in suggestions.members)
+
+
+def test_joining_gui_upgrades_pair_level_suggestions_after_autoreload(tmp_path):
+    import pandas as pd
+
+    pairs = pd.DataFrame([
+        {"roi_a": 1, "roi_b": 2, "gap_px": 1., "correlation": .9,
+         "spatial_neighbor": True, "correlation_pass": True, "suggested": True},
+    ])
+    state = JoiningState(
+        np.array([[1, 2]]), np.zeros((1, 2)), tmp_path / "round.h5",
+        "abc", pairs, {}, suggestions=pairs,
+    )
+    gui = JoiningGUI(state, tmp_path / "groups.json")
+    assert gui.suggestions.members.tolist() == [(1, 2)]
 
 
 def test_cleanup_requires_outputs_then_removes_only_known_caches(tmp_path):
