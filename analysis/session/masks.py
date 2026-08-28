@@ -140,6 +140,34 @@ def load_mask_bundle(path: str | Path) -> dict:
             handle[f"masks/per_group/{name}"][:]
             for name in handle["masks/per_group"]
         }
+
+
+def load_10x_working_mask(path: str | Path) -> dict:
+    """Load a GUI scratch checkpoint for recovery/publication, not analysis."""
+    import h5py
+
+    path = Path(path)
+    with h5py.File(path, "r") as handle:
+        if handle.attrs.get("file_type") != "odyn_10x_working_mask":
+            raise ValueError(f"Not a 10x GUI working-mask checkpoint: {path}")
+        config = json.loads(handle.attrs.get("config_json", "{}"))
+        per_group = {
+            name: handle[f"masks/{name}"][:]
+            for name in handle["masks"] if name != "labels"
+        }
+        return {
+            "path": path,
+            "labels": handle["masks/labels"][:],
+            "per_group": per_group,
+            "reference": None,
+            "config": {
+                "segmentation": config.get("shared", {}),
+                "merge": config.get("merge_params", {}),
+                "curation": config.get("curation"),
+                "working_checkpoint": config,
+            },
+            "source": "10x GUI working checkpoint",
+        }
         return {
             "path": path,
             "labels": handle["masks/labels"][:],

@@ -22,26 +22,37 @@ def experiment_dir(row, imaging_root):
     return Path(imaging_root) / row["date"] / row["mouse"] / row["exp"]
 
 
-def published_bundles(row, imaging_root):
-    output = experiment_dir(row, imaging_root) / "processed" / "python"
+def published_bundles(row, imaging_root, *, output_dir=None):
+    output = (experiment_dir(row, imaging_root) / "processed" / "python"
+              if output_dir is None else Path(output_dir))
     return sorted(output.glob(
         f"group{int(row['group_id'])}_*_10x_masks_processed_*.h5"))
 
 
-def inventory(row, imaging_root, *, baseline_sd_mode="pre_block_pooled"):
+def inventory(row, imaging_root, *, output_dir=None,
+              baseline_sd_mode="pre_block_pooled"):
     from analysis.session.finalize import mask_hash, verify
     from analysis.session.masks import load_mask_bundle
 
-    bundles = published_bundles(row, imaging_root)
+    manifest_exp_dir = experiment_dir(row, imaging_root)
+    output = (manifest_exp_dir / "processed" / "python"
+              if output_dir is None else Path(output_dir))
+    bundles = published_bundles(row, imaging_root, output_dir=output)
     item = {
         "group_id": int(row["group_id"]),
-        "exp_dir": str(experiment_dir(row, imaging_root)),
+        "manifest_exp_dir": str(manifest_exp_dir),
+        "output_dir": str(output),
         "bundle_count": len(bundles),
         "bundle": str(bundles[-1]) if bundles else None,
         "ready": False, "current": False,
     }
     if not bundles:
         item["status"] = "no_published_bundle"
+        item["output_dir_exists"] = output.is_dir()
+        item["nearby_h5"] = (
+            [path.name for path in sorted(output.glob(f"group{item['group_id']}_*.h5"))]
+            if output.is_dir() else []
+        )
         return item
     try:
         bundle = load_mask_bundle(bundles[-1])
@@ -49,7 +60,6 @@ def inventory(row, imaging_root, *, baseline_sd_mode="pre_block_pooled"):
             raise ValueError("Portable bundle has no reference image")
         item["n_rois"] = int(bundle["labels"].max())
         item["mask_hash"] = mask_hash(bundle["labels"])
-        output = experiment_dir(row, imaging_root) / "processed" / "python"
         existing = verify(output)
         item["existing"] = existing
         item["current"] = (
@@ -83,14 +93,36 @@ def main(argv=None):
     parser.add_argument("--report", type=Path)
     args = parser.parse_args(argv)
 
+    from analysis.session.devshim import LocalGroup
+    from analysis.session.resolve import resolve_group
+
     rows = manifest_rows(args.manifest, args.groups)
-    status = [inventory(row, args.imaging_root,
-                        baseline_sd_mode=args.baseline_sd_mode) for row in rows]
+    scratch = Path(args.scratch_root)
+    group = LocalGroup(
+        Path(args.imaging_root) / ".odyn" / "odyn.db", args.imaging_root,
+        snapshot_to=scratch / "odyn_snapshot.db", max_age_s=1800)
+    status = []
+    sessions = {}
+    for row in rows:
+        group_id = int(row["group_id"])
+        try:
+            session = resolve_group(
+                group, group_id=group_id, manipulation=args.manipulation,
+                approved_only=True)
+            sessions[group_id] = session
+            status.append(inventory(
+                row, args.imaging_root, output_dir=session.output_dir,
+                baseline_sd_mode=args.baseline_sd_mode))
+        except Exception as error:
+            status.append({
+                "group_id": group_id, "ready": False, "current": False,
+                "status": "session_resolution_failed",
+                "error": f"{type(error).__name__}: {error}",
+            })
+
     if args.execute:
-        from analysis.session.devshim import LocalGroup
         from analysis.session.finalize import finalize_session
         from analysis.session.masks import load_mask_bundle
-        from analysis.session.resolve import resolve_group
 
         try:
             from tqdm.auto import tqdm
@@ -98,10 +130,6 @@ def main(argv=None):
                          dynamic_ncols=True)
         except ImportError:
             items = status
-        scratch = Path(args.scratch_root)
-        group = LocalGroup(
-            Path(args.imaging_root) / ".odyn" / "odyn.db", args.imaging_root,
-            snapshot_to=scratch / "odyn_snapshot.db", max_age_s=1800)
         for item in items:
             if hasattr(items, "set_postfix_str"):
                 items.set_postfix_str(f"group {item['group_id']}")
@@ -110,9 +138,7 @@ def main(argv=None):
             try:
                 bundle = load_mask_bundle(item["bundle"])
                 config = bundle["config"]
-                session = resolve_group(
-                    group, group_id=item["group_id"],
-                    manipulation=args.manipulation, approved_only=True)
+                session = sessions[item["group_id"]]
                 result = finalize_session(
                     session, bundle["labels"],
                     per_group_masks=bundle["per_group"],

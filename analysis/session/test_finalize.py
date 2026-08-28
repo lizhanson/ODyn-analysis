@@ -31,6 +31,17 @@ def test_portable_mask_bundle_is_not_a_finalized_round(tmp_path):
     assert verify(tmp_path) == {"status": "no rounds found", "rounds": []}
 
 
+def test_portable_10x_mask_bundle_is_not_a_finalized_round(tmp_path):
+    portable = tmp_path / "group212_example_10x_masks_processed_20260819.h5"
+    with h5py.File(portable, "w") as handle:
+        handle.create_group("masks").create_dataset(
+            "labels", data=np.zeros((5, 5), np.int32)
+        )
+
+    assert find_rounds(tmp_path) == []
+    assert verify(tmp_path) == {"status": "no rounds found", "rounds": []}
+
+
 def test_verify_ignores_bundle_and_reads_standard_round(tmp_path):
     labels = np.zeros((5, 5), np.int32)
     labels[1:3, 1:3] = 1

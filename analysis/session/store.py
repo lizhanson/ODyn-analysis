@@ -459,7 +459,8 @@ def find_rounds(output_dir: str | Path, *, stage: str = STAGE) -> list[Path]:
         # Published portable bundles are deliberately named side products.
         # Reject them without opening HDF5: on a remote mount, even inspecting
         # a multi-megabyte bundle can take much longer than listing its name.
-        if f"_20x_masks_{stage}_" in path.name:
+        if (f"_20x_masks_{stage}_" in path.name
+                or f"_10x_masks_{stage}_" in path.name):
             continue
         try:
             with open_h5(path) as handle:

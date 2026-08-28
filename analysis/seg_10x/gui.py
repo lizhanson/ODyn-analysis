@@ -177,7 +177,10 @@ class SegmentationGUI:
         self.b_cancel_poly = Button(label="Cancel polygon", width=145)
         self.b_cancel_poly.on_click(lambda: (self._clear_poly(), self._refresh()))
 
-        self.b_save = Button(label="Save masks + config", button_type="success", width=300)
+        self.b_save = Button(
+            label="Save local checkpoint (not publish)",
+            button_type="success", width=300,
+        )
         self.b_save.on_click(self._on_save)
 
         controls = column(
