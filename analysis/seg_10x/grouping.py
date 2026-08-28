@@ -33,7 +33,7 @@ def trace_windows(round_path, *, odor_s=4.0, post_s=4.0):
 
 
 def candidate_pairs(labels, round_path, *, params=None):
-    """All nearby ROI pairs with trace correlation, strongest first."""
+    """All ROI correlations, annotated with the local spatial-neighbor graph."""
     import pandas as pd
     from ..seg_20x.grouping import _correlations, pairwise_gaps
 
@@ -48,16 +48,97 @@ def candidate_pairs(labels, round_path, *, params=None):
         raise ValueError("Extracted trace rows do not align with mask ROI ids")
     corr = _correlations(traces, p["max_lag_frames"])
     gaps = pairwise_gaps(index, len(roi_ids), p["max_gap_px"])
-    rows = [{
-        "roi_a": roi_ids[i], "roi_b": roi_ids[j],
-        "gap_px": round(float(gap), 3),
-        "correlation": round(float(corr[i, j]), 4),
-        "suggested": bool(corr[i, j] >= p["min_correlation"]),
-    } for (i, j), gap in gaps.items()]
+    rows = []
+    for i in range(len(roi_ids)):
+        for j in range(i + 1, len(roi_ids)):
+            gap = gaps.get((i, j))
+            spatial = gap is not None
+            correlation_pass = bool(corr[i, j] >= p["min_correlation"])
+            rows.append({
+                "roi_a": roi_ids[i], "roi_b": roi_ids[j],
+                "gap_px": np.nan if gap is None else round(float(gap), 3),
+                "correlation": round(float(corr[i, j]), 4),
+                "spatial_neighbor": spatial,
+                "correlation_pass": correlation_pass,
+                "suggested": spatial and correlation_pass,
+            })
     return pd.DataFrame(rows, columns=(
-        "roi_a", "roi_b", "gap_px", "correlation", "suggested"
+        "roi_a", "roi_b", "gap_px", "correlation", "spatial_neighbor",
+        "correlation_pass", "suggested",
     )).sort_values(["suggested", "correlation"], ascending=False,
                    ignore_index=True)
+
+
+def fully_connected_suggestions(pairs):
+    """Maximal sets with connected spatial graphs and complete correlation graphs.
+
+    Every member must spatially neighbor at least one other member (equivalently,
+    the induced spatial graph is connected), but spatial adjacency need not be
+    pairwise. Correlation *is* pairwise: every possible member pair must pass.
+    """
+    import pandas as pd
+
+    spatial_neighbors = {}
+    correlation_pass = {}
+    edge_values = {}
+    for row in pairs.itertuples(index=False):
+        a, b = int(row.roi_a), int(row.roi_b)
+        spatial = bool(getattr(row, "spatial_neighbor", np.isfinite(row.gap_px)))
+        passes = bool(getattr(row, "correlation_pass", row.suggested))
+        correlation_pass[(min(a, b), max(a, b))] = passes
+        edge_values[(min(a, b), max(a, b))] = (
+            float(row.gap_px), float(row.correlation), spatial)
+        spatial_neighbors.setdefault(a, set())
+        spatial_neighbors.setdefault(b, set())
+        if spatial:
+            spatial_neighbors[a].add(b)
+            spatial_neighbors[b].add(a)
+
+    valid_sets = set()
+    visited = set()
+
+    def correlations_pass(node, chosen):
+        return all(correlation_pass.get((min(node, other), max(node, other)), False)
+                   for other in chosen)
+
+    def expand(chosen):
+        frozen = frozenset(chosen)
+        if frozen in visited:
+            return
+        visited.add(frozen)
+        valid_sets.add(frozen)
+        frontier = set().union(*(spatial_neighbors[node] for node in chosen)) - chosen
+        for node in sorted(frontier):
+            if correlations_pass(node, chosen):
+                expand(set(chosen) | {node})
+
+    # Seed only with spatial edges whose two traces correlate. Expansion may
+    # then chain spatially, but checks a new ROI against every existing trace.
+    for (a, b), (_gap, _corr, spatial) in edge_values.items():
+        if spatial and correlation_pass[(a, b)]:
+            expand({a, b})
+
+    maximal = [members for members in valid_sets
+               if not any(members < other for other in valid_sets)]
+    rows = []
+    for frozen in sorted(maximal, key=lambda value: tuple(sorted(value))):
+        members = tuple(sorted(frozen))
+        values = [edge_values[(members[i], members[j])]
+                  for i in range(len(members)) for j in range(i + 1, len(members))]
+        spatial_gaps = [value[0] for value in values if value[2]]
+        rows.append({
+            "members": members,
+            "n_rois": len(members),
+            "max_gap_px": max(spatial_gaps),
+            "min_correlation": min(value[1] for value in values),
+            "mean_correlation": float(np.mean([value[1] for value in values])),
+        })
+    return pd.DataFrame(rows, columns=(
+        "members", "n_rois", "max_gap_px", "min_correlation", "mean_correlation"
+    )).sort_values(
+        ["n_rois", "min_correlation", "max_gap_px"],
+        ascending=[False, False, True], ignore_index=True,
+    )
 
 
 @dataclass
@@ -68,6 +149,7 @@ class JoiningState:
     mask_hash: str
     candidates: object
     params: dict
+    suggestions: object = None
     groups: dict[int, int] = field(default_factory=dict)
     selected: set[int] = field(default_factory=set)
 
@@ -118,9 +200,7 @@ class JoiningGUI:
     def __init__(self, state, save_path):
         self.state = state
         self.save_path = Path(save_path)
-        suggested = state.candidates[state.candidates.suggested].copy()
-        self.suggestions = (suggested if len(suggested)
-                            else state.candidates.copy()).head(100).reset_index(drop=True)
+        self.suggestions = state.suggestions.head(100).reset_index(drop=True)
         self.suggestion_index = 0
 
     def modify_doc(self, doc):
@@ -150,11 +230,14 @@ class JoiningGUI:
         self.fig.on_event(Tap, self._tap)
         instructions = Div(width=360, text=(
             "<b>How to join fragments</b><br>"
-            "<span style='color:#e67e00'>Orange</span> = current correlated-neighbor "
+            "<span style='color:#e67e00'>Orange</span> = current fully connected "
+            "correlated-neighbor set; "
             "suggestion; <span style='color:#b59b00'>yellow</span> = selected; "
             "colored = saved join; gray = singleton.<br>"
+            "A set may chain spatially, but its displayed minimum r is computed "
+            "across <i>every</i> member pair.<br>"
             "Click any ROI to toggle it, or click a candidate row and use "
-            "<b>Select orange pair</b>. Then assign. Only explicitly assigned "
+            "<b>Select orange set</b>. Then assign. Only explicitly assigned "
             "ROIs are joined."
         ))
         self.status = Div(width=980)
@@ -168,25 +251,29 @@ class JoiningGUI:
         save.on_click(self._save)
         previous = Button(label="← Previous", width=105)
         previous.on_click(lambda: self._move_suggestion(-1))
-        select_pair = Button(label="Select orange pair", width=140,
+        select_pair = Button(label="Select orange set", width=140,
                              button_type="warning")
         select_pair.on_click(self._select_suggestion)
         following = Button(label="Next →", width=105)
         following.on_click(lambda: self._move_suggestion(1))
 
-        table_data = {name: self.suggestions[name].tolist()
-                      for name in ("roi_a", "roi_b", "gap_px", "correlation")}
+        table_data = {
+            "members": [", ".join(map(str, value)) for value in self.suggestions.members],
+            "n_rois": self.suggestions.n_rois.tolist(),
+            "max_gap_px": self.suggestions.max_gap_px.tolist(),
+            "min_correlation": self.suggestions.min_correlation.tolist(),
+        }
         self.candidate_source = ColumnDataSource(table_data)
         self.candidate_source.selected.on_change("indices", self._table_selection)
         candidate_table = DataTable(
             source=self.candidate_source, width=360, height=250,
             index_position=None, selectable=True,
             columns=[
-                TableColumn(field="roi_a", title="ROI A", width=65),
-                TableColumn(field="roi_b", title="ROI B", width=65),
-                TableColumn(field="gap_px", title="gap px", width=75,
+                TableColumn(field="members", title="ROI members", width=130),
+                TableColumn(field="n_rois", title="n", width=35),
+                TableColumn(field="max_gap_px", title="max gap", width=70,
                             formatter=NumberFormatter(format="0.0")),
-                TableColumn(field="correlation", title="r", width=75,
+                TableColumn(field="min_correlation", title="min r", width=65,
                             formatter=NumberFormatter(format="0.000")),
             ],
         )
@@ -210,18 +297,18 @@ class JoiningGUI:
             colour = ((145, 145, 145) if gid is None
                       else _PALETTE[(int(gid) - 1) % len(_PALETTE)])
             rgba[self.state.labels == roi_id] = (*colour, 105 if gid is None else 145)
-        pair = self._suggestion_pair()
-        for roi_id in pair:
+        suggestion = self._suggestion_rois()
+        for roi_id in suggestion:
             rgba[self.state.labels == roi_id] = (255, 125, 0, 190)
         for roi_id in self.state.selected:
             rgba[self.state.labels == roi_id] = (255, 230, 0, 235)
         return rgba.view(np.uint32).reshape(h, w)
 
-    def _suggestion_pair(self):
+    def _suggestion_rois(self):
         if not len(self.suggestions):
             return ()
         item = self.suggestions.iloc[self.suggestion_index]
-        return int(item.roi_a), int(item.roi_b)
+        return tuple(int(value) for value in item.members)
 
     def _move_suggestion(self, step):
         if len(self.suggestions):
@@ -231,8 +318,8 @@ class JoiningGUI:
             self._refresh()
 
     def _select_suggestion(self):
-        self.state.selected = set(self._suggestion_pair())
-        self._refresh("Selected suggested pair")
+        self.state.selected = set(self._suggestion_rois())
+        self._refresh("Selected suggested set")
 
     def _table_selection(self, attr, old, new):
         if new:
@@ -272,13 +359,14 @@ class JoiningGUI:
             if len(match):
                 row = match.iloc[0]
                 detail = f"; gap {row.gap_px:g}px, r={row.correlation:.3f}"
-        suggestion = self._suggestion_pair()
+        suggestion = self._suggestion_rois()
         suggestion_text = "none"
         if suggestion:
             item = self.suggestions.iloc[self.suggestion_index]
             suggestion_text = (f"{self.suggestion_index + 1}/{len(self.suggestions)}: "
-                               f"ROI {suggestion[0]} + {suggestion[1]}, "
-                               f"gap {item.gap_px:g}px, r={item.correlation:.3f}")
+                               f"ROIs {', '.join(map(str, suggestion))}, "
+                               f"max gap {item.max_gap_px:g}px, "
+                               f"min r={item.min_correlation:.3f}")
         self.status.text = (
             f"<b>{message}</b> Current suggestion {suggestion_text}. "
             f"Selected {chosen}{detail}; {len(set(self.state.groups.values()))} joins."
@@ -295,8 +383,10 @@ def prepare_joining(round_path, reference, *, params=None, groups_path=None):
     groups = {}
     if groups_path is not None and Path(groups_path).exists():
         groups, _ = load_groups(groups_path, expected_mask_hash=digest)
+    pairs = candidate_pairs(labels, round_path, params=p)
+    suggestions = fully_connected_suggestions(pairs)
     return JoiningState(labels, np.asarray(reference), Path(round_path), digest,
-                        candidate_pairs(labels, round_path, params=p), p, groups)
+                        pairs, p, suggestions, groups)
 
 
 def launch_joining(state, save_path):

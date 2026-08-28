@@ -3,7 +3,7 @@ import json
 import numpy as np
 
 from .grouped_qc import aggregate_joined_raw, cleanup_10x_caches
-from .grouping import JoiningState, load_groups
+from .grouping import JoiningState, fully_connected_suggestions, load_groups
 
 
 def test_joined_raw_is_pixel_weighted_and_components_are_absent():
@@ -30,6 +30,31 @@ def test_joining_state_round_trips_with_mask_guard(tmp_path):
     groups, metadata = load_groups(path, expected_mask_hash="abc")
     assert groups == {1: 3, 2: 3}
     assert metadata["source_round"].endswith("round.h5")
+
+
+def test_multi_roi_suggestions_require_every_pair_to_pass():
+    import pandas as pd
+
+    complete = pd.DataFrame([
+        {"roi_a": 1, "roi_b": 2, "gap_px": 1., "correlation": .91,
+         "spatial_neighbor": True, "correlation_pass": True, "suggested": True},
+        {"roi_a": 2, "roi_b": 3, "gap_px": 2., "correlation": .89,
+         "spatial_neighbor": True, "correlation_pass": True, "suggested": True},
+        # ROI 1 and 3 are not spatial neighbors, but their traces pass. The
+        # spatial path 1-2-3 therefore permits the fully correlated triple.
+        {"roi_a": 1, "roi_b": 3, "gap_px": np.nan, "correlation": .87,
+         "spatial_neighbor": False, "correlation_pass": True, "suggested": False},
+    ])
+    suggestions = fully_connected_suggestions(complete)
+    assert suggestions.members.tolist() == [(1, 2, 3)]
+    assert suggestions.iloc[0].min_correlation == .87
+
+    # A-B and B-C do not chain when the non-neighbor A-C correlation fails.
+    chain = complete.copy()
+    chain.loc[2, "correlation_pass"] = False
+    suggestions = fully_connected_suggestions(chain)
+    assert set(suggestions.members) == {(1, 2), (2, 3)}
+    assert not any(len(members) == 3 for members in suggestions.members)
 
 
 def test_cleanup_requires_outputs_then_removes_only_known_caches(tmp_path):
