@@ -96,6 +96,8 @@ Each row is one final unit × odor and each trace continuously spans the 4-secon
 baseline, odor, and 4-second post-odor window. Rows are ordered within odor by
 pre-anesthesia latency to peak positive response. Separate pre/post scatterplots
 show odor-epoch versus post-odor-epoch response; the earlier boxplots are absent.
+The original individual-trial odor and post-odor scalar heatmaps and their
+pre/post-anesthesia response-distribution histograms remain on the same page.
 
 The processed HDF5 is the final 10x or 20x round. It contains `/masks`,
 `/traces`, `/responses`, `/rois`, and `/trials`; the PNG is a mask overlay. Raw

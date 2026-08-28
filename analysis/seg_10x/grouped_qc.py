@@ -179,7 +179,7 @@ def temporal_unit_odor_heatmaps(z, *, odor_ids, states, state_levels,
 def _joined_continuous_figure(path, *, analysed, odor_ids, states, state_levels,
                               odor_on_frames, odor_off_frames, frame_rate,
                               baseline_sd_mode):
-    """Temporal pre/post atlases plus odor-vs-post response scatters."""
+    """Temporal atlases plus the original trial-scalar QC summaries."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -193,11 +193,15 @@ def _joined_continuous_figure(path, *, analysed, odor_ids, states, state_levels,
     levels = [level for level in ("pre", "post") if level in state_levels]
     levels += [level for level in state_levels if level not in levels]
     levels = levels[:2]
-    fig = plt.figure(figsize=(18, 14), constrained_layout=True)
-    grid = fig.add_gridspec(3, 2, height_ratios=(1.35, .8, .32))
+    fig = plt.figure(figsize=(20, 24), constrained_layout=True)
+    grid = fig.add_gridspec(
+        5, 2, height_ratios=(1.35, 1., .65, .8, .32),
+    )
     heat_axes = [fig.add_subplot(grid[0, column]) for column in range(2)]
-    scatter_axes = [fig.add_subplot(grid[1, column]) for column in range(2)]
-    pc_axis = fig.add_subplot(grid[2, :])
+    scalar_axes = [fig.add_subplot(grid[1, column]) for column in range(2)]
+    histogram_axes = [fig.add_subplot(grid[2, column]) for column in range(2)]
+    scatter_axes = [fig.add_subplot(grid[3, column]) for column in range(2)]
+    pc_axis = fig.add_subplot(grid[4, :])
     norm = TwoSlopeNorm(vmin=-3, vcenter=0, vmax=6)
     image = None
     for column, level in enumerate(levels):
@@ -235,6 +239,82 @@ def _joined_continuous_figure(path, *, analysed, odor_ids, states, state_levels,
     scores = analysed["scores"]
     odors = np.unique(odor_ids)
     cmap = plt.get_cmap("tab20", len(odors))
+    preferred_levels = [value for value in ("pre", "post")
+                        if value in state_levels]
+    preferred_levels += [value for value in state_levels
+                         if value not in preferred_levels]
+    state_rank = np.array([
+        preferred_levels.index(state_levels[int(code)]) for code in states
+    ])
+    trial_order = np.lexsort((np.arange(len(odor_ids)), state_rank, odor_ids))
+    reference_trials = np.ones(len(states), dtype=bool)
+    preference_source = "all trials"
+    if "pre" in state_levels:
+        reference_trials = states == state_levels.index("pre")
+        preference_source = "pre-anesthesia trials"
+    from ..session.trace_qc import _preferred_odor_order
+    unit_order, _, _ = _preferred_odor_order(
+        scores.mean["odor"], odor_ids, reference_trials,
+    )
+    sorted_odors = odor_ids[trial_order]
+    sorted_ranks = state_rank[trial_order]
+    for axis, epoch in zip(scalar_axes, ("odor", "post_odor")):
+        values = np.asarray(scores.mean[epoch], float)
+        scalar_image = axis.imshow(
+            values[np.ix_(unit_order, trial_order)], aspect="auto",
+            cmap="RdBu_r", norm=norm, interpolation="nearest",
+        )
+        for edge in np.flatnonzero(np.diff(sorted_odors)) + 1:
+            axis.axvline(edge - .5, color="black", lw=1)
+        for edge in np.flatnonzero(
+            (np.diff(sorted_ranks) != 0) & (np.diff(sorted_odors) == 0)
+        ) + 1:
+            axis.axvline(edge - .5, color=".35", lw=.7, ls=":")
+        axis.set_xticks(
+            [np.mean(np.flatnonzero(sorted_odors == odor)) for odor in odors],
+            [str(int(odor)) for odor in odors],
+        )
+        axis.set(
+            xlabel="odor id (individual trials; pre then post)",
+            ylabel="final glomerular unit",
+            title=(f"{epoch}: trial mean z; rows by odor preference "
+                   f"({preference_source})"),
+        )
+        fig.colorbar(scalar_image, ax=axis, label="mean z", shrink=.8)
+
+    if "pre" in state_levels and "post" in state_levels:
+        pre = states == state_levels.index("pre")
+        post = states == state_levels.index("post")
+        for axis, epoch in zip(histogram_axes, ("odor", "post_odor")):
+            values = np.asarray(scores.mean[epoch], float)
+            before = np.concatenate([
+                np.nanmean(values[:, pre & (odor_ids == odor)], axis=1)
+                for odor in odors
+            ])
+            after = np.concatenate([
+                np.nanmean(values[:, post & (odor_ids == odor)], axis=1)
+                for odor in odors
+            ])
+            before = before[np.isfinite(before)]
+            after = after[np.isfinite(after)]
+            combined = np.concatenate((before, after))
+            if len(combined):
+                lo, hi = np.min(combined), np.max(combined)
+                bins = np.linspace(lo, hi, 31) if hi > lo else 30
+                axis.hist(before, bins=bins, density=True, histtype="step",
+                          lw=2, color="steelblue", label="pre anesthesia")
+                axis.hist(after, bins=bins, density=True, histtype="step",
+                          lw=2, color="indianred", label="post anesthesia")
+            axis.axvline(0, color="black", lw=.7)
+            axis.set(
+                xlabel="final-unit × odor mean z", ylabel="density",
+                title=f"{epoch}: pre/post response distributions",
+            )
+            axis.legend(fontsize=8)
+    else:
+        for axis in histogram_axes:
+            axis.axis("off")
+
     all_values = []
     for column, level in enumerate(levels):
         code = state_levels.index(level)
