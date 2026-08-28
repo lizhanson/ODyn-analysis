@@ -5,6 +5,24 @@ from .finalize import mask_hash, verify
 from .store import find_rounds
 
 
+def test_portable_10x_bundle_round_trips(tmp_path):
+    from .masks import load_mask_bundle, save_mask_bundle
+
+    labels = np.array([[0, 1], [2, 2]], np.int32)
+    reference = np.arange(4, dtype=np.float32).reshape(2, 2)
+    path = save_mask_bundle(
+        tmp_path / "bundle.h5", labels,
+        per_group_masks={"odor": labels}, reference=reference,
+        config={"segmentation": {"threshold": 7}},
+    )
+    loaded = load_mask_bundle(path)
+
+    assert loaded is not None
+    np.testing.assert_array_equal(loaded["labels"], labels)
+    np.testing.assert_array_equal(loaded["reference"], reference)
+    assert loaded["config"]["segmentation"]["threshold"] == 7
+
+
 def test_h5_table_categorical_codes_expand_beyond_uint8(tmp_path):
     import pandas as pd
 

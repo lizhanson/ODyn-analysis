@@ -140,6 +140,13 @@ def load_mask_bundle(path: str | Path) -> dict:
             handle[f"masks/per_group/{name}"][:]
             for name in handle["masks/per_group"]
         }
+        return {
+            "path": path,
+            "labels": handle["masks/labels"][:],
+            "per_group": per_group,
+            "reference": handle["reference"][:] if "reference" in handle else None,
+            "config": json.loads(handle.attrs.get("config_json", "{}")),
+        }
 
 
 def load_10x_working_mask(path: str | Path) -> dict:
@@ -167,13 +174,6 @@ def load_10x_working_mask(path: str | Path) -> dict:
                 "working_checkpoint": config,
             },
             "source": "10x GUI working checkpoint",
-        }
-        return {
-            "path": path,
-            "labels": handle["masks/labels"][:],
-            "per_group": per_group,
-            "reference": handle["reference"][:] if "reference" in handle else None,
-            "config": json.loads(handle.attrs.get("config_json", "{}")),
         }
 
 
