@@ -88,6 +88,14 @@ joins explicitly reviewed by the user. The final `*_10x_grouped.h5` and 10x QC
 figures contain joined glomerular units and unassigned singleton ROIs; component
 traces remain only in the intermediate extracted round. Cache cleanup is a
 separate final notebook cell and refuses to run until every final output exists.
+The `*_10x_groups.png` membership figure gives every reviewed joined unit one
+shared color and renders unjoined singleton ROIs in gray. Reloading an existing
+portable mask no longer creates a redundant newly dated segmentation overlay.
+The final 10x continuous-QC page uses side-by-side pre/post temporal heatmaps.
+Each row is one final unit × odor and each trace continuously spans the 4-second
+baseline, odor, and 4-second post-odor window. Rows are ordered within odor by
+pre-anesthesia latency to peak positive response. Separate pre/post scatterplots
+show odor-epoch versus post-odor-epoch response; the earlier boxplots are absent.
 
 The processed HDF5 is the final 10x or 20x round. It contains `/masks`,
 `/traces`, `/responses`, `/rois`, and `/trials`; the PNG is a mask overlay. Raw

@@ -2,7 +2,10 @@ import json
 
 import numpy as np
 
-from .grouped_qc import aggregate_joined_raw, cleanup_10x_caches
+from .grouped_qc import (
+    _group_membership_figure, aggregate_joined_raw, cleanup_10x_caches,
+    temporal_unit_odor_heatmaps,
+)
 from .grouping import JoiningGUI, JoiningState, fully_connected_suggestions, load_groups
 
 
@@ -75,7 +78,10 @@ def test_joining_gui_upgrades_pair_level_suggestions_after_autoreload(tmp_path):
 def test_cleanup_requires_outputs_then_removes_only_known_caches(tmp_path):
     output = tmp_path / "output"; scratch = tmp_path / "scratch"
     paths = {}
-    for key in ("grouped_h5", "continuous_qc", "baseline_qc", "spatial_qc", "json"):
+    for key in (
+        "grouped_h5", "continuous_qc", "baseline_qc", "spatial_qc",
+        "groups_figure", "json",
+    ):
         path = tmp_path / key
         path.write_text("ok")
         paths[key] = str(path)
@@ -87,3 +93,31 @@ def test_cleanup_requires_outputs_then_removes_only_known_caches(tmp_path):
     removed = cleanup_10x_caches(output, scratch, 7, qc_outputs=paths)
     assert set(removed) == {str(path) for path in targets}
     assert unrelated.exists()
+
+
+def test_group_membership_figure_is_written(tmp_path):
+    raw = np.zeros((3, 1, 1), np.float32)
+    population = aggregate_joined_raw(raw, np.ones(3), {1: 4, 2: 4})
+    labels = np.array([[1, 1, 2], [0, 3, 3]], np.int32)
+    path = tmp_path / "groups.png"
+    result = _group_membership_figure(path, labels.astype(float), labels, population)
+    assert result == str(path)
+    assert path.is_file() and path.stat().st_size > 0
+
+
+def test_temporal_heatmap_rows_use_pre_latency_to_peak_order():
+    z = np.zeros((2, 2, 9), float)
+    # Odor frames are 2:5. Unit 1 peaks earlier than unit 0 in pre.
+    z[0, 0, 4] = 5
+    z[1, 0, 2] = 4
+    z[0, 1, 3] = 2
+    z[1, 1, 4] = 3
+    result = temporal_unit_odor_heatmaps(
+        z, odor_ids=[7, 7], states=[0, 1], state_levels=["pre", "post"],
+        odor_on_frames=[2, 2], odor_off_frames=[5, 5], frame_rate=1,
+        pre_s=2, post_s=4,
+    )
+    assert result["orders"][7].tolist() == [1, 0]
+    assert result["heatmaps"]["pre"].shape == (2, 9)
+    # Both blocks retain the same unit ordering.
+    assert result["heatmaps"]["post"][0, 4] == 3
