@@ -115,7 +115,8 @@ def _group_membership_figure(path, reference, labels, population):
 
 def temporal_unit_odor_heatmaps(z, *, odor_ids, states, state_levels,
                                 odor_on_frames, odor_off_frames, frame_rate,
-                                pre_s=4.0, post_s=4.0):
+                                pre_s=4.0, post_s=4.0, reducer="median",
+                                sort_by="latency"):
     """Block heatmaps with shared pre-block latency-to-peak row ordering."""
     z = np.asarray(z, float)
     odor_ids = np.asarray(odor_ids)
@@ -140,9 +141,14 @@ def temporal_unit_odor_heatmaps(z, *, odor_ids, states, state_levels,
     levels = list(state_levels)
     reference_code = levels.index("pre") if "pre" in levels else 0
 
+    reducers = {"mean": np.nanmean, "median": np.nanmedian}
+    if reducer not in reducers:
+        raise ValueError(f"reducer must be one of {tuple(reducers)}, not {reducer!r}")
+    reduce_trials = reducers[reducer]
+
     def block_means(code):
         return {
-            int(odor): np.nanmean(
+            int(odor): reduce_trials(
                 aligned[:, (states == code) & (odor_ids == odor)], axis=1
             )
             for odor in odors
@@ -153,12 +159,21 @@ def temporal_unit_odor_heatmaps(z, *, odor_ids, states, state_levels,
     orders = {}
     for odor in odors:
         response = means[reference_code][int(odor)][:, odor_window]
-        safe = np.where(np.isfinite(response), response, -np.inf)
-        peak_latency = np.argmax(safe, axis=1)
-        no_data = ~np.isfinite(response).any(axis=1)
-        peak_latency[no_data] = odor_frames + 1
-        peak_height = np.max(safe, axis=1)
-        orders[int(odor)] = np.lexsort((-peak_height, peak_latency))
+        if sort_by == "mean_response":
+            mean_response = np.nanmean(response, axis=1)
+            orders[int(odor)] = np.argsort(
+                np.where(np.isfinite(mean_response), -mean_response, np.inf),
+                kind="stable",
+            )
+        elif sort_by == "latency":
+            safe = np.where(np.isfinite(response), response, -np.inf)
+            peak_latency = np.argmax(safe, axis=1)
+            no_data = ~np.isfinite(response).any(axis=1)
+            peak_latency[no_data] = odor_frames + 1
+            peak_height = np.max(safe, axis=1)
+            orders[int(odor)] = np.lexsort((-peak_height, peak_latency))
+        else:
+            raise ValueError("sort_by must be 'latency' or 'mean_response'")
 
     heatmaps = {}
     for code, level in enumerate(levels):
@@ -178,7 +193,9 @@ def temporal_unit_odor_heatmaps(z, *, odor_ids, states, state_levels,
 
 def _joined_continuous_figure(path, *, analysed, odor_ids, states, state_levels,
                               odor_on_frames, odor_off_frames, frame_rate,
-                              baseline_sd_mode):
+                              baseline_sd_mode, unit_label="final glomerular unit",
+                              temporal_reducer="median", figure_label="10x",
+                              temporal_sort="latency", z_limits=(-3, 6)):
     """Temporal atlases plus the original trial-scalar QC summaries."""
     import matplotlib
     matplotlib.use("Agg")
@@ -189,6 +206,7 @@ def _joined_continuous_figure(path, *, analysed, odor_ids, states, state_levels,
         analysed["z"], odor_ids=odor_ids, states=states,
         state_levels=state_levels, odor_on_frames=odor_on_frames,
         odor_off_frames=odor_off_frames, frame_rate=frame_rate,
+        reducer=temporal_reducer, sort_by=temporal_sort,
     )
     levels = [level for level in ("pre", "post") if level in state_levels]
     levels += [level for level in state_levels if level not in levels]
@@ -202,7 +220,8 @@ def _joined_continuous_figure(path, *, analysed, odor_ids, states, state_levels,
     histogram_axes = [fig.add_subplot(grid[2, column]) for column in range(2)]
     scatter_axes = [fig.add_subplot(grid[3, column]) for column in range(2)]
     pc_axis = fig.add_subplot(grid[4, :])
-    norm = TwoSlopeNorm(vmin=-3, vcenter=0, vmax=6)
+    norm = TwoSlopeNorm(vmin=float(z_limits[0]), vcenter=0,
+                        vmax=float(z_limits[1]))
     image = None
     for column, level in enumerate(levels):
         ax = heat_axes[column]
@@ -214,19 +233,20 @@ def _joined_continuous_figure(path, *, analysed, odor_ids, states, state_levels,
         )
         ax.axvline(0, color="black", lw=1)
         ax.axvline(temporal["odor_offset_s"], color="black", lw=1, ls="--")
-        top = -.5
+        top = .995
+        transform = ax.get_xaxis_transform()
         ax.text(temporal["time_s"][0] / 2, top, "baseline", ha="center",
-                va="bottom", fontsize=8, clip_on=False)
+                va="top", fontsize=8, transform=transform, clip_on=True)
         ax.text(temporal["odor_offset_s"] / 2, top, "odor", ha="center",
-                va="bottom", fontsize=8, clip_on=False)
+                va="top", fontsize=8, transform=transform, clip_on=True)
         ax.text((temporal["odor_offset_s"] + temporal["time_s"][-1]) / 2,
-                top, "post odor", ha="center", va="bottom", fontsize=8,
-                clip_on=False)
+                top, "post odor", ha="center", va="top", fontsize=8,
+                transform=transform, clip_on=True)
         for boundary in temporal["odor_boundaries"]:
             ax.axhline(boundary, color="black", lw=.6)
         ax.set(
-            title=(f"{level}: continuous baseline → odor → post-odor z; "
-                   "shared pre latency-to-peak order"),
+            title=(f"{level}: {temporal_reducer} baseline → odor → post-odor z; "
+                   f"shared pre {temporal_sort.replace('_', ' ')} order"),
             xlabel="time from odor onset (s)", ylabel="odor id",
             yticks=temporal["odor_centers"],
             yticklabels=[str(int(value)) for value in temporal["odors"]],
@@ -276,7 +296,7 @@ def _joined_continuous_figure(path, *, analysed, odor_ids, states, state_levels,
         )
         axis.set(
             xlabel="odor id (individual trials; pre then post)",
-            ylabel="final glomerular unit",
+            ylabel=unit_label,
             title=(f"{epoch}: trial mean z; rows by odor preference "
                    f"({preference_source})"),
         )
@@ -307,7 +327,7 @@ def _joined_continuous_figure(path, *, analysed, odor_ids, states, state_levels,
                           lw=2, color="indianred", label="post anesthesia")
             axis.axvline(0, color="black", lw=.7)
             axis.set(
-                xlabel="final-unit × odor mean z", ylabel="density",
+                xlabel=f"{unit_label} × odor mean z", ylabel="density",
                 title=f"{epoch}: pre/post response distributions",
             )
             axis.legend(fontsize=8)
@@ -358,14 +378,16 @@ def _joined_continuous_figure(path, *, analysed, odor_ids, states, state_levels,
     normalization = ("pre-anesthesia pooled baseline SD"
                      if baseline_sd_mode == "pre_block_pooled"
                      else "per-trial baseline SD")
-    fig.suptitle("final 10x continuous QC — " + normalization)
+    fig.suptitle(f"final {figure_label} continuous QC — " + normalization)
     fig.savefig(path, dpi=120, bbox_inches="tight")
     plt.close(fig)
     return str(path)
 
 
 def finalize_grouped_10x(round_path, groups_path, *, reference,
-                         baseline_sd_mode="pre_block_pooled", save=True):
+                         baseline_sd_mode="pre_block_pooled", output_suffix="",
+                         temporal_reducer="median", temporal_sort="mean_response",
+                         z_limits=(-5, 15), save=True):
     """Create the sole final 10x unit product and its grouped-only QC."""
     import h5py
     from ..session.finalize import mask_hash
@@ -405,7 +427,7 @@ def finalize_grouped_10x(round_path, groups_path, *, reference,
                     for v in population.members],
         group_ids=[u if u.startswith("j") else None for u in population.unit_ids])
     summary = aggregate_epoch_table(trial_table)
-    stem = round_path.with_suffix("")
+    stem = Path(str(round_path.with_suffix("")) + str(output_suffix))
     grouped_h5 = Path(f"{stem}_10x_grouped.h5")
     outputs = {"grouped_h5": str(grouped_h5),
                "n_units": len(population.unit_ids),
@@ -460,7 +482,9 @@ def finalize_grouped_10x(round_path, groups_path, *, reference,
     _joined_continuous_figure(
         continuous, analysed=analysed, odor_ids=odor_ids, states=states,
         state_levels=state_levels, odor_on_frames=on, odor_off_frames=off,
-        frame_rate=frame_rate, baseline_sd_mode=baseline_sd_mode)
+        frame_rate=frame_rate, baseline_sd_mode=baseline_sd_mode,
+        temporal_reducer=temporal_reducer, temporal_sort=temporal_sort,
+        z_limits=z_limits)
     baseline_qc_figure(
         baseline, baseline_mean=standard.baseline_mean,
         baseline_sd=standard.baseline_sd_trial, states=states,

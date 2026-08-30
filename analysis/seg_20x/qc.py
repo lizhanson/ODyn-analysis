@@ -223,7 +223,8 @@ def _snr_figure(path, analysed):
 
 
 def qc_20x(round_path, *, groups=None, structural=None,
-           baseline_sd_mode="pre_block_pooled", save=True, progress=True) -> dict:
+           baseline_sd_mode="pre_block_pooled", temporal_reducer="median",
+           output_suffix="", save=True, progress=True) -> dict:
     """Grouped 20x continuous QC using the sole canonical z-score path."""
     from ..session.h5io import open_h5
     round_path = Path(round_path)
@@ -246,7 +247,7 @@ def qc_20x(round_path, *, groups=None, structural=None,
         masks = {name: f[f"masks/{name}"][:] for name in ("labels", "soma", "process")}
     manifest = parameters["segmentation"]["roi_manifest"]
     effective_groups = _manifest_groups(parameters) if groups is None else groups
-    stem = round_path.with_suffix("")
+    stem = Path(str(round_path.with_suffix("")) + str(output_suffix))
     outputs = {}
     analysed = {}
     grouped_h5 = Path(f"{stem}_20x_grouped.h5")
@@ -329,7 +330,23 @@ def qc_20x(round_path, *, groups=None, structural=None,
                     f"{grouped_h5}:/{key}/response_summary"
                 )
 
-            # Retain only compact summaries needed by the combined figures.
+            if save:
+                from ..seg_10x.grouped_qc import _joined_continuous_figure
+                response_path = Path(
+                    f"{stem}_20x_continuousqc_{key}.png"
+                )
+                _joined_continuous_figure(
+                    response_path, analysed=item, odor_ids=odor_ids,
+                    states=states, state_levels=state_levels,
+                    odor_on_frames=on, odor_off_frames=off,
+                    frame_rate=frame_rate, baseline_sd_mode=baseline_sd_mode,
+                    unit_label=item["population"].name,
+                    temporal_reducer=temporal_reducer,
+                    figure_label="20x",
+                )
+                outputs.setdefault("response", {})[key] = str(response_path)
+
+            # Retain only compact summaries needed by the remaining figures.
             del item["z"]
             item["standardized"].z = np.empty((0, 0, 0), np.float32)
             item["population"].raw = np.empty((0, 0, 0), np.float32)
@@ -342,24 +359,13 @@ def qc_20x(round_path, *, groups=None, structural=None,
         if structural is None:
             structural = np.where(masks["labels"] > 0, masks["labels"], 0)
         _spatial_figure(spatial, np.asarray(structural), masks, manifest, effective_groups, analysed)
-        report("rendering continuous odor and post-odor response distributions")
-        response = _response_figure(
-            Path(f"{stem}_20x_continuousqc.png"), analysed,
-            odor_ids, states, state_levels,
-            normalization_label=(
-                "pre-anesthesia pooled baseline SD"
-                if baseline_sd_mode == "pre_block_pooled"
-                else "per-trial baseline SD"
-            ),
-        )
         report("rendering trial F0 and baseline SD QC")
         baseline = _baseline_figures(
             Path(f"{stem}_20x_baselineqc.png"), analysed, states, state_levels,
         )
         report("rendering SNR distributions")
         snr = Path(f"{stem}_20x_snrqc.png"); _snr_figure(snr, analysed)
-        outputs.update(spatial=str(spatial), response=response,
-                       baseline=baseline, snr=str(snr))
+        outputs.update(spatial=str(spatial), baseline=baseline, snr=str(snr))
         outputs["pc1_trial_variance"] = {
             key: float(item["pc1"]["explained_variance_fraction"])
             for key, item in analysed.items()
@@ -373,6 +379,7 @@ def qc_20x(round_path, *, groups=None, structural=None,
         "continuous odor/post-odor summaries"
     )
     outputs["baseline_sd_mode"] = baseline_sd_mode
+    outputs["temporal_reducer"] = temporal_reducer
     outputs["elapsed_s"] = round(time.perf_counter() - started, 3)
     if save:
         report_path = Path(f"{stem}_20x_qc.json")
