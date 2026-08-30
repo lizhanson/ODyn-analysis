@@ -21,6 +21,7 @@ from analysis.figures.cellular_20x import (
 from analysis.figures.session_data import available_sessions
 from analysis.figures.session_data import load_grouped
 from analysis.figures.summaries import signed_session_tables
+from analysis.figures.paths import imaging_root, repo_path
 
 
 def _write(path, parts):
@@ -32,15 +33,16 @@ def _write(path, parts):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path,
-                        default=Path("analysis/stage0/ketxyl_16odor_session_manifest.csv"))
-    parser.add_argument("--imaging-root", type=Path,
-                        default=Path("/Volumes/MossLab/ImagingData"))
+                        default=repo_path("analysis", "stage0", "ketxyl_16odor_session_manifest.csv"))
+    parser.add_argument("--imaging-root", type=Path, default=None,
+                        help="ImagingData root; defaults to ODYN_IMAGING_ROOT")
     parser.add_argument("--output-dir", type=Path,
-                        default=Path("analysis/figures/figure3/outputs/cellular_20x"))
+                        default=repo_path("analysis", "figures", "figure3", "outputs", "cellular_20x"))
     parser.add_argument("--groups", nargs="*", type=int, default=[])
     parser.add_argument("--reliability-repeats", type=int, default=50)
     parser.add_argument("--skip-arousal", action="store_true")
     args = parser.parse_args(argv)
+    args.imaging_root = imaging_root(args.imaging_root)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     inventory = pd.DataFrame(available_sessions(
         args.manifest, args.imaging_root, objective="20x"))

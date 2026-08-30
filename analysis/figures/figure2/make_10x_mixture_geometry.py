@@ -11,6 +11,7 @@ import numpy as np
 from analysis.figures.figure3.benchmark_geometry_subset import (
     MIXTURE_PAIRS, cosine_centroid_distance, distance,
 )
+from analysis.figures.paths import imaging_root, repo_path
 
 
 COLORS = {"TH": "#2b8cbe", "DAT": "#6a51a3", "Thy1": "#e34a33"}
@@ -141,10 +142,13 @@ def main(argv=None):
     import pandas as pd
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--manifest", default="analysis/stage0/ketxyl_16odor_session_manifest.csv")
-    parser.add_argument("--imaging-root", type=Path, default=Path("/Volumes/MossLab/ImagingData"))
+    parser.add_argument("--manifest", type=Path,
+                        default=repo_path("analysis", "stage0", "ketxyl_16odor_session_manifest.csv"))
+    parser.add_argument("--imaging-root", type=Path, default=None,
+                        help="ImagingData root; defaults to ODYN_IMAGING_ROOT")
     parser.add_argument("--output-dir", type=Path, required=True)
-    args = parser.parse_args(argv); args.output_dir.mkdir(parents=True, exist_ok=True)
+    args = parser.parse_args(argv); args.imaging_root = imaging_root(args.imaging_root)
+    args.output_dir.mkdir(parents=True, exist_ok=True)
     with open(args.manifest, newline="") as stream: manifest = list(csv.DictReader(stream))
     rows, inventory = [], []
     for row in manifest:
