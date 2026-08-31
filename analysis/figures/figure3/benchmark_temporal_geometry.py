@@ -7,33 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-
-def diagonal_crossnobis(trials, labels, *, repeats=200, seed=0):
-    """Local two-condition-safe copy so this benchmark remains standalone."""
-    x, labels = np.asarray(trials, float), np.asarray(labels)
-    levels = np.unique(labels)
-    indices = {level: np.flatnonzero(labels == level) for level in levels}
-    residual = np.concatenate([
-        x[index] - np.nanmean(x[index], axis=0, keepdims=True)
-        for index in indices.values()
-    ])
-    variance = np.nanvar(residual, axis=0, ddof=1)
-    positive = variance[np.isfinite(variance) & (variance > 0)]
-    floor = np.nanmedian(positive) * 1e-3 if positive.size else 1e-12
-    variance = np.where(np.isfinite(variance) & (variance > floor), variance, floor)
-    rng = np.random.default_rng(seed)
-    values = []
-    for _ in range(repeats):
-        halves = {}
-        for level, index in indices.items():
-            shuffled = rng.permutation(index); cut = len(shuffled) // 2
-            halves[level] = shuffled[:cut], shuffled[cut:]
-        ia, ib = halves[levels[0]]; ja, jb = halves[levels[1]]
-        da = np.nanmean(x[ia], axis=0) - np.nanmean(x[ja], axis=0)
-        db = np.nanmean(x[ib], axis=0) - np.nanmean(x[jb], axis=0)
-        values.append(np.nanmean(da * db / variance))
-    matrix = np.asarray([[0., np.nanmean(values)], [np.nanmean(values), 0.]])
-    return levels, matrix
+from analysis.figures.geometry import diagonal_crossnobis
 
 
 def _distance(x, labels, *, seed=0, repeats=100):

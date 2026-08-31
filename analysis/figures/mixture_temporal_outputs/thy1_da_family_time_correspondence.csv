@@ -1,0 +1,9 @@
+state,da_line,da_metric,rho_across_family_time_cells,n_family_time_cells
+pre,TH,q10_z,0.21678321678321683,12
+pre,TH,q90_z,-0.2867132867132868,12
+pre,TH,central80_width_z,-0.4545454545454546,12
+pre,TH,centroid_difference_rms_z,0.027972027972027972,12
+pre,DAT,q10_z,0.04895104895104895,12
+pre,DAT,q90_z,-0.2937062937062937,12
+pre,DAT,central80_width_z,-0.37762237762237766,12
+pre,DAT,centroid_difference_rms_z,0.5874125874125874,12

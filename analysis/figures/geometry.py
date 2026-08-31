@@ -92,3 +92,47 @@ def spatiotemporal_crossnobis(traces, labels, *, repeats=200, seed=0):
         raise ValueError("traces must be trial x feature x time")
     return diagonal_crossnobis(
         x.reshape(x.shape[0], -1), labels, repeats=repeats, seed=seed)
+
+
+def pair_distance(trials, labels, *, seed=0, repeats=100):
+    """Crossnobis distance between exactly two conditions."""
+    levels, matrix = diagonal_crossnobis(trials, labels, repeats=repeats,
+                                         seed=seed)
+    if len(levels) != 2:
+        raise ValueError("pair_distance needs exactly two conditions")
+    return float(matrix[0, 1])
+
+
+def cosine_centroid_distance(trials, labels):
+    """Gain-insensitive distance between two condition centroids."""
+    levels = np.unique(labels)
+    x = np.asarray(trials, float)
+    a = np.nanmean(x[labels == levels[0]], axis=0)
+    b = np.nanmean(x[labels == levels[1]], axis=0)
+    denominator = np.linalg.norm(a) * np.linalg.norm(b)
+    return float(1 - np.dot(a, b)/denominator) if denominator > 0 else np.nan
+
+
+def permutation_null(trials, labels, observed, *, permutations=200, seed=0,
+                     repeats=40):
+    """Empirical one-sided p value, reported with the resolution it allows.
+
+    A permutation null that has run out of resolution is flagged underpowered
+    rather than summarised by a z score, which would invent precision the null
+    does not contain.
+    """
+    rng = np.random.default_rng(seed)
+    null = np.asarray([
+        pair_distance(trials, rng.permutation(labels), seed=seed+index+1,
+                      repeats=repeats)
+        for index in range(int(permutations))
+    ], float)
+    null = null[np.isfinite(null)]
+    if null.size == 0 or not np.isfinite(observed):
+        return {"p_value": np.nan, "p_resolution": np.nan,
+                "null_median": np.nan, "underpowered": True}
+    resolution = 1.0/(null.size + 1)
+    p_value = float((np.sum(null >= observed) + 1)/(null.size + 1))
+    return {"p_value": p_value, "p_resolution": float(resolution),
+            "null_median": float(np.median(null)),
+            "underpowered": bool(p_value <= resolution + 1e-12)}

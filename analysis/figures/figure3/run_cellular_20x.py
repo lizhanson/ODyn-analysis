@@ -14,13 +14,12 @@ from tqdm.auto import tqdm
 
 from analysis.figures.arousal_20x import (arousal_association_table,
                                           find_auxiliary)
-from analysis.figures.cellular_20x import (
-    TemporalWindows, load_population, reliability_tables, specificity_table,
-    temporal_feature_table, tonic_table,
+from analysis.figures.population_metrics import (
+    TemporalWindows, breadth_table, load_population, reliability_tables,
+    specificity_table, temporal_feature_table, tonic_table,
 )
+from analysis.figures.panel_geometry import panel_tables
 from analysis.figures.session_data import available_sessions
-from analysis.figures.session_data import load_grouped
-from analysis.figures.summaries import signed_session_tables
 from analysis.figures.paths import imaging_root, repo_path
 
 
@@ -40,6 +39,8 @@ def main(argv=None):
                         default=repo_path("analysis", "figures", "figure3", "outputs", "cellular_20x"))
     parser.add_argument("--groups", nargs="*", type=int, default=[])
     parser.add_argument("--reliability-repeats", type=int, default=50)
+    parser.add_argument("--tail-probability", type=float, default=.05,
+                        help="pre-odor excursion false-positive rate per unit-odor pair")
     parser.add_argument("--skip-arousal", action="store_true")
     args = parser.parse_args(argv)
     args.imaging_root = imaging_root(args.imaging_root)
@@ -54,25 +55,25 @@ def main(argv=None):
     windows = TemporalWindows()
     tonic_parts, temporal_parts, breadth_parts = [], [], []
     reliability_unit_parts, reliability_odor_parts, arousal_parts = [], [], []
+    panel_accuracy_parts, panel_distance_parts = [], []
     failures = []
     for row in tqdm(inputs, desc="20x cellular analyses", unit="session"):
         for population in ("somas", "processes"):
             try:
                 data = load_population(row["grouped_path"], population)
                 tonic_parts.append(tonic_table(data, row, population))
-                temporal_parts.append(temporal_feature_table(
-                    data, row, population, windows=windows))
-                session = load_grouped(row, row["grouped_path"], population=population)
-                breadth_rows, _ = signed_session_tables(
-                    session, blank_odor=0, tail_probability=.01, reducer="median")
-                breadth = pd.DataFrame(breadth_rows)
-                breadth["cohort"] = f"{row['population'].split('-')[0]} {row['depth_class']}"
-                breadth["compartment"] = population
-                breadth_parts.append(breadth)
+                temporal = temporal_feature_table(
+                    data, row, population, windows=windows,
+                    tail_probability=args.tail_probability)
+                temporal_parts.append(temporal)
+                breadth_parts.append(breadth_table(temporal))
                 unit, odor = reliability_tables(
                     data, row, population, repeats=args.reliability_repeats,
                     seed=int(row["group_id"]), windows=windows)
                 reliability_unit_parts.append(unit); reliability_odor_parts.append(odor)
+                accuracy, distances = panel_tables(data, row, population)
+                panel_accuracy_parts.append(accuracy)
+                panel_distance_parts.append(distances)
                 if not args.skip_arousal:
                     aux = find_auxiliary(row, args.imaging_root)
                     if aux is not None:
@@ -86,10 +87,12 @@ def main(argv=None):
     temporal = _write(args.output_dir / "temporal_unit_odor_features.csv", temporal_parts)
     _write(args.output_dir / "signed_auc_specificity.csv",
            [specificity_table(temporal)] if len(temporal) else [])
-    _write(args.output_dir / "asymmetric_blank_responder_breadth.csv", breadth_parts)
+    _write(args.output_dir / "responder_breadth.csv", breadth_parts)
     _write(args.output_dir / "unit_tuning_reliability.csv", reliability_unit_parts)
     _write(args.output_dir / "odor_population_reliability.csv", reliability_odor_parts)
     _write(args.output_dir / "within_odor_arousal_associations.csv", arousal_parts)
+    _write(args.output_dir / "panel_classification_accuracy.csv", panel_accuracy_parts)
+    _write(args.output_dir / "panel_odor_distances.csv", panel_distance_parts)
     pd.DataFrame(failures).to_csv(args.output_dir / "failures.csv", index=False)
     print({"sessions": len(inputs), "tonic_rows": len(tonic),
            "temporal_rows": len(temporal), "failures": len(failures)})

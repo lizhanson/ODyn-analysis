@@ -1,4 +1,14 @@
-"""Tidy session-level outputs shared by the Figure 2 and 3 notebooks."""
+"""Superseded session-level outputs, retained to reproduce earlier tables.
+
+These metrics read a signed four-second mean and reference responder calls to
+mineral oil. The exploratory pass showed both are unsound for this dataset: a
+unit excited then suppressed averages to nothing over four seconds, and mineral
+oil evokes a real delivery response whose size varies with state and scale, so
+a blank-referenced cutoff shifts between conditions for reasons unrelated to
+odor coding. New work should use `population_metrics.temporal_feature_table`
+and `breadth_table`, which integrate excitation and suppression separately and
+reference each unit's own pre-odor excursions.
+"""
 
 from __future__ import annotations
 

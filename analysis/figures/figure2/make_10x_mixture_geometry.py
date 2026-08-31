@@ -8,9 +8,14 @@ from pathlib import Path
 
 import numpy as np
 
-from analysis.figures.figure3.benchmark_geometry_subset import (
-    MIXTURE_PAIRS, cosine_centroid_distance, distance,
-)
+from analysis.figures.geometry import cosine_centroid_distance, pair_distance
+
+# Reciprocal mixture pairs: the same two components at reciprocal ratios.
+MIXTURE_PAIRS = ((17, 18), (31, 32), (39, 40))
+
+
+def distance(x, labels, seed=0):
+    return pair_distance(x, labels, seed=seed, repeats=60)
 from analysis.figures.paths import imaging_root, repo_path
 
 

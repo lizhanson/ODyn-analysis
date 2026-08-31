@@ -1,0 +1,1297 @@
+group_id,mouse,line,depth_class,cohort,compartment,odor_family,arousal_metric,neural_metric,rho,n_trials
+175,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q10_z,,0
+175,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q90_z,,0
+175,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,response_width_z,,0
+175,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q10_z,,0
+175,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q90_z,,0
+175,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,response_width_z,,0
+175,m442,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q10_z,,7
+175,m442,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q90_z,,7
+175,m442,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,response_width_z,,7
+175,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q10_z,,2
+175,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q90_z,,2
+175,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,response_width_z,,2
+175,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q10_z,,2
+175,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q90_z,,2
+175,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,response_width_z,,2
+175,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q10_z,-0.29940656547831473,8
+175,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q90_z,0.13173888881045848,8
+175,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,response_width_z,0.7425282823862205,8
+175,m442,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q10_z,,5
+175,m442,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q90_z,,5
+175,m442,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,response_width_z,,5
+175,m442,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q10_z,,5
+175,m442,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q90_z,,5
+175,m442,DAT,superficial,DAT superficial,groups,other,pupil_change_z,response_width_z,,5
+175,m442,DAT,superficial,DAT superficial,groups,other,running_speed,q10_z,-0.021942413251573034,73
+175,m442,DAT,superficial,DAT superficial,groups,other,running_speed,q90_z,0.2956670747632848,73
+175,m442,DAT,superficial,DAT superficial,groups,other,running_speed,response_width_z,0.3111286064637602,73
+175,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q10_z,,0
+175,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q90_z,,0
+175,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,response_width_z,,0
+175,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q10_z,,0
+175,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q90_z,,0
+175,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,response_width_z,,0
+175,m442,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q10_z,,7
+175,m442,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q90_z,,7
+175,m442,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,response_width_z,,7
+175,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q10_z,,2
+175,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q90_z,,2
+175,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,response_width_z,,2
+175,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q10_z,,2
+175,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q90_z,,2
+175,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,response_width_z,,2
+175,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q10_z,-0.29940656547831473,8
+175,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q90_z,0.16766767666785626,8
+175,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,response_width_z,0.7425282823862205,8
+175,m442,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q10_z,,5
+175,m442,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q90_z,,5
+175,m442,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,response_width_z,,5
+175,m442,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q10_z,,5
+175,m442,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q90_z,,5
+175,m442,DAT,superficial,DAT superficial,somas,other,pupil_change_z,response_width_z,,5
+175,m442,DAT,superficial,DAT superficial,somas,other,running_speed,q10_z,0.04147764192702413,73
+175,m442,DAT,superficial,DAT superficial,somas,other,running_speed,q90_z,0.3417430564575162,73
+175,m442,DAT,superficial,DAT superficial,somas,other,running_speed,response_width_z,0.3729593025953025,73
+177,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q10_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q90_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,response_width_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q10_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q90_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,response_width_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q10_z,0.06378148666094874,11
+177,m442,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q90_z,0.20501192141019234,11
+177,m442,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,response_width_z,0.25968176711957697,11
+177,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q10_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q90_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,response_width_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q10_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q90_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,response_width_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q10_z,-0.09155156597651984,12
+177,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q90_z,0.3380365512979194,12
+177,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,response_width_z,0.33099412314587934,12
+177,m442,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q10_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q90_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,response_width_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q10_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q90_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,other,pupil_change_z,response_width_z,,0
+177,m442,DAT,superficial,DAT superficial,groups,other,running_speed,q10_z,-0.05521623434356987,83
+177,m442,DAT,superficial,DAT superficial,groups,other,running_speed,q90_z,-0.09433167994201645,83
+177,m442,DAT,superficial,DAT superficial,groups,other,running_speed,response_width_z,0.04849178727943015,83
+177,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q10_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q90_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,response_width_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q10_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q90_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,response_width_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q10_z,0.013667461427346159,11
+177,m442,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q90_z,0.3052399718773975,11
+177,m442,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,response_width_z,0.39180056091725646,11
+177,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q10_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q90_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,response_width_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q10_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q90_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,response_width_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q10_z,-0.07042428152039988,12
+177,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q90_z,0.521139683250959,12
+177,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,response_width_z,0.3802911202101593,12
+177,m442,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q10_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q90_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,response_width_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q10_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q90_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,other,pupil_change_z,response_width_z,,0
+177,m442,DAT,superficial,DAT superficial,somas,other,running_speed,q10_z,-0.0757684176241096,83
+177,m442,DAT,superficial,DAT superficial,somas,other,running_speed,q90_z,0.018847393883997265,83
+177,m442,DAT,superficial,DAT superficial,somas,other,running_speed,response_width_z,0.13858254051276378,83
+186,m472,DAT,na,DAT,units,components 4/10,pupil_odor_z,q10_z,,0
+186,m472,DAT,na,DAT,units,components 4/10,pupil_odor_z,q90_z,,0
+186,m472,DAT,na,DAT,units,components 4/10,pupil_odor_z,response_width_z,,0
+186,m472,DAT,na,DAT,units,components 4/10,pupil_change_z,q10_z,,0
+186,m472,DAT,na,DAT,units,components 4/10,pupil_change_z,q90_z,,0
+186,m472,DAT,na,DAT,units,components 4/10,pupil_change_z,response_width_z,,0
+186,m472,DAT,na,DAT,units,components 4/10,running_speed,q10_z,0.60330807439238,13
+186,m472,DAT,na,DAT,units,components 4/10,running_speed,q90_z,0.6281015569016559,13
+186,m472,DAT,na,DAT,units,components 4/10,running_speed,response_width_z,0.5509662779839086,13
+186,m472,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,q10_z,,1
+186,m472,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,q90_z,,1
+186,m472,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,response_width_z,,1
+186,m472,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,q10_z,,1
+186,m472,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,q90_z,,1
+186,m472,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,response_width_z,,1
+186,m472,DAT,na,DAT,units,mixtures 17/18,running_speed,q10_z,-0.07303158257275154,19
+186,m472,DAT,na,DAT,units,mixtures 17/18,running_speed,q90_z,0.3387609553073415,19
+186,m472,DAT,na,DAT,units,mixtures 17/18,running_speed,response_width_z,0.30620470765442814,19
+186,m472,DAT,na,DAT,units,other,pupil_odor_z,q10_z,,0
+186,m472,DAT,na,DAT,units,other,pupil_odor_z,q90_z,,0
+186,m472,DAT,na,DAT,units,other,pupil_odor_z,response_width_z,,0
+186,m472,DAT,na,DAT,units,other,pupil_change_z,q10_z,,0
+186,m472,DAT,na,DAT,units,other,pupil_change_z,q90_z,,0
+186,m472,DAT,na,DAT,units,other,pupil_change_z,response_width_z,,0
+186,m472,DAT,na,DAT,units,other,running_speed,q10_z,0.09531434990216306,76
+186,m472,DAT,na,DAT,units,other,running_speed,q90_z,0.32862510027654884,76
+186,m472,DAT,na,DAT,units,other,running_speed,response_width_z,0.36153482950396865,76
+187,m472,DAT,na,DAT,units,components 4/10,pupil_odor_z,q10_z,,5
+187,m472,DAT,na,DAT,units,components 4/10,pupil_odor_z,q90_z,,5
+187,m472,DAT,na,DAT,units,components 4/10,pupil_odor_z,response_width_z,,5
+187,m472,DAT,na,DAT,units,components 4/10,pupil_change_z,q10_z,,5
+187,m472,DAT,na,DAT,units,components 4/10,pupil_change_z,q90_z,,5
+187,m472,DAT,na,DAT,units,components 4/10,pupil_change_z,response_width_z,,5
+187,m472,DAT,na,DAT,units,components 4/10,running_speed,q10_z,0.48771929824561405,12
+187,m472,DAT,na,DAT,units,components 4/10,running_speed,q90_z,0.27017543859649124,12
+187,m472,DAT,na,DAT,units,components 4/10,running_speed,response_width_z,0.0736842105263158,12
+187,m472,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,q10_z,,6
+187,m472,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,q90_z,,6
+187,m472,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,response_width_z,,6
+187,m472,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,q10_z,,6
+187,m472,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,q90_z,,6
+187,m472,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,response_width_z,,6
+187,m472,DAT,na,DAT,units,mixtures 17/18,running_speed,q10_z,-0.48901098901098894,13
+187,m472,DAT,na,DAT,units,mixtures 17/18,running_speed,q90_z,0.2582417582417582,13
+187,m472,DAT,na,DAT,units,mixtures 17/18,running_speed,response_width_z,0.5274725274725275,13
+187,m472,DAT,na,DAT,units,other,pupil_odor_z,q10_z,0.1983081017315649,42
+187,m472,DAT,na,DAT,units,other,pupil_odor_z,q90_z,0.2062827402090755,42
+187,m472,DAT,na,DAT,units,other,pupil_odor_z,response_width_z,0.04342545540508968,42
+187,m472,DAT,na,DAT,units,other,pupil_change_z,q10_z,0.5298252155823632,42
+187,m472,DAT,na,DAT,units,other,pupil_change_z,q90_z,0.2839134045717809,42
+187,m472,DAT,na,DAT,units,other,pupil_change_z,response_width_z,0.0896971485239961,42
+187,m472,DAT,na,DAT,units,other,running_speed,q10_z,0.22263264025080026,87
+187,m472,DAT,na,DAT,units,other,running_speed,q90_z,0.36514452573517225,87
+187,m472,DAT,na,DAT,units,other,running_speed,response_width_z,0.42563865964134395,87
+189,m465,TH,na,TH,units,components 4/10,pupil_odor_z,q10_z,,4
+189,m465,TH,na,TH,units,components 4/10,pupil_odor_z,q90_z,,4
+189,m465,TH,na,TH,units,components 4/10,pupil_odor_z,response_width_z,,4
+189,m465,TH,na,TH,units,components 4/10,pupil_change_z,q10_z,,4
+189,m465,TH,na,TH,units,components 4/10,pupil_change_z,q90_z,,4
+189,m465,TH,na,TH,units,components 4/10,pupil_change_z,response_width_z,,4
+189,m465,TH,na,TH,units,components 4/10,running_speed,q10_z,-0.054695562435500514,18
+189,m465,TH,na,TH,units,components 4/10,running_speed,q90_z,0.19711042311661509,18
+189,m465,TH,na,TH,units,components 4/10,running_speed,response_width_z,0.13725490196078433,18
+189,m465,TH,na,TH,units,mixtures 17/18,pupil_odor_z,q10_z,,1
+189,m465,TH,na,TH,units,mixtures 17/18,pupil_odor_z,q90_z,,1
+189,m465,TH,na,TH,units,mixtures 17/18,pupil_odor_z,response_width_z,,1
+189,m465,TH,na,TH,units,mixtures 17/18,pupil_change_z,q10_z,,1
+189,m465,TH,na,TH,units,mixtures 17/18,pupil_change_z,q90_z,,1
+189,m465,TH,na,TH,units,mixtures 17/18,pupil_change_z,response_width_z,,1
+189,m465,TH,na,TH,units,mixtures 17/18,running_speed,q10_z,0.7212121212121211,10
+189,m465,TH,na,TH,units,mixtures 17/18,running_speed,q90_z,0.8787878787878788,10
+189,m465,TH,na,TH,units,mixtures 17/18,running_speed,response_width_z,0.16363636363636364,10
+189,m465,TH,na,TH,units,other,pupil_odor_z,q10_z,0.17021355223041806,10
+189,m465,TH,na,TH,units,other,pupil_odor_z,q90_z,0.12158110873601292,10
+189,m465,TH,na,TH,units,other,pupil_odor_z,response_width_z,0.09726488698881035,10
+189,m465,TH,na,TH,units,other,pupil_change_z,q10_z,0.5653521556224601,10
+189,m465,TH,na,TH,units,other,pupil_change_z,q90_z,0.34650615989763683,10
+189,m465,TH,na,TH,units,other,pupil_change_z,response_width_z,-0.0790277206784084,10
+189,m465,TH,na,TH,units,other,running_speed,q10_z,0.4434199970905519,81
+189,m465,TH,na,TH,units,other,running_speed,q90_z,0.40294679278980894,81
+189,m465,TH,na,TH,units,other,running_speed,response_width_z,0.2388393613928266,81
+190,m472,DAT,na,DAT,units,components 4/10,pupil_odor_z,q10_z,,2
+190,m472,DAT,na,DAT,units,components 4/10,pupil_odor_z,q90_z,,2
+190,m472,DAT,na,DAT,units,components 4/10,pupil_odor_z,response_width_z,,2
+190,m472,DAT,na,DAT,units,components 4/10,pupil_change_z,q10_z,,2
+190,m472,DAT,na,DAT,units,components 4/10,pupil_change_z,q90_z,,2
+190,m472,DAT,na,DAT,units,components 4/10,pupil_change_z,response_width_z,,2
+190,m472,DAT,na,DAT,units,components 4/10,running_speed,q10_z,-0.13812365502745746,13
+190,m472,DAT,na,DAT,units,components 4/10,running_speed,q90_z,0.16574838603294895,13
+190,m472,DAT,na,DAT,units,components 4/10,running_speed,response_width_z,0.3038720410604064,13
+190,m472,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,q10_z,,0
+190,m472,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,q90_z,,0
+190,m472,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,response_width_z,,0
+190,m472,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,q10_z,,0
+190,m472,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,q90_z,,0
+190,m472,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,response_width_z,,0
+190,m472,DAT,na,DAT,units,mixtures 17/18,running_speed,q10_z,-0.21025445937273735,18
+190,m472,DAT,na,DAT,units,mixtures 17/18,running_speed,q90_z,0.10046641654756415,18
+190,m472,DAT,na,DAT,units,mixtures 17/18,running_speed,response_width_z,0.30554219465496313,18
+190,m472,DAT,na,DAT,units,other,pupil_odor_z,q10_z,,4
+190,m472,DAT,na,DAT,units,other,pupil_odor_z,q90_z,,4
+190,m472,DAT,na,DAT,units,other,pupil_odor_z,response_width_z,,4
+190,m472,DAT,na,DAT,units,other,pupil_change_z,q10_z,,4
+190,m472,DAT,na,DAT,units,other,pupil_change_z,q90_z,,4
+190,m472,DAT,na,DAT,units,other,pupil_change_z,response_width_z,,4
+190,m472,DAT,na,DAT,units,other,running_speed,q10_z,0.23971150001255745,81
+190,m472,DAT,na,DAT,units,other,running_speed,q90_z,0.5098293504913523,81
+190,m472,DAT,na,DAT,units,other,running_speed,response_width_z,0.4545461048872486,81
+195,m466,TH,na,TH,units,components 4/10,pupil_odor_z,q10_z,0.30000000000000004,11
+195,m466,TH,na,TH,units,components 4/10,pupil_odor_z,q90_z,0.20956774188597443,11
+195,m466,TH,na,TH,units,components 4/10,pupil_odor_z,response_width_z,0.21412356236175645,11
+195,m466,TH,na,TH,units,components 4/10,pupil_change_z,q10_z,-0.1272727272727273,11
+195,m466,TH,na,TH,units,components 4/10,pupil_change_z,q90_z,0.07744894808829489,11
+195,m466,TH,na,TH,units,components 4/10,pupil_change_z,response_width_z,0.19590028045862823,11
+195,m466,TH,na,TH,units,components 4/10,running_speed,q10_z,0.5022026431718063,14
+195,m466,TH,na,TH,units,components 4/10,running_speed,q90_z,0.7764317180616741,14
+195,m466,TH,na,TH,units,components 4/10,running_speed,response_width_z,0.8303964757709251,14
+195,m466,TH,na,TH,units,mixtures 17/18,pupil_odor_z,q10_z,0.43333333333333335,9
+195,m466,TH,na,TH,units,mixtures 17/18,pupil_odor_z,q90_z,0.43333333333333335,9
+195,m466,TH,na,TH,units,mixtures 17/18,pupil_odor_z,response_width_z,0.21666666666666667,9
+195,m466,TH,na,TH,units,mixtures 17/18,pupil_change_z,q10_z,-0.39999999999999997,9
+195,m466,TH,na,TH,units,mixtures 17/18,pupil_change_z,q90_z,-0.18333333333333335,9
+195,m466,TH,na,TH,units,mixtures 17/18,pupil_change_z,response_width_z,0.06666666666666667,9
+195,m466,TH,na,TH,units,mixtures 17/18,running_speed,q10_z,0.41666666666666663,9
+195,m466,TH,na,TH,units,mixtures 17/18,running_speed,q90_z,0.5,9
+195,m466,TH,na,TH,units,mixtures 17/18,running_speed,response_width_z,0.38333333333333336,9
+195,m466,TH,na,TH,units,other,pupil_odor_z,q10_z,0.3003111048625241,76
+195,m466,TH,na,TH,units,other,pupil_odor_z,q90_z,0.5061433871079006,76
+195,m466,TH,na,TH,units,other,pupil_odor_z,response_width_z,0.4451540183320317,76
+195,m466,TH,na,TH,units,other,pupil_change_z,q10_z,0.4290314923708771,76
+195,m466,TH,na,TH,units,other,pupil_change_z,q90_z,0.6284298064527902,76
+195,m466,TH,na,TH,units,other,pupil_change_z,response_width_z,0.5047759124716703,76
+195,m466,TH,na,TH,units,other,running_speed,q10_z,0.17507832730490303,89
+195,m466,TH,na,TH,units,other,running_speed,q90_z,0.4247122329121322,89
+195,m466,TH,na,TH,units,other,running_speed,response_width_z,0.40641601985152953,89
+196,m472,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q10_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q90_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,response_width_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q10_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q90_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,response_width_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q10_z,0.5816960494673845,15
+196,m472,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q90_z,0.91563267045792,15
+196,m472,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,response_width_z,0.7827761653326532,15
+196,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q10_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q90_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,response_width_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q10_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q90_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,response_width_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q10_z,-0.16856535760393593,11
+196,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q90_z,0.04100238428203847,11
+196,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,response_width_z,0.12300715284611541,11
+196,m472,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q10_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q90_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,response_width_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q10_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q90_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,other,pupil_change_z,response_width_z,,0
+196,m472,DAT,superficial,DAT superficial,groups,other,running_speed,q10_z,-0.05380065464354737,86
+196,m472,DAT,superficial,DAT superficial,groups,other,running_speed,q90_z,0.4379587753672772,86
+196,m472,DAT,superficial,DAT superficial,groups,other,running_speed,response_width_z,0.5591224412687914,86
+196,m472,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q10_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q90_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,response_width_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q10_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q90_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,response_width_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q10_z,0.7181432709473883,15
+196,m472,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q90_z,0.8671579996689713,15
+196,m472,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,response_width_z,0.736096852721073,15
+196,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q10_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q90_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,response_width_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q10_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q90_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,response_width_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q10_z,-0.054669845709384636,11
+196,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q90_z,0.02277910237891026,11
+196,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,response_width_z,0.13211879379767952,11
+196,m472,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q10_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q90_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,response_width_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q10_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q90_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,other,pupil_change_z,response_width_z,,0
+196,m472,DAT,superficial,DAT superficial,somas,other,running_speed,q10_z,-0.037389777987854714,86
+196,m472,DAT,superficial,DAT superficial,somas,other,running_speed,q90_z,0.45117156235805783,86
+196,m472,DAT,superficial,DAT superficial,somas,other,running_speed,response_width_z,0.5184400953393657,86
+199,m465,TH,superficial,TH superficial,groups,components 4/10,pupil_odor_z,q10_z,-0.8516483516483516,13
+199,m465,TH,superficial,TH superficial,groups,components 4/10,pupil_odor_z,q90_z,0.42857142857142855,13
+199,m465,TH,superficial,TH superficial,groups,components 4/10,pupil_odor_z,response_width_z,0.8351648351648352,13
+199,m465,TH,superficial,TH superficial,groups,components 4/10,pupil_change_z,q10_z,0.0,13
+199,m465,TH,superficial,TH superficial,groups,components 4/10,pupil_change_z,q90_z,0.6923076923076923,13
+199,m465,TH,superficial,TH superficial,groups,components 4/10,pupil_change_z,response_width_z,0.34615384615384615,13
+199,m465,TH,superficial,TH superficial,groups,components 4/10,running_speed,q10_z,-0.4450549450549451,13
+199,m465,TH,superficial,TH superficial,groups,components 4/10,running_speed,q90_z,0.7417582417582418,13
+199,m465,TH,superficial,TH superficial,groups,components 4/10,running_speed,response_width_z,0.6373626373626374,13
+199,m465,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_odor_z,q10_z,,6
+199,m465,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_odor_z,q90_z,,6
+199,m465,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_odor_z,response_width_z,,6
+199,m465,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_change_z,q10_z,,6
+199,m465,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_change_z,q90_z,,6
+199,m465,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_change_z,response_width_z,,6
+199,m465,TH,superficial,TH superficial,groups,mixtures 17/18,running_speed,q10_z,,6
+199,m465,TH,superficial,TH superficial,groups,mixtures 17/18,running_speed,q90_z,,6
+199,m465,TH,superficial,TH superficial,groups,mixtures 17/18,running_speed,response_width_z,,6
+199,m465,TH,superficial,TH superficial,groups,other,pupil_odor_z,q10_z,-0.2593506493506493,57
+199,m465,TH,superficial,TH superficial,groups,other,pupil_odor_z,q90_z,0.5803896103896102,57
+199,m465,TH,superficial,TH superficial,groups,other,pupil_odor_z,response_width_z,0.5327272727272727,57
+199,m465,TH,superficial,TH superficial,groups,other,pupil_change_z,q10_z,0.14045454545454542,57
+199,m465,TH,superficial,TH superficial,groups,other,pupil_change_z,q90_z,0.5577922077922077,57
+199,m465,TH,superficial,TH superficial,groups,other,pupil_change_z,response_width_z,0.35305194805194795,57
+199,m465,TH,superficial,TH superficial,groups,other,running_speed,q10_z,-0.28412798912817205,57
+199,m465,TH,superficial,TH superficial,groups,other,running_speed,q90_z,0.6170554717610456,57
+199,m465,TH,superficial,TH superficial,groups,other,running_speed,response_width_z,0.5289046900808961,57
+199,m465,TH,superficial,TH superficial,somas,components 4/10,pupil_odor_z,q10_z,-0.8736263736263737,13
+199,m465,TH,superficial,TH superficial,somas,components 4/10,pupil_odor_z,q90_z,0.4725274725274725,13
+199,m465,TH,superficial,TH superficial,somas,components 4/10,pupil_odor_z,response_width_z,0.8241758241758241,13
+199,m465,TH,superficial,TH superficial,somas,components 4/10,pupil_change_z,q10_z,-0.054945054945054944,13
+199,m465,TH,superficial,TH superficial,somas,components 4/10,pupil_change_z,q90_z,0.7142857142857143,13
+199,m465,TH,superficial,TH superficial,somas,components 4/10,pupil_change_z,response_width_z,0.30769230769230765,13
+199,m465,TH,superficial,TH superficial,somas,components 4/10,running_speed,q10_z,-0.41208791208791207,13
+199,m465,TH,superficial,TH superficial,somas,components 4/10,running_speed,q90_z,0.8461538461538461,13
+199,m465,TH,superficial,TH superficial,somas,components 4/10,running_speed,response_width_z,0.6373626373626374,13
+199,m465,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_odor_z,q10_z,,6
+199,m465,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_odor_z,q90_z,,6
+199,m465,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_odor_z,response_width_z,,6
+199,m465,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_change_z,q10_z,,6
+199,m465,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_change_z,q90_z,,6
+199,m465,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_change_z,response_width_z,,6
+199,m465,TH,superficial,TH superficial,somas,mixtures 17/18,running_speed,q10_z,,6
+199,m465,TH,superficial,TH superficial,somas,mixtures 17/18,running_speed,q90_z,,6
+199,m465,TH,superficial,TH superficial,somas,mixtures 17/18,running_speed,response_width_z,,6
+199,m465,TH,superficial,TH superficial,somas,other,pupil_odor_z,q10_z,-0.27207792207792203,57
+199,m465,TH,superficial,TH superficial,somas,other,pupil_odor_z,q90_z,0.4966883116883115,57
+199,m465,TH,superficial,TH superficial,somas,other,pupil_odor_z,response_width_z,0.4902597402597402,57
+199,m465,TH,superficial,TH superficial,somas,other,pupil_change_z,q10_z,0.05707792207792207,57
+199,m465,TH,superficial,TH superficial,somas,other,pupil_change_z,q90_z,0.5295454545454544,57
+199,m465,TH,superficial,TH superficial,somas,other,pupil_change_z,response_width_z,0.36025974025974017,57
+199,m465,TH,superficial,TH superficial,somas,other,running_speed,q10_z,-0.3020828260597089,57
+199,m465,TH,superficial,TH superficial,somas,other,running_speed,q90_z,0.6450104710341978,57
+199,m465,TH,superficial,TH superficial,somas,other,running_speed,response_width_z,0.5449763795584924,57
+201,m472,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q10_z,,6
+201,m472,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q90_z,,6
+201,m472,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,response_width_z,,6
+201,m472,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q10_z,,6
+201,m472,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q90_z,,6
+201,m472,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,response_width_z,,6
+201,m472,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q10_z,0.021052761174675114,12
+201,m472,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q90_z,0.4000024623188272,12
+201,m472,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,response_width_z,0.5929861064200157,12
+201,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q10_z,,2
+201,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q90_z,,2
+201,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,response_width_z,,2
+201,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q10_z,,2
+201,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q90_z,,2
+201,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,response_width_z,,2
+201,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q10_z,,7
+201,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q90_z,,7
+201,m472,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,response_width_z,,7
+201,m472,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q10_z,0.4888088133485593,11
+201,m472,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q90_z,0.5159324110497602,11
+201,m472,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,response_width_z,0.4569299776953924,11
+201,m472,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q10_z,-0.27628324232744655,11
+201,m472,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q90_z,0.010529232878566533,11
+201,m472,DAT,superficial,DAT superficial,groups,other,pupil_change_z,response_width_z,0.28690952087850224,11
+201,m472,DAT,superficial,DAT superficial,groups,other,running_speed,q10_z,-0.22153303740192498,54
+201,m472,DAT,superficial,DAT superficial,groups,other,running_speed,q90_z,0.25193014360604526,54
+201,m472,DAT,superficial,DAT superficial,groups,other,running_speed,response_width_z,0.3503232970846626,54
+201,m472,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q10_z,,6
+201,m472,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q90_z,,6
+201,m472,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,response_width_z,,6
+201,m472,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q10_z,,6
+201,m472,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q90_z,,6
+201,m472,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,response_width_z,,6
+201,m472,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q10_z,0.06315828352402536,12
+201,m472,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q90_z,0.42105522349350233,12
+201,m472,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,response_width_z,0.6807059446478287,12
+201,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q10_z,,2
+201,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q90_z,,2
+201,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,response_width_z,,2
+201,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q10_z,,2
+201,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q90_z,,2
+201,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,response_width_z,,2
+201,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q10_z,,7
+201,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q90_z,,7
+201,m472,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,response_width_z,,7
+201,m472,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q10_z,0.5950715988591156,11
+201,m472,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q90_z,0.3685231507498286,11
+201,m472,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,response_width_z,0.10626278551055636,11
+201,m472,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q10_z,-0.17002045681689018,11
+201,m472,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q90_z,-0.05264616439283266,11
+201,m472,DAT,superficial,DAT superficial,somas,other,pupil_change_z,response_width_z,0.5313139275527818,11
+201,m472,DAT,superficial,DAT superficial,somas,other,running_speed,q10_z,-0.15437975803730897,54
+201,m472,DAT,superficial,DAT superficial,somas,other,running_speed,q90_z,0.21676373718464334,54
+201,m472,DAT,superficial,DAT superficial,somas,other,running_speed,response_width_z,0.3092575152940931,54
+202,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q10_z,,4
+202,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q90_z,,4
+202,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,response_width_z,,4
+202,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q10_z,,4
+202,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q90_z,,4
+202,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,response_width_z,,4
+202,m496,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q10_z,0.10185961465448892,10
+202,m496,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q90_z,-0.24384574417286742,10
+202,m496,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,response_width_z,-0.3364453938587665,10
+202,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q10_z,,5
+202,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q90_z,,5
+202,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,response_width_z,,5
+202,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q10_z,,5
+202,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q90_z,,5
+202,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,response_width_z,,5
+202,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q10_z,-0.04912310940757527,12
+202,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q90_z,-0.09473742528603803,12
+202,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,response_width_z,0.28772106938722664,12
+202,m496,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q10_z,-0.004149433407941542,18
+202,m496,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q90_z,0.08939752409636509,18
+202,m496,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,response_width_z,0.0051867917599269266,18
+202,m496,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q10_z,-0.3402535394512064,18
+202,m496,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q90_z,-0.03326419501260097,18
+202,m496,DAT,superficial,DAT superficial,groups,other,pupil_change_z,response_width_z,0.24585392942053633,18
+202,m496,DAT,superficial,DAT superficial,groups,other,running_speed,q10_z,0.037733662601961836,56
+202,m496,DAT,superficial,DAT superficial,groups,other,running_speed,q90_z,0.06313494341844364,56
+202,m496,DAT,superficial,DAT superficial,groups,other,running_speed,response_width_z,0.08360327152073341,56
+202,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q10_z,,4
+202,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q90_z,,4
+202,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,response_width_z,,4
+202,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q10_z,,4
+202,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q90_z,,4
+202,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,response_width_z,,4
+202,m496,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q10_z,-0.027779894905769712,10
+202,m496,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q90_z,-0.24384574417286742,10
+202,m496,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,response_width_z,-0.29323222400534693,10
+202,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q10_z,,5
+202,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q90_z,,5
+202,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,response_width_z,,5
+202,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q10_z,,5
+202,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q90_z,,5
+202,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,response_width_z,,5
+202,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q10_z,-0.021052761174675114,12
+202,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q90_z,0.014035174116450076,12
+202,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,response_width_z,0.30175624350367664,12
+202,m496,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q10_z,-0.09543696838265545,18
+202,m496,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q90_z,0.13721480442697898,18
+202,m496,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,response_width_z,0.14626752762993936,18
+202,m496,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q10_z,-0.2614143047003171,18
+202,m496,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q90_z,-0.04158024376575121,18
+202,m496,DAT,superficial,DAT superficial,somas,other,pupil_change_z,response_width_z,0.15871582785376395,18
+202,m496,DAT,superficial,DAT superficial,somas,other,running_speed,q10_z,0.05517028018198778,56
+202,m496,DAT,superficial,DAT superficial,somas,other,running_speed,q90_z,0.04843885512407992,56
+202,m496,DAT,superficial,DAT superficial,somas,other,running_speed,response_width_z,0.03480472192791033,56
+203,m462,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,q10_z,,0
+203,m462,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,q90_z,,0
+203,m462,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,response_width_z,,0
+203,m462,TH,deep,TH deep,groups,components 4/10,pupil_change_z,q10_z,,0
+203,m462,TH,deep,TH deep,groups,components 4/10,pupil_change_z,q90_z,,0
+203,m462,TH,deep,TH deep,groups,components 4/10,pupil_change_z,response_width_z,,0
+203,m462,TH,deep,TH deep,groups,components 4/10,running_speed,q10_z,0.5089413342896748,13
+203,m462,TH,deep,TH deep,groups,components 4/10,running_speed,q90_z,0.5997254641899951,13
+203,m462,TH,deep,TH deep,groups,components 4/10,running_speed,response_width_z,0.8280613060604979,13
+203,m462,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,q10_z,,0
+203,m462,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,q90_z,,0
+203,m462,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,response_width_z,,0
+203,m462,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,q10_z,,0
+203,m462,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,q90_z,,0
+203,m462,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,response_width_z,,0
+203,m462,TH,deep,TH deep,groups,mixtures 17/18,running_speed,q10_z,0.25968176711957697,11
+203,m462,TH,deep,TH deep,groups,mixtures 17/18,running_speed,q90_z,0.2687934080711411,11
+203,m462,TH,deep,TH deep,groups,mixtures 17/18,running_speed,response_width_z,0.29157251045005134,11
+203,m462,TH,deep,TH deep,groups,other,pupil_odor_z,q10_z,,2
+203,m462,TH,deep,TH deep,groups,other,pupil_odor_z,q90_z,,2
+203,m462,TH,deep,TH deep,groups,other,pupil_odor_z,response_width_z,,2
+203,m462,TH,deep,TH deep,groups,other,pupil_change_z,q10_z,,2
+203,m462,TH,deep,TH deep,groups,other,pupil_change_z,q90_z,,2
+203,m462,TH,deep,TH deep,groups,other,pupil_change_z,response_width_z,,2
+203,m462,TH,deep,TH deep,groups,other,running_speed,q10_z,0.04947927439139958,52
+203,m462,TH,deep,TH deep,groups,other,running_speed,q90_z,0.12304771348430876,52
+203,m462,TH,deep,TH deep,groups,other,running_speed,response_width_z,0.16036315223435205,52
+203,m462,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,q10_z,,0
+203,m462,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,q90_z,,0
+203,m462,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,response_width_z,,0
+203,m462,TH,deep,TH deep,somas,components 4/10,pupil_change_z,q10_z,,0
+203,m462,TH,deep,TH deep,somas,components 4/10,pupil_change_z,q90_z,,0
+203,m462,TH,deep,TH deep,somas,components 4/10,pupil_change_z,response_width_z,,0
+203,m462,TH,deep,TH deep,somas,components 4/10,running_speed,q10_z,0.5089413342896748,13
+203,m462,TH,deep,TH deep,somas,components 4/10,running_speed,q90_z,0.7730406212724249,13
+203,m462,TH,deep,TH deep,somas,components 4/10,running_speed,response_width_z,0.8143061348634796,13
+203,m462,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,q10_z,,0
+203,m462,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,q90_z,,0
+203,m462,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,response_width_z,,0
+203,m462,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,q10_z,,0
+203,m462,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,q90_z,,0
+203,m462,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,response_width_z,,0
+203,m462,TH,deep,TH deep,somas,mixtures 17/18,running_speed,q10_z,-0.05922566618516668,11
+203,m462,TH,deep,TH deep,somas,mixtures 17/18,running_speed,q90_z,0.050114025233602574,11
+203,m462,TH,deep,TH deep,somas,mixtures 17/18,running_speed,response_width_z,0.24601430569223082,11
+203,m462,TH,deep,TH deep,somas,other,pupil_odor_z,q10_z,,2
+203,m462,TH,deep,TH deep,somas,other,pupil_odor_z,q90_z,,2
+203,m462,TH,deep,TH deep,somas,other,pupil_odor_z,response_width_z,,2
+203,m462,TH,deep,TH deep,somas,other,pupil_change_z,q10_z,,2
+203,m462,TH,deep,TH deep,somas,other,pupil_change_z,q90_z,,2
+203,m462,TH,deep,TH deep,somas,other,pupil_change_z,response_width_z,,2
+203,m462,TH,deep,TH deep,somas,other,running_speed,q10_z,0.1668461947597808,52
+203,m462,TH,deep,TH deep,somas,other,running_speed,q90_z,0.1795087259800163,52
+203,m462,TH,deep,TH deep,somas,other,running_speed,response_width_z,0.23870172295132255,52
+204,m465,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,q10_z,0.1515151515151515,10
+204,m465,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,q90_z,0.6363636363636362,10
+204,m465,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,response_width_z,0.5030303030303029,10
+204,m465,TH,deep,TH deep,groups,components 4/10,pupil_change_z,q10_z,-0.16363636363636364,10
+204,m465,TH,deep,TH deep,groups,components 4/10,pupil_change_z,q90_z,-0.309090909090909,10
+204,m465,TH,deep,TH deep,groups,components 4/10,pupil_change_z,response_width_z,0.13939393939393938,10
+204,m465,TH,deep,TH deep,groups,components 4/10,running_speed,q10_z,0.18787878787878787,10
+204,m465,TH,deep,TH deep,groups,components 4/10,running_speed,q90_z,0.22424242424242422,10
+204,m465,TH,deep,TH deep,groups,components 4/10,running_speed,response_width_z,0.006060606060606061,10
+204,m465,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,q10_z,-0.3318681318681319,14
+204,m465,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,q90_z,0.6703296703296703,14
+204,m465,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,response_width_z,0.6043956043956044,14
+204,m465,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,q10_z,-0.4197802197802198,14
+204,m465,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,q90_z,0.410989010989011,14
+204,m465,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,response_width_z,0.4197802197802198,14
+204,m465,TH,deep,TH deep,groups,mixtures 17/18,running_speed,q10_z,-0.3494505494505495,14
+204,m465,TH,deep,TH deep,groups,mixtures 17/18,running_speed,q90_z,0.5296703296703297,14
+204,m465,TH,deep,TH deep,groups,mixtures 17/18,running_speed,response_width_z,0.5868131868131868,14
+204,m465,TH,deep,TH deep,groups,other,pupil_odor_z,q10_z,0.12155397688912883,51
+204,m465,TH,deep,TH deep,groups,other,pupil_odor_z,q90_z,0.48472083441550107,51
+204,m465,TH,deep,TH deep,groups,other,pupil_odor_z,response_width_z,0.352202987825601,51
+204,m465,TH,deep,TH deep,groups,other,pupil_change_z,q10_z,-0.10157436309557467,51
+204,m465,TH,deep,TH deep,groups,other,pupil_change_z,q90_z,0.2365386930071344,51
+204,m465,TH,deep,TH deep,groups,other,pupil_change_z,response_width_z,0.3783441151700018,51
+204,m465,TH,deep,TH deep,groups,other,running_speed,q10_z,-0.04734727031764354,52
+204,m465,TH,deep,TH deep,groups,other,running_speed,q90_z,0.5475824034885214,52
+204,m465,TH,deep,TH deep,groups,other,running_speed,response_width_z,0.4972211534350819,52
+204,m465,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,q10_z,0.29696969696969694,10
+204,m465,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,q90_z,0.5393939393939393,10
+204,m465,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,response_width_z,0.24848484848484845,10
+204,m465,TH,deep,TH deep,somas,components 4/10,pupil_change_z,q10_z,-0.2121212121212121,10
+204,m465,TH,deep,TH deep,somas,components 4/10,pupil_change_z,q90_z,-0.38181818181818183,10
+204,m465,TH,deep,TH deep,somas,components 4/10,pupil_change_z,response_width_z,0.05454545454545454,10
+204,m465,TH,deep,TH deep,somas,components 4/10,running_speed,q10_z,0.5757575757575757,10
+204,m465,TH,deep,TH deep,somas,components 4/10,running_speed,q90_z,0.7454545454545454,10
+204,m465,TH,deep,TH deep,somas,components 4/10,running_speed,response_width_z,-0.13939393939393938,10
+204,m465,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,q10_z,-0.06813186813186813,14
+204,m465,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,q90_z,0.5692307692307692,14
+204,m465,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,response_width_z,0.24395604395604395,14
+204,m465,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,q10_z,-0.0989010989010989,14
+204,m465,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,q90_z,0.2835164835164835,14
+204,m465,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,response_width_z,0.2967032967032967,14
+204,m465,TH,deep,TH deep,somas,mixtures 17/18,running_speed,q10_z,-0.47252747252747257,14
+204,m465,TH,deep,TH deep,somas,mixtures 17/18,running_speed,q90_z,0.6,14
+204,m465,TH,deep,TH deep,somas,mixtures 17/18,running_speed,response_width_z,0.6483516483516484,14
+204,m465,TH,deep,TH deep,somas,other,pupil_odor_z,q10_z,0.07665647741200372,51
+204,m465,TH,deep,TH deep,somas,other,pupil_odor_z,q90_z,0.5380451097783429,51
+204,m465,TH,deep,TH deep,somas,other,pupil_odor_z,response_width_z,0.42242612020657366,51
+204,m465,TH,deep,TH deep,somas,other,pupil_change_z,q10_z,-0.11271945378313548,51
+204,m465,TH,deep,TH deep,somas,other,pupil_change_z,q90_z,0.35904408007690863,51
+204,m465,TH,deep,TH deep,somas,other,pupil_change_z,response_width_z,0.3050855312603032,51
+204,m465,TH,deep,TH deep,somas,other,running_speed,q10_z,0.18716600401863967,52
+204,m465,TH,deep,TH deep,somas,other,running_speed,q90_z,0.6252191013637725,52
+204,m465,TH,deep,TH deep,somas,other,running_speed,response_width_z,0.36422128168953877,52
+205,m357,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,q10_z,,4
+205,m357,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,q90_z,,4
+205,m357,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,response_width_z,,4
+205,m357,TH,deep,TH deep,groups,components 4/10,pupil_change_z,q10_z,,4
+205,m357,TH,deep,TH deep,groups,components 4/10,pupil_change_z,q90_z,,4
+205,m357,TH,deep,TH deep,groups,components 4/10,pupil_change_z,response_width_z,,4
+205,m357,TH,deep,TH deep,groups,components 4/10,running_speed,q10_z,-0.24990592661943498,20
+205,m357,TH,deep,TH deep,groups,components 4/10,running_speed,q90_z,0.013549116503463344,20
+205,m357,TH,deep,TH deep,groups,components 4/10,running_speed,response_width_z,0.2314640736008321,20
+205,m357,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,q10_z,,2
+205,m357,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,q90_z,,2
+205,m357,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,response_width_z,,2
+205,m357,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,q10_z,,2
+205,m357,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,q90_z,,2
+205,m357,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,response_width_z,,2
+205,m357,TH,deep,TH deep,groups,mixtures 17/18,running_speed,q10_z,-0.6363636363636364,11
+205,m357,TH,deep,TH deep,groups,mixtures 17/18,running_speed,q90_z,-0.4727272727272727,11
+205,m357,TH,deep,TH deep,groups,mixtures 17/18,running_speed,response_width_z,0.27272727272727276,11
+205,m357,TH,deep,TH deep,groups,other,pupil_odor_z,q10_z,-0.537451636596586,12
+205,m357,TH,deep,TH deep,groups,other,pupil_odor_z,q90_z,-0.1316934473779714,12
+205,m357,TH,deep,TH deep,groups,other,pupil_odor_z,response_width_z,0.40931747158018134,12
+205,m357,TH,deep,TH deep,groups,other,pupil_change_z,q10_z,-0.22067550641714126,12
+205,m357,TH,deep,TH deep,groups,other,pupil_change_z,q90_z,0.14237129446267177,12
+205,m357,TH,deep,TH deep,groups,other,pupil_change_z,response_width_z,0.24559048294810878,12
+205,m357,TH,deep,TH deep,groups,other,running_speed,q10_z,0.1305904158434507,75
+205,m357,TH,deep,TH deep,groups,other,running_speed,q90_z,0.2932022392335192,75
+205,m357,TH,deep,TH deep,groups,other,running_speed,response_width_z,0.10189923468168124,75
+205,m357,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,q10_z,,4
+205,m357,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,q90_z,,4
+205,m357,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,response_width_z,,4
+205,m357,TH,deep,TH deep,somas,components 4/10,pupil_change_z,q10_z,,4
+205,m357,TH,deep,TH deep,somas,components 4/10,pupil_change_z,q90_z,,4
+205,m357,TH,deep,TH deep,somas,components 4/10,pupil_change_z,response_width_z,,4
+205,m357,TH,deep,TH deep,somas,components 4/10,running_speed,q10_z,-0.3406097343231757,20
+205,m357,TH,deep,TH deep,somas,components 4/10,running_speed,q90_z,-0.013549116503463344,20
+205,m357,TH,deep,TH deep,somas,components 4/10,running_speed,response_width_z,0.2126458562349108,20
+205,m357,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,q10_z,,2
+205,m357,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,q90_z,,2
+205,m357,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,response_width_z,,2
+205,m357,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,q10_z,,2
+205,m357,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,q90_z,,2
+205,m357,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,response_width_z,,2
+205,m357,TH,deep,TH deep,somas,mixtures 17/18,running_speed,q10_z,-0.38181818181818183,11
+205,m357,TH,deep,TH deep,somas,mixtures 17/18,running_speed,q90_z,0.19090909090909092,11
+205,m357,TH,deep,TH deep,somas,mixtures 17/18,running_speed,response_width_z,0.7181818181818183,11
+205,m357,TH,deep,TH deep,somas,other,pupil_odor_z,q10_z,-0.17440483571677293,12
+205,m357,TH,deep,TH deep,somas,other,pupil_odor_z,q90_z,-0.1850826828014733,12
+205,m357,TH,deep,TH deep,somas,other,pupil_odor_z,response_width_z,-0.014237129446267175,12
+205,m357,TH,deep,TH deep,somas,other,pupil_change_z,q10_z,-0.363046800879813,12
+205,m357,TH,deep,TH deep,somas,other,pupil_change_z,q90_z,0.17440483571677293,12
+205,m357,TH,deep,TH deep,somas,other,pupil_change_z,response_width_z,0.4449102951958493,12
+205,m357,TH,deep,TH deep,somas,other,running_speed,q10_z,0.030185513513944964,75
+205,m357,TH,deep,TH deep,somas,other,running_speed,q90_z,0.23816811346339886,75
+205,m357,TH,deep,TH deep,somas,other,running_speed,response_width_z,0.18060073856292386,75
+206,m462,TH,na,TH,units,components 4/10,pupil_odor_z,q10_z,,0
+206,m462,TH,na,TH,units,components 4/10,pupil_odor_z,q90_z,,0
+206,m462,TH,na,TH,units,components 4/10,pupil_odor_z,response_width_z,,0
+206,m462,TH,na,TH,units,components 4/10,pupil_change_z,q10_z,,0
+206,m462,TH,na,TH,units,components 4/10,pupil_change_z,q90_z,,0
+206,m462,TH,na,TH,units,components 4/10,pupil_change_z,response_width_z,,0
+206,m462,TH,na,TH,units,components 4/10,running_speed,q10_z,-0.3864049116669826,15
+206,m462,TH,na,TH,units,components 4/10,running_speed,q90_z,-0.31127062328729155,15
+206,m462,TH,na,TH,units,components 4/10,running_speed,response_width_z,0.24865871630421568,15
+206,m462,TH,na,TH,units,mixtures 17/18,pupil_odor_z,q10_z,,0
+206,m462,TH,na,TH,units,mixtures 17/18,pupil_odor_z,q90_z,,0
+206,m462,TH,na,TH,units,mixtures 17/18,pupil_odor_z,response_width_z,,0
+206,m462,TH,na,TH,units,mixtures 17/18,pupil_change_z,q10_z,,0
+206,m462,TH,na,TH,units,mixtures 17/18,pupil_change_z,q90_z,,0
+206,m462,TH,na,TH,units,mixtures 17/18,pupil_change_z,response_width_z,,0
+206,m462,TH,na,TH,units,mixtures 17/18,running_speed,q10_z,-0.33636363636363636,11
+206,m462,TH,na,TH,units,mixtures 17/18,running_speed,q90_z,-0.11818181818181818,11
+206,m462,TH,na,TH,units,mixtures 17/18,running_speed,response_width_z,-0.17272727272727276,11
+206,m462,TH,na,TH,units,other,pupil_odor_z,q10_z,,0
+206,m462,TH,na,TH,units,other,pupil_odor_z,q90_z,,0
+206,m462,TH,na,TH,units,other,pupil_odor_z,response_width_z,,0
+206,m462,TH,na,TH,units,other,pupil_change_z,q10_z,,0
+206,m462,TH,na,TH,units,other,pupil_change_z,q90_z,,0
+206,m462,TH,na,TH,units,other,pupil_change_z,response_width_z,,0
+206,m462,TH,na,TH,units,other,running_speed,q10_z,-0.2375059619513633,86
+206,m462,TH,na,TH,units,other,running_speed,q90_z,-0.1525866268754803,86
+206,m462,TH,na,TH,units,other,running_speed,response_width_z,-0.02101028806225284,86
+212,m462,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,q10_z,,1
+212,m462,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,q90_z,,1
+212,m462,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,response_width_z,,1
+212,m462,TH,deep,TH deep,groups,components 4/10,pupil_change_z,q10_z,,1
+212,m462,TH,deep,TH deep,groups,components 4/10,pupil_change_z,q90_z,,1
+212,m462,TH,deep,TH deep,groups,components 4/10,pupil_change_z,response_width_z,,1
+212,m462,TH,deep,TH deep,groups,components 4/10,running_speed,q10_z,-0.015418502202643174,14
+212,m462,TH,deep,TH deep,groups,components 4/10,running_speed,q90_z,0.8590308370044053,14
+212,m462,TH,deep,TH deep,groups,components 4/10,running_speed,response_width_z,0.8436123348017621,14
+212,m462,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,q10_z,,0
+212,m462,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,q90_z,,0
+212,m462,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,response_width_z,,0
+212,m462,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,q10_z,,0
+212,m462,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,q90_z,,0
+212,m462,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,response_width_z,,0
+212,m462,TH,deep,TH deep,groups,mixtures 17/18,running_speed,q10_z,-0.0022075270337830345,14
+212,m462,TH,deep,TH deep,groups,mixtures 17/18,running_speed,q90_z,0.5452591773444095,14
+212,m462,TH,deep,TH deep,groups,mixtures 17/18,running_speed,response_width_z,0.37748712277689894,14
+212,m462,TH,deep,TH deep,groups,other,pupil_odor_z,q10_z,0.3273268353539886,8
+212,m462,TH,deep,TH deep,groups,other,pupil_odor_z,q90_z,0.21821789023599242,8
+212,m462,TH,deep,TH deep,groups,other,pupil_odor_z,response_width_z,0.3273268353539886,8
+212,m462,TH,deep,TH deep,groups,other,pupil_change_z,q10_z,0.3273268353539886,8
+212,m462,TH,deep,TH deep,groups,other,pupil_change_z,q90_z,0.21821789023599242,8
+212,m462,TH,deep,TH deep,groups,other,pupil_change_z,response_width_z,0.3273268353539886,8
+212,m462,TH,deep,TH deep,groups,other,running_speed,q10_z,-0.044106673675749164,74
+212,m462,TH,deep,TH deep,groups,other,running_speed,q90_z,0.5454161284451408,74
+212,m462,TH,deep,TH deep,groups,other,running_speed,response_width_z,0.5935791005589831,74
+212,m462,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,q10_z,,1
+212,m462,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,q90_z,,1
+212,m462,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,response_width_z,,1
+212,m462,TH,deep,TH deep,somas,components 4/10,pupil_change_z,q10_z,,1
+212,m462,TH,deep,TH deep,somas,components 4/10,pupil_change_z,q90_z,,1
+212,m462,TH,deep,TH deep,somas,components 4/10,pupil_change_z,response_width_z,,1
+212,m462,TH,deep,TH deep,somas,components 4/10,running_speed,q10_z,-0.2566079295154185,14
+212,m462,TH,deep,TH deep,somas,components 4/10,running_speed,q90_z,0.9107929515418504,14
+212,m462,TH,deep,TH deep,somas,components 4/10,running_speed,response_width_z,0.9372246696035244,14
+212,m462,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,q10_z,,0
+212,m462,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,q90_z,,0
+212,m462,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,response_width_z,,0
+212,m462,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,q10_z,,0
+212,m462,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,q90_z,,0
+212,m462,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,response_width_z,,0
+212,m462,TH,deep,TH deep,somas,mixtures 17/18,running_speed,q10_z,-0.064018283979708,14
+212,m462,TH,deep,TH deep,somas,mixtures 17/18,running_speed,q90_z,0.637975312763297,14
+212,m462,TH,deep,TH deep,somas,mixtures 17/18,running_speed,response_width_z,0.448127987857956,14
+212,m462,TH,deep,TH deep,somas,other,pupil_odor_z,q10_z,-0.21821789023599242,8
+212,m462,TH,deep,TH deep,somas,other,pupil_odor_z,q90_z,0.3273268353539886,8
+212,m462,TH,deep,TH deep,somas,other,pupil_odor_z,response_width_z,0.21821789023599242,8
+212,m462,TH,deep,TH deep,somas,other,pupil_change_z,q10_z,-0.21821789023599242,8
+212,m462,TH,deep,TH deep,somas,other,pupil_change_z,q90_z,0.3273268353539886,8
+212,m462,TH,deep,TH deep,somas,other,pupil_change_z,response_width_z,0.21821789023599242,8
+212,m462,TH,deep,TH deep,somas,other,running_speed,q10_z,-0.24852628507239968,74
+212,m462,TH,deep,TH deep,somas,other,running_speed,q90_z,0.4621654319299909,74
+212,m462,TH,deep,TH deep,somas,other,running_speed,response_width_z,0.5587588244063411,74
+215,m496,DAT,na,DAT,units,components 4/10,pupil_odor_z,q10_z,,3
+215,m496,DAT,na,DAT,units,components 4/10,pupil_odor_z,q90_z,,3
+215,m496,DAT,na,DAT,units,components 4/10,pupil_odor_z,response_width_z,,3
+215,m496,DAT,na,DAT,units,components 4/10,pupil_change_z,q10_z,,3
+215,m496,DAT,na,DAT,units,components 4/10,pupil_change_z,q90_z,,3
+215,m496,DAT,na,DAT,units,components 4/10,pupil_change_z,response_width_z,,3
+215,m496,DAT,na,DAT,units,components 4/10,running_speed,q10_z,0.06666666666666667,9
+215,m496,DAT,na,DAT,units,components 4/10,running_speed,q90_z,0.39999999999999997,9
+215,m496,DAT,na,DAT,units,components 4/10,running_speed,response_width_z,0.16666666666666669,9
+215,m496,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,q10_z,,3
+215,m496,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,q90_z,,3
+215,m496,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,response_width_z,,3
+215,m496,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,q10_z,,3
+215,m496,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,q90_z,,3
+215,m496,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,response_width_z,,3
+215,m496,DAT,na,DAT,units,mixtures 17/18,running_speed,q10_z,0.015817247625964585,12
+215,m496,DAT,na,DAT,units,mixtures 17/18,running_speed,q90_z,-0.08963106988046597,12
+215,m496,DAT,na,DAT,units,mixtures 17/18,running_speed,response_width_z,0.15992994821808637,12
+215,m496,DAT,na,DAT,units,other,pupil_odor_z,q10_z,0.5550691217555066,26
+215,m496,DAT,na,DAT,units,other,pupil_odor_z,q90_z,0.036486684609814295,26
+215,m496,DAT,na,DAT,units,other,pupil_odor_z,response_width_z,-0.23992079036598338,26
+215,m496,DAT,na,DAT,units,other,pupil_change_z,q10_z,0.26451699235628273,26
+215,m496,DAT,na,DAT,units,other,pupil_change_z,q90_z,0.524018289443809,26
+215,m496,DAT,na,DAT,units,other,pupil_change_z,response_width_z,0.279820849501324,26
+215,m496,DAT,na,DAT,units,other,running_speed,q10_z,0.3252536029156284,58
+215,m496,DAT,na,DAT,units,other,running_speed,q90_z,0.3167782401637643,58
+215,m496,DAT,na,DAT,units,other,running_speed,response_width_z,0.24093144840980954,58
+218,m496,DAT,na,DAT,units,components 4/10,pupil_odor_z,q10_z,,0
+218,m496,DAT,na,DAT,units,components 4/10,pupil_odor_z,q90_z,,0
+218,m496,DAT,na,DAT,units,components 4/10,pupil_odor_z,response_width_z,,0
+218,m496,DAT,na,DAT,units,components 4/10,pupil_change_z,q10_z,,0
+218,m496,DAT,na,DAT,units,components 4/10,pupil_change_z,q90_z,,0
+218,m496,DAT,na,DAT,units,components 4/10,pupil_change_z,response_width_z,,0
+218,m496,DAT,na,DAT,units,components 4/10,running_speed,q10_z,,7
+218,m496,DAT,na,DAT,units,components 4/10,running_speed,q90_z,,7
+218,m496,DAT,na,DAT,units,components 4/10,running_speed,response_width_z,,7
+218,m496,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,q10_z,,0
+218,m496,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,q90_z,,0
+218,m496,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,response_width_z,,0
+218,m496,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,q10_z,,0
+218,m496,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,q90_z,,0
+218,m496,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,response_width_z,,0
+218,m496,DAT,na,DAT,units,mixtures 17/18,running_speed,q10_z,-0.07142857142857142,13
+218,m496,DAT,na,DAT,units,mixtures 17/18,running_speed,q90_z,0.03296703296703297,13
+218,m496,DAT,na,DAT,units,mixtures 17/18,running_speed,response_width_z,0.0879120879120879,13
+218,m496,DAT,na,DAT,units,other,pupil_odor_z,q10_z,,0
+218,m496,DAT,na,DAT,units,other,pupil_odor_z,q90_z,,0
+218,m496,DAT,na,DAT,units,other,pupil_odor_z,response_width_z,,0
+218,m496,DAT,na,DAT,units,other,pupil_change_z,q10_z,,0
+218,m496,DAT,na,DAT,units,other,pupil_change_z,q90_z,,0
+218,m496,DAT,na,DAT,units,other,pupil_change_z,response_width_z,,0
+218,m496,DAT,na,DAT,units,other,running_speed,q10_z,0.3010513434996556,60
+218,m496,DAT,na,DAT,units,other,running_speed,q90_z,0.1272459253982746,60
+218,m496,DAT,na,DAT,units,other,running_speed,response_width_z,0.010040607446727242,60
+222,m496,DAT,na,DAT,units,components 4/10,pupil_odor_z,q10_z,,4
+222,m496,DAT,na,DAT,units,components 4/10,pupil_odor_z,q90_z,,4
+222,m496,DAT,na,DAT,units,components 4/10,pupil_odor_z,response_width_z,,4
+222,m496,DAT,na,DAT,units,components 4/10,pupil_change_z,q10_z,,4
+222,m496,DAT,na,DAT,units,components 4/10,pupil_change_z,q90_z,,4
+222,m496,DAT,na,DAT,units,components 4/10,pupil_change_z,response_width_z,,4
+222,m496,DAT,na,DAT,units,components 4/10,running_speed,q10_z,,7
+222,m496,DAT,na,DAT,units,components 4/10,running_speed,q90_z,,7
+222,m496,DAT,na,DAT,units,components 4/10,running_speed,response_width_z,,7
+222,m496,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,q10_z,-0.4523809523809524,8
+222,m496,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,q90_z,0.09523809523809526,8
+222,m496,DAT,na,DAT,units,mixtures 17/18,pupil_odor_z,response_width_z,0.5714285714285715,8
+222,m496,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,q10_z,-0.38095238095238104,8
+222,m496,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,q90_z,0.07142857142857144,8
+222,m496,DAT,na,DAT,units,mixtures 17/18,pupil_change_z,response_width_z,0.5476190476190477,8
+222,m496,DAT,na,DAT,units,mixtures 17/18,running_speed,q10_z,0.37127902821932357,12
+222,m496,DAT,na,DAT,units,mixtures 17/18,running_speed,q90_z,0.5779343363791357,12
+222,m496,DAT,na,DAT,units,mixtures 17/18,running_speed,response_width_z,0.18563951410966179,12
+222,m496,DAT,na,DAT,units,other,pupil_odor_z,q10_z,0.10157185884884025,45
+222,m496,DAT,na,DAT,units,other,pupil_odor_z,q90_z,0.28186521038156714,45
+222,m496,DAT,na,DAT,units,other,pupil_odor_z,response_width_z,0.1586548058538628,45
+222,m496,DAT,na,DAT,units,other,pupil_change_z,q10_z,-0.03632283638937721,45
+222,m496,DAT,na,DAT,units,other,pupil_change_z,q90_z,0.31158389470014847,45
+222,m496,DAT,na,DAT,units,other,pupil_change_z,response_width_z,0.45941314729171334,45
+222,m496,DAT,na,DAT,units,other,running_speed,q10_z,0.35688080875702005,61
+222,m496,DAT,na,DAT,units,other,running_speed,q90_z,0.5806101851918085,61
+222,m496,DAT,na,DAT,units,other,running_speed,response_width_z,0.4837005275247326,61
+226,m465,TH,superficial,TH superficial,groups,components 4/10,pupil_odor_z,q10_z,,0
+226,m465,TH,superficial,TH superficial,groups,components 4/10,pupil_odor_z,q90_z,,0
+226,m465,TH,superficial,TH superficial,groups,components 4/10,pupil_odor_z,response_width_z,,0
+226,m465,TH,superficial,TH superficial,groups,components 4/10,pupil_change_z,q10_z,,0
+226,m465,TH,superficial,TH superficial,groups,components 4/10,pupil_change_z,q90_z,,0
+226,m465,TH,superficial,TH superficial,groups,components 4/10,pupil_change_z,response_width_z,,0
+226,m465,TH,superficial,TH superficial,groups,components 4/10,running_speed,q10_z,0.04761904761904763,8
+226,m465,TH,superficial,TH superficial,groups,components 4/10,running_speed,q90_z,0.9285714285714287,8
+226,m465,TH,superficial,TH superficial,groups,components 4/10,running_speed,response_width_z,0.7857142857142858,8
+226,m465,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_odor_z,q10_z,,1
+226,m465,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_odor_z,q90_z,,1
+226,m465,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_odor_z,response_width_z,,1
+226,m465,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_change_z,q10_z,,1
+226,m465,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_change_z,q90_z,,1
+226,m465,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_change_z,response_width_z,,1
+226,m465,TH,superficial,TH superficial,groups,mixtures 17/18,running_speed,q10_z,,3
+226,m465,TH,superficial,TH superficial,groups,mixtures 17/18,running_speed,q90_z,,3
+226,m465,TH,superficial,TH superficial,groups,mixtures 17/18,running_speed,response_width_z,,3
+226,m465,TH,superficial,TH superficial,groups,other,pupil_odor_z,q10_z,,1
+226,m465,TH,superficial,TH superficial,groups,other,pupil_odor_z,q90_z,,1
+226,m465,TH,superficial,TH superficial,groups,other,pupil_odor_z,response_width_z,,1
+226,m465,TH,superficial,TH superficial,groups,other,pupil_change_z,q10_z,,1
+226,m465,TH,superficial,TH superficial,groups,other,pupil_change_z,q90_z,,1
+226,m465,TH,superficial,TH superficial,groups,other,pupil_change_z,response_width_z,,1
+226,m465,TH,superficial,TH superficial,groups,other,running_speed,q10_z,-4.8134789923356974e-05,50
+226,m465,TH,superficial,TH superficial,groups,other,running_speed,q90_z,0.2591095741574306,50
+226,m465,TH,superficial,TH superficial,groups,other,running_speed,response_width_z,0.2399519277679345,50
+226,m465,TH,superficial,TH superficial,somas,components 4/10,pupil_odor_z,q10_z,,0
+226,m465,TH,superficial,TH superficial,somas,components 4/10,pupil_odor_z,q90_z,,0
+226,m465,TH,superficial,TH superficial,somas,components 4/10,pupil_odor_z,response_width_z,,0
+226,m465,TH,superficial,TH superficial,somas,components 4/10,pupil_change_z,q10_z,,0
+226,m465,TH,superficial,TH superficial,somas,components 4/10,pupil_change_z,q90_z,,0
+226,m465,TH,superficial,TH superficial,somas,components 4/10,pupil_change_z,response_width_z,,0
+226,m465,TH,superficial,TH superficial,somas,components 4/10,running_speed,q10_z,-0.2142857142857143,8
+226,m465,TH,superficial,TH superficial,somas,components 4/10,running_speed,q90_z,0.8333333333333335,8
+226,m465,TH,superficial,TH superficial,somas,components 4/10,running_speed,response_width_z,0.7380952380952381,8
+226,m465,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_odor_z,q10_z,,1
+226,m465,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_odor_z,q90_z,,1
+226,m465,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_odor_z,response_width_z,,1
+226,m465,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_change_z,q10_z,,1
+226,m465,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_change_z,q90_z,,1
+226,m465,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_change_z,response_width_z,,1
+226,m465,TH,superficial,TH superficial,somas,mixtures 17/18,running_speed,q10_z,,3
+226,m465,TH,superficial,TH superficial,somas,mixtures 17/18,running_speed,q90_z,,3
+226,m465,TH,superficial,TH superficial,somas,mixtures 17/18,running_speed,response_width_z,,3
+226,m465,TH,superficial,TH superficial,somas,other,pupil_odor_z,q10_z,,1
+226,m465,TH,superficial,TH superficial,somas,other,pupil_odor_z,q90_z,,1
+226,m465,TH,superficial,TH superficial,somas,other,pupil_odor_z,response_width_z,,1
+226,m465,TH,superficial,TH superficial,somas,other,pupil_change_z,q10_z,,1
+226,m465,TH,superficial,TH superficial,somas,other,pupil_change_z,q90_z,,1
+226,m465,TH,superficial,TH superficial,somas,other,pupil_change_z,response_width_z,,1
+226,m465,TH,superficial,TH superficial,somas,other,running_speed,q10_z,-0.04794225076366354,50
+226,m465,TH,superficial,TH superficial,somas,other,running_speed,q90_z,0.23768959264153675,50
+226,m465,TH,superficial,TH superficial,somas,other,running_speed,response_width_z,0.11607704590017533,50
+227,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q10_z,0.4835164835164835,13
+227,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q90_z,0.47802197802197804,13
+227,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,response_width_z,0.47802197802197804,13
+227,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q10_z,0.08241758241758242,13
+227,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q90_z,0.1043956043956044,13
+227,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,response_width_z,0.6208791208791209,13
+227,m496,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q10_z,0.3328751429678413,13
+227,m496,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q90_z,0.2668503212221538,13
+227,m496,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,response_width_z,0.7290240734419665,13
+227,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q10_z,,7
+227,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q90_z,,7
+227,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,response_width_z,,7
+227,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q10_z,,7
+227,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q90_z,,7
+227,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,response_width_z,,7
+227,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q10_z,,7
+227,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q90_z,,7
+227,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,response_width_z,,7
+227,m496,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q10_z,-0.045936471292377414,52
+227,m496,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q90_z,0.4180667778205293,52
+227,m496,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,response_width_z,0.5024795861656193,52
+227,m496,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q10_z,-0.12583899790517722,52
+227,m496,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q90_z,0.4697319481851995,52
+227,m496,DAT,superficial,DAT superficial,groups,other,pupil_change_z,response_width_z,0.6585225086571758,52
+227,m496,DAT,superficial,DAT superficial,groups,other,running_speed,q10_z,-0.22115953338810093,52
+227,m496,DAT,superficial,DAT superficial,groups,other,running_speed,q90_z,0.2855921753843827,52
+227,m496,DAT,superficial,DAT superficial,groups,other,running_speed,response_width_z,0.5643580429651075,52
+227,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q10_z,0.3516483516483516,13
+227,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q90_z,0.6263736263736264,13
+227,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,response_width_z,0.47802197802197804,13
+227,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q10_z,-0.21428571428571427,13
+227,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q90_z,-0.0879120879120879,13
+227,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,response_width_z,0.6208791208791209,13
+227,m496,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q10_z,0.008253102718210942,13
+227,m496,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q90_z,0.23933997882811733,13
+227,m496,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,response_width_z,0.7290240734419665,13
+227,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q10_z,,7
+227,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q90_z,,7
+227,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,response_width_z,,7
+227,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q10_z,,7
+227,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q90_z,,7
+227,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,response_width_z,,7
+227,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q10_z,,7
+227,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q90_z,,7
+227,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,response_width_z,,7
+227,m496,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q10_z,0.012462058056517466,52
+227,m496,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q90_z,0.24648369030823825,52
+227,m496,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,response_width_z,0.29440810568167247,52
+227,m496,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q10_z,-0.0772733102475311,52
+227,m496,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q90_z,0.444957462271814,52
+227,m496,DAT,superficial,DAT superficial,somas,other,pupil_change_z,response_width_z,0.5422170920439486,52
+227,m496,DAT,superficial,DAT superficial,somas,other,running_speed,q10_z,-0.17545108991282432,52
+227,m496,DAT,superficial,DAT superficial,somas,other,running_speed,q90_z,0.3989645225435659,52
+227,m496,DAT,superficial,DAT superficial,somas,other,running_speed,response_width_z,0.5080784519819719,52
+228,m466,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,q10_z,0.11071428571428568,15
+228,m466,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,q90_z,0.7071428571428571,15
+228,m466,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,response_width_z,0.5,15
+228,m466,TH,deep,TH deep,groups,components 4/10,pupil_change_z,q10_z,-0.1964285714285714,15
+228,m466,TH,deep,TH deep,groups,components 4/10,pupil_change_z,q90_z,0.175,15
+228,m466,TH,deep,TH deep,groups,components 4/10,pupil_change_z,response_width_z,0.30357142857142855,15
+228,m466,TH,deep,TH deep,groups,components 4/10,running_speed,q10_z,-0.16428571428571426,15
+228,m466,TH,deep,TH deep,groups,components 4/10,running_speed,q90_z,0.5499999999999999,15
+228,m466,TH,deep,TH deep,groups,components 4/10,running_speed,response_width_z,0.532142857142857,15
+228,m466,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,q10_z,,5
+228,m466,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,q90_z,,5
+228,m466,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,response_width_z,,5
+228,m466,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,q10_z,,5
+228,m466,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,q90_z,,5
+228,m466,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,response_width_z,,5
+228,m466,TH,deep,TH deep,groups,mixtures 17/18,running_speed,q10_z,,5
+228,m466,TH,deep,TH deep,groups,mixtures 17/18,running_speed,q90_z,,5
+228,m466,TH,deep,TH deep,groups,mixtures 17/18,running_speed,response_width_z,,5
+228,m466,TH,deep,TH deep,groups,other,pupil_odor_z,q10_z,0.014546630030709553,53
+228,m466,TH,deep,TH deep,groups,other,pupil_odor_z,q90_z,0.40932600614191045,53
+228,m466,TH,deep,TH deep,groups,other,pupil_odor_z,response_width_z,0.33740100210117996,53
+228,m466,TH,deep,TH deep,groups,other,pupil_change_z,q10_z,-0.17302408275416198,53
+228,m466,TH,deep,TH deep,groups,other,pupil_change_z,q90_z,0.03636657507677389,53
+228,m466,TH,deep,TH deep,groups,other,pupil_change_z,response_width_z,0.41595280426701153,53
+228,m466,TH,deep,TH deep,groups,other,running_speed,q10_z,-0.2768680188339768,55
+228,m466,TH,deep,TH deep,groups,other,running_speed,q90_z,0.35939702875667817,55
+228,m466,TH,deep,TH deep,groups,other,running_speed,response_width_z,0.5264432639090226,55
+228,m466,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,q10_z,0.27499999999999997,15
+228,m466,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,q90_z,0.5892857142857142,15
+228,m466,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,response_width_z,0.6249999999999999,15
+228,m466,TH,deep,TH deep,somas,components 4/10,pupil_change_z,q10_z,-0.0035714285714285704,15
+228,m466,TH,deep,TH deep,somas,components 4/10,pupil_change_z,q90_z,0.28928571428571426,15
+228,m466,TH,deep,TH deep,somas,components 4/10,pupil_change_z,response_width_z,0.33928571428571425,15
+228,m466,TH,deep,TH deep,somas,components 4/10,running_speed,q10_z,-0.014285714285714282,15
+228,m466,TH,deep,TH deep,somas,components 4/10,running_speed,q90_z,0.3928571428571428,15
+228,m466,TH,deep,TH deep,somas,components 4/10,running_speed,response_width_z,0.7,15
+228,m466,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,q10_z,,5
+228,m466,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,q90_z,,5
+228,m466,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,response_width_z,,5
+228,m466,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,q10_z,,5
+228,m466,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,q90_z,,5
+228,m466,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,response_width_z,,5
+228,m466,TH,deep,TH deep,somas,mixtures 17/18,running_speed,q10_z,,5
+228,m466,TH,deep,TH deep,somas,mixtures 17/18,running_speed,q90_z,,5
+228,m466,TH,deep,TH deep,somas,mixtures 17/18,running_speed,response_width_z,,5
+228,m466,TH,deep,TH deep,somas,other,pupil_odor_z,q10_z,0.011152416356877325,53
+228,m466,TH,deep,TH deep,somas,other,pupil_odor_z,q90_z,0.2510101826410215,53
+228,m466,TH,deep,TH deep,somas,other,pupil_odor_z,response_width_z,0.4109422983675449,53
+228,m466,TH,deep,TH deep,somas,other,pupil_change_z,q10_z,-0.10336188782931954,53
+228,m466,TH,deep,TH deep,somas,other,pupil_change_z,q90_z,0.11604978180054953,53
+228,m466,TH,deep,TH deep,somas,other,pupil_change_z,response_width_z,0.3986584774527235,53
+228,m466,TH,deep,TH deep,somas,other,running_speed,q10_z,-0.2441889890616939,55
+228,m466,TH,deep,TH deep,somas,other,running_speed,q90_z,0.18501247165325674,55
+228,m466,TH,deep,TH deep,somas,other,running_speed,response_width_z,0.541589849610999,55
+229,m357,TH,na,TH,units,components 4/10,pupil_odor_z,q10_z,0.09523809523809526,8
+229,m357,TH,na,TH,units,components 4/10,pupil_odor_z,q90_z,0.7619047619047621,8
+229,m357,TH,na,TH,units,components 4/10,pupil_odor_z,response_width_z,0.8571428571428572,8
+229,m357,TH,na,TH,units,components 4/10,pupil_change_z,q10_z,-0.28571428571428575,8
+229,m357,TH,na,TH,units,components 4/10,pupil_change_z,q90_z,0.4285714285714286,8
+229,m357,TH,na,TH,units,components 4/10,pupil_change_z,response_width_z,0.5000000000000001,8
+229,m357,TH,na,TH,units,components 4/10,running_speed,q10_z,0.2448420473069246,13
+229,m357,TH,na,TH,units,components 4/10,running_speed,q90_z,0.06602482174568754,13
+229,m357,TH,na,TH,units,components 4/10,running_speed,response_width_z,-0.013755171197018237,13
+229,m357,TH,na,TH,units,mixtures 17/18,pupil_odor_z,q10_z,,5
+229,m357,TH,na,TH,units,mixtures 17/18,pupil_odor_z,q90_z,,5
+229,m357,TH,na,TH,units,mixtures 17/18,pupil_odor_z,response_width_z,,5
+229,m357,TH,na,TH,units,mixtures 17/18,pupil_change_z,q10_z,,5
+229,m357,TH,na,TH,units,mixtures 17/18,pupil_change_z,q90_z,,5
+229,m357,TH,na,TH,units,mixtures 17/18,pupil_change_z,response_width_z,,5
+229,m357,TH,na,TH,units,mixtures 17/18,running_speed,q10_z,,7
+229,m357,TH,na,TH,units,mixtures 17/18,running_speed,q90_z,,7
+229,m357,TH,na,TH,units,mixtures 17/18,running_speed,response_width_z,,7
+229,m357,TH,na,TH,units,other,pupil_odor_z,q10_z,-0.10539302734393097,44
+229,m357,TH,na,TH,units,other,pupil_odor_z,q90_z,0.09665139832008654,44
+229,m357,TH,na,TH,units,other,pupil_odor_z,response_width_z,0.17787021939194672,44
+229,m357,TH,na,TH,units,other,pupil_change_z,q10_z,0.08494889494945607,44
+229,m357,TH,na,TH,units,other,pupil_change_z,q90_z,0.15643286132186143,44
+229,m357,TH,na,TH,units,other,pupil_change_z,response_width_z,0.13387853611783862,44
+229,m357,TH,na,TH,units,other,running_speed,q10_z,0.292131264112294,60
+229,m357,TH,na,TH,units,other,running_speed,q90_z,0.02065897579930847,60
+229,m357,TH,na,TH,units,other,running_speed,response_width_z,-0.09510636167097528,60
+233,m465,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,q10_z,-0.46703296703296704,13
+233,m465,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,q90_z,0.17032967032967034,13
+233,m465,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,response_width_z,0.6208791208791209,13
+233,m465,TH,deep,TH deep,groups,components 4/10,pupil_change_z,q10_z,-0.21428571428571427,13
+233,m465,TH,deep,TH deep,groups,components 4/10,pupil_change_z,q90_z,0.054945054945054944,13
+233,m465,TH,deep,TH deep,groups,components 4/10,pupil_change_z,response_width_z,0.07692307692307691,13
+233,m465,TH,deep,TH deep,groups,components 4/10,running_speed,q10_z,-0.5667130533171513,13
+233,m465,TH,deep,TH deep,groups,components 4/10,running_speed,q90_z,-0.18982136251885168,13
+233,m465,TH,deep,TH deep,groups,components 4/10,running_speed,response_width_z,0.3218710060102268,13
+233,m465,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,q10_z,-0.048192771084337345,8
+233,m465,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,q90_z,0.7409638554216866,8
+233,m465,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,response_width_z,0.716867469879518,8
+233,m465,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,q10_z,0.3012048192771084,8
+233,m465,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,q90_z,0.463855421686747,8
+233,m465,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,response_width_z,0.4156626506024096,8
+233,m465,TH,deep,TH deep,groups,mixtures 17/18,running_speed,q10_z,0.5301204819277108,8
+233,m465,TH,deep,TH deep,groups,mixtures 17/18,running_speed,q90_z,0.3012048192771084,8
+233,m465,TH,deep,TH deep,groups,mixtures 17/18,running_speed,response_width_z,0.22891566265060237,8
+233,m465,TH,deep,TH deep,groups,other,pupil_odor_z,q10_z,-0.15335042735042737,56
+233,m465,TH,deep,TH deep,groups,other,pupil_odor_z,q90_z,0.31152136752136755,56
+233,m465,TH,deep,TH deep,groups,other,pupil_odor_z,response_width_z,0.3382222222222223,56
+233,m465,TH,deep,TH deep,groups,other,pupil_change_z,q10_z,-0.2701196581196582,56
+233,m465,TH,deep,TH deep,groups,other,pupil_change_z,q90_z,-0.01936752136752137,56
+233,m465,TH,deep,TH deep,groups,other,pupil_change_z,response_width_z,-0.020427350427350433,56
+233,m465,TH,deep,TH deep,groups,other,running_speed,q10_z,-0.16596864906098502,56
+233,m465,TH,deep,TH deep,groups,other,running_speed,q90_z,0.14039556233781747,56
+233,m465,TH,deep,TH deep,groups,other,running_speed,response_width_z,0.07560813006455212,56
+233,m465,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,q10_z,-0.3681318681318681,13
+233,m465,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,q90_z,0.5494505494505494,13
+233,m465,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,response_width_z,0.47802197802197804,13
+233,m465,TH,deep,TH deep,somas,components 4/10,pupil_change_z,q10_z,-0.21428571428571427,13
+233,m465,TH,deep,TH deep,somas,components 4/10,pupil_change_z,q90_z,0.33516483516483514,13
+233,m465,TH,deep,TH deep,somas,components 4/10,pupil_change_z,response_width_z,0.2802197802197803,13
+233,m465,TH,deep,TH deep,somas,components 4/10,running_speed,q10_z,-0.3493813484042632,13
+233,m465,TH,deep,TH deep,somas,components 4/10,running_speed,q90_z,0.09078412990032038,13
+233,m465,TH,deep,TH deep,somas,components 4/10,running_speed,response_width_z,0.2283358418705027,13
+233,m465,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,q10_z,-0.23493975903614456,8
+233,m465,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,q90_z,0.6927710843373494,8
+233,m465,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,response_width_z,0.8132530120481927,8
+233,m465,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,q10_z,0.34337349397590355,8
+233,m465,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,q90_z,0.36746987951807225,8
+233,m465,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,response_width_z,0.3915662650602409,8
+233,m465,TH,deep,TH deep,somas,mixtures 17/18,running_speed,q10_z,0.6566265060240963,8
+233,m465,TH,deep,TH deep,somas,mixtures 17/18,running_speed,q90_z,0.2650602409638554,8
+233,m465,TH,deep,TH deep,somas,mixtures 17/18,running_speed,response_width_z,0.22891566265060237,8
+233,m465,TH,deep,TH deep,somas,other,pupil_odor_z,q10_z,-0.3335555555555556,56
+233,m465,TH,deep,TH deep,somas,other,pupil_odor_z,q90_z,0.32266666666666677,56
+233,m465,TH,deep,TH deep,somas,other,pupil_odor_z,response_width_z,0.3732649572649574,56
+233,m465,TH,deep,TH deep,somas,other,pupil_change_z,q10_z,-0.15382905982905987,56
+233,m465,TH,deep,TH deep,somas,other,pupil_change_z,q90_z,0.02601709401709402,56
+233,m465,TH,deep,TH deep,somas,other,pupil_change_z,response_width_z,-0.022068376068376076,56
+233,m465,TH,deep,TH deep,somas,other,running_speed,q10_z,-0.15808817247049017,56
+233,m465,TH,deep,TH deep,somas,other,running_speed,q90_z,0.18174669655128156,56
+233,m465,TH,deep,TH deep,somas,other,running_speed,response_width_z,0.11092497309266985,56
+235,m466,TH,superficial,TH superficial,groups,components 4/10,pupil_odor_z,q10_z,,0
+235,m466,TH,superficial,TH superficial,groups,components 4/10,pupil_odor_z,q90_z,,0
+235,m466,TH,superficial,TH superficial,groups,components 4/10,pupil_odor_z,response_width_z,,0
+235,m466,TH,superficial,TH superficial,groups,components 4/10,pupil_change_z,q10_z,,0
+235,m466,TH,superficial,TH superficial,groups,components 4/10,pupil_change_z,q90_z,,0
+235,m466,TH,superficial,TH superficial,groups,components 4/10,pupil_change_z,response_width_z,,0
+235,m466,TH,superficial,TH superficial,groups,components 4/10,running_speed,q10_z,-0.4450549450549451,13
+235,m466,TH,superficial,TH superficial,groups,components 4/10,running_speed,q90_z,0.8681318681318682,13
+235,m466,TH,superficial,TH superficial,groups,components 4/10,running_speed,response_width_z,0.9230769230769231,13
+235,m466,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_odor_z,q10_z,,0
+235,m466,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_odor_z,q90_z,,0
+235,m466,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_odor_z,response_width_z,,0
+235,m466,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_change_z,q10_z,,0
+235,m466,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_change_z,q90_z,,0
+235,m466,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_change_z,response_width_z,,0
+235,m466,TH,superficial,TH superficial,groups,mixtures 17/18,running_speed,q10_z,-0.15,9
+235,m466,TH,superficial,TH superficial,groups,mixtures 17/18,running_speed,q90_z,0.7666666666666667,9
+235,m466,TH,superficial,TH superficial,groups,mixtures 17/18,running_speed,response_width_z,0.7999999999999999,9
+235,m466,TH,superficial,TH superficial,groups,other,pupil_odor_z,q10_z,,0
+235,m466,TH,superficial,TH superficial,groups,other,pupil_odor_z,q90_z,,0
+235,m466,TH,superficial,TH superficial,groups,other,pupil_odor_z,response_width_z,,0
+235,m466,TH,superficial,TH superficial,groups,other,pupil_change_z,q10_z,,0
+235,m466,TH,superficial,TH superficial,groups,other,pupil_change_z,q90_z,,0
+235,m466,TH,superficial,TH superficial,groups,other,pupil_change_z,response_width_z,,0
+235,m466,TH,superficial,TH superficial,groups,other,running_speed,q10_z,-0.3084902175108524,54
+235,m466,TH,superficial,TH superficial,groups,other,running_speed,q90_z,0.7026625500242518,54
+235,m466,TH,superficial,TH superficial,groups,other,running_speed,response_width_z,0.7320178539526541,54
+235,m466,TH,superficial,TH superficial,somas,components 4/10,pupil_odor_z,q10_z,,0
+235,m466,TH,superficial,TH superficial,somas,components 4/10,pupil_odor_z,q90_z,,0
+235,m466,TH,superficial,TH superficial,somas,components 4/10,pupil_odor_z,response_width_z,,0
+235,m466,TH,superficial,TH superficial,somas,components 4/10,pupil_change_z,q10_z,,0
+235,m466,TH,superficial,TH superficial,somas,components 4/10,pupil_change_z,q90_z,,0
+235,m466,TH,superficial,TH superficial,somas,components 4/10,pupil_change_z,response_width_z,,0
+235,m466,TH,superficial,TH superficial,somas,components 4/10,running_speed,q10_z,-0.5054945054945055,13
+235,m466,TH,superficial,TH superficial,somas,components 4/10,running_speed,q90_z,0.8626373626373626,13
+235,m466,TH,superficial,TH superficial,somas,components 4/10,running_speed,response_width_z,0.9505494505494506,13
+235,m466,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_odor_z,q10_z,,0
+235,m466,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_odor_z,q90_z,,0
+235,m466,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_odor_z,response_width_z,,0
+235,m466,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_change_z,q10_z,,0
+235,m466,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_change_z,q90_z,,0
+235,m466,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_change_z,response_width_z,,0
+235,m466,TH,superficial,TH superficial,somas,mixtures 17/18,running_speed,q10_z,-0.26666666666666666,9
+235,m466,TH,superficial,TH superficial,somas,mixtures 17/18,running_speed,q90_z,0.7666666666666667,9
+235,m466,TH,superficial,TH superficial,somas,mixtures 17/18,running_speed,response_width_z,0.7166666666666667,9
+235,m466,TH,superficial,TH superficial,somas,other,pupil_odor_z,q10_z,,0
+235,m466,TH,superficial,TH superficial,somas,other,pupil_odor_z,q90_z,,0
+235,m466,TH,superficial,TH superficial,somas,other,pupil_odor_z,response_width_z,,0
+235,m466,TH,superficial,TH superficial,somas,other,pupil_change_z,q10_z,,0
+235,m466,TH,superficial,TH superficial,somas,other,pupil_change_z,q90_z,,0
+235,m466,TH,superficial,TH superficial,somas,other,pupil_change_z,response_width_z,,0
+235,m466,TH,superficial,TH superficial,somas,other,running_speed,q10_z,-0.6094253371540808,54
+235,m466,TH,superficial,TH superficial,somas,other,running_speed,q90_z,0.7063728143714565,54
+235,m466,TH,superficial,TH superficial,somas,other,running_speed,response_width_z,0.7395537276526761,54
+236,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q10_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q90_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,response_width_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q10_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q90_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,response_width_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q10_z,-0.36363636363636365,11
+236,m496,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q90_z,0.03636363636363637,11
+236,m496,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,response_width_z,0.7090909090909092,11
+236,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q10_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q90_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,response_width_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q10_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q90_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,response_width_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q10_z,-0.8079268292682927,10
+236,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q90_z,-0.5365853658536586,10
+236,m496,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,response_width_z,0.42682926829268303,10
+236,m496,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q10_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q90_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,response_width_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q10_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q90_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,other,pupil_change_z,response_width_z,,0
+236,m496,DAT,superficial,DAT superficial,groups,other,running_speed,q10_z,-0.44838762103952706,59
+236,m496,DAT,superficial,DAT superficial,groups,other,running_speed,q90_z,0.1865642109780502,59
+236,m496,DAT,superficial,DAT superficial,groups,other,running_speed,response_width_z,0.5780234978706829,59
+236,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q10_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q90_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,response_width_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q10_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q90_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,response_width_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q10_z,-0.30000000000000004,11
+236,m496,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q90_z,0.38181818181818183,11
+236,m496,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,response_width_z,0.5454545454545455,11
+236,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q10_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q90_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,response_width_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q10_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q90_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,response_width_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q10_z,-0.6737804878048781,10
+236,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q90_z,-0.2682926829268293,10
+236,m496,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,response_width_z,0.45121951219512196,10
+236,m496,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q10_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q90_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,response_width_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q10_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q90_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,other,pupil_change_z,response_width_z,,0
+236,m496,DAT,superficial,DAT superficial,somas,other,running_speed,q10_z,-0.4653693343167305,59
+236,m496,DAT,superficial,DAT superficial,somas,other,running_speed,q90_z,0.2044844645400041,59
+236,m496,DAT,superficial,DAT superficial,somas,other,running_speed,response_width_z,0.5056092490254059,59
+237,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q10_z,,2
+237,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,q90_z,,2
+237,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_odor_z,response_width_z,,2
+237,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q10_z,,1
+237,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,q90_z,,1
+237,m442,DAT,superficial,DAT superficial,groups,components 4/10,pupil_change_z,response_width_z,,1
+237,m442,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q10_z,0.3404960824831569,16
+237,m442,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,q90_z,0.6040104419701218,16
+237,m442,DAT,superficial,DAT superficial,groups,components 4/10,running_speed,response_width_z,0.6158537839695359,16
+237,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q10_z,,2
+237,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,q90_z,,2
+237,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_odor_z,response_width_z,,2
+237,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q10_z,,2
+237,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,q90_z,,2
+237,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,pupil_change_z,response_width_z,,2
+237,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q10_z,-0.48333333333333334,9
+237,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,q90_z,0.7666666666666667,9
+237,m442,DAT,superficial,DAT superficial,groups,mixtures 17/18,running_speed,response_width_z,0.43333333333333335,9
+237,m442,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q10_z,-0.3119727616965547,12
+237,m442,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,q90_z,-0.5113293125180053,12
+237,m442,DAT,superficial,DAT superficial,groups,other,pupil_odor_z,response_width_z,-0.29485412911622205,12
+237,m442,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q10_z,-0.09396769930619119,12
+237,m442,DAT,superficial,DAT superficial,groups,other,pupil_change_z,q90_z,0.2687278138780758,12
+237,m442,DAT,superficial,DAT superficial,groups,other,pupil_change_z,response_width_z,0.20901052190517005,12
+237,m442,DAT,superficial,DAT superficial,groups,other,running_speed,q10_z,-0.08739074762476474,55
+237,m442,DAT,superficial,DAT superficial,groups,other,running_speed,q90_z,0.2222025507694246,55
+237,m442,DAT,superficial,DAT superficial,groups,other,running_speed,response_width_z,0.2864434314737219,55
+237,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q10_z,,2
+237,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,q90_z,,2
+237,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_odor_z,response_width_z,,2
+237,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q10_z,,1
+237,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,q90_z,,1
+237,m442,DAT,superficial,DAT superficial,somas,components 4/10,pupil_change_z,response_width_z,,1
+237,m442,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q10_z,0.18505221874084612,16
+237,m442,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,q90_z,0.5803237579712934,16
+237,m442,DAT,superficial,DAT superficial,somas,components 4/10,running_speed,response_width_z,0.6143733662196093,16
+237,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q10_z,,2
+237,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,q90_z,,2
+237,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_odor_z,response_width_z,,2
+237,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q10_z,,2
+237,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,q90_z,,2
+237,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,pupil_change_z,response_width_z,,2
+237,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q10_z,-0.6,9
+237,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,q90_z,0.6833333333333333,9
+237,m442,DAT,superficial,DAT superficial,somas,mixtures 17/18,running_speed,response_width_z,0.5,9
+237,m442,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q10_z,-0.28365713687130223,12
+237,m442,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,q90_z,-0.40682405156542034,12
+237,m442,DAT,superficial,DAT superficial,somas,other,pupil_odor_z,response_width_z,-0.2911217983679154,12
+237,m442,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q10_z,-0.10077293020427842,12
+237,m442,DAT,superficial,DAT superficial,somas,other,pupil_change_z,q90_z,0.20154586040855685,12
+237,m442,DAT,superficial,DAT superficial,somas,other,pupil_change_z,response_width_z,0.17541954517041056,12
+237,m442,DAT,superficial,DAT superficial,somas,other,running_speed,q10_z,-0.26029131618700624,55
+237,m442,DAT,superficial,DAT superficial,somas,other,running_speed,q90_z,0.27146836130954444,55
+237,m442,DAT,superficial,DAT superficial,somas,other,running_speed,response_width_z,0.406388679455394,55
+238,m466,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,q10_z,-0.5628843430992316,8
+238,m466,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,q90_z,0.31138282809744733,8
+238,m466,TH,deep,TH deep,groups,components 4/10,pupil_odor_z,response_width_z,0.8024095954818835,8
+238,m466,TH,deep,TH deep,groups,components 4/10,pupil_change_z,q10_z,0.31138282809744733,8
+238,m466,TH,deep,TH deep,groups,components 4/10,pupil_change_z,q90_z,-0.5628843430992316,8
+238,m466,TH,deep,TH deep,groups,components 4/10,pupil_change_z,response_width_z,-0.3353353533357125,8
+238,m466,TH,deep,TH deep,groups,components 4/10,running_speed,q10_z,0.32218993815043423,10
+238,m466,TH,deep,TH deep,groups,components 4/10,running_speed,q90_z,-0.5288778230016562,10
+238,m466,TH,deep,TH deep,groups,components 4/10,running_speed,response_width_z,-0.6200636545536659,10
+238,m466,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,q10_z,,5
+238,m466,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,q90_z,,5
+238,m466,TH,deep,TH deep,groups,mixtures 17/18,pupil_odor_z,response_width_z,,5
+238,m466,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,q10_z,,5
+238,m466,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,q90_z,,5
+238,m466,TH,deep,TH deep,groups,mixtures 17/18,pupil_change_z,response_width_z,,5
+238,m466,TH,deep,TH deep,groups,mixtures 17/18,running_speed,q10_z,,5
+238,m466,TH,deep,TH deep,groups,mixtures 17/18,running_speed,q90_z,,5
+238,m466,TH,deep,TH deep,groups,mixtures 17/18,running_speed,response_width_z,,5
+238,m466,TH,deep,TH deep,groups,other,pupil_odor_z,q10_z,-0.13160291438979962,36
+238,m466,TH,deep,TH deep,groups,other,pupil_odor_z,q90_z,-0.10093375172523503,36
+238,m466,TH,deep,TH deep,groups,other,pupil_odor_z,response_width_z,-0.03657368829582285,36
+238,m466,TH,deep,TH deep,groups,other,pupil_change_z,q10_z,0.13531095498308612,36
+238,m466,TH,deep,TH deep,groups,other,pupil_change_z,q90_z,0.1035251189068842,36
+238,m466,TH,deep,TH deep,groups,other,pupil_change_z,response_width_z,-0.15524363436205654,36
+238,m466,TH,deep,TH deep,groups,other,running_speed,q10_z,0.05982482284012519,44
+238,m466,TH,deep,TH deep,groups,other,running_speed,q90_z,0.22383774852807956,44
+238,m466,TH,deep,TH deep,groups,other,running_speed,response_width_z,-0.03230611357875166,44
+238,m466,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,q10_z,-0.8024095954818835,8
+238,m466,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,q90_z,-0.20359646452525404,8
+238,m466,TH,deep,TH deep,somas,components 4/10,pupil_odor_z,response_width_z,0.5149792926227014,8
+238,m466,TH,deep,TH deep,somas,components 4/10,pupil_change_z,q10_z,0.23952525238265177,8
+238,m466,TH,deep,TH deep,somas,components 4/10,pupil_change_z,q90_z,-0.5389318178609666,8
+238,m466,TH,deep,TH deep,somas,components 4/10,pupil_change_z,response_width_z,-0.4191691916696406,8
+238,m466,TH,deep,TH deep,somas,components 4/10,running_speed,q10_z,0.46808726863364974,10
+238,m466,TH,deep,TH deep,somas,components 4/10,running_speed,q90_z,-0.2796365500928297,10
+238,m466,TH,deep,TH deep,somas,components 4/10,running_speed,response_width_z,-0.5288778230016562,10
+238,m466,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,q10_z,,5
+238,m466,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,q90_z,,5
+238,m466,TH,deep,TH deep,somas,mixtures 17/18,pupil_odor_z,response_width_z,,5
+238,m466,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,q10_z,,5
+238,m466,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,q90_z,,5
+238,m466,TH,deep,TH deep,somas,mixtures 17/18,pupil_change_z,response_width_z,,5
+238,m466,TH,deep,TH deep,somas,mixtures 17/18,running_speed,q10_z,,5
+238,m466,TH,deep,TH deep,somas,mixtures 17/18,running_speed,q90_z,,5
+238,m466,TH,deep,TH deep,somas,mixtures 17/18,running_speed,response_width_z,,5
+238,m466,TH,deep,TH deep,somas,other,pupil_odor_z,q10_z,-0.21571464226770806,36
+238,m466,TH,deep,TH deep,somas,other,pupil_odor_z,q90_z,-0.14434934423138593,36
+238,m466,TH,deep,TH deep,somas,other,pupil_odor_z,response_width_z,-0.07885390951723507,36
+238,m466,TH,deep,TH deep,somas,other,pupil_change_z,q10_z,0.04857150885498063,36
+238,m466,TH,deep,TH deep,somas,other,pupil_change_z,q90_z,0.06958079351315234,36
+238,m466,TH,deep,TH deep,somas,other,pupil_change_z,response_width_z,0.05719502318602085,36
+238,m466,TH,deep,TH deep,somas,other,running_speed,q10_z,0.1389765742207769,44
+238,m466,TH,deep,TH deep,somas,other,running_speed,q90_z,0.26096672867841214,44
+238,m466,TH,deep,TH deep,somas,other,running_speed,response_width_z,0.08596050418758949,44
+244,m466,TH,superficial,TH superficial,groups,components 4/10,pupil_odor_z,q10_z,-0.29405286343612336,14
+244,m466,TH,superficial,TH superficial,groups,components 4/10,pupil_odor_z,q90_z,0.5803964757709251,14
+244,m466,TH,superficial,TH superficial,groups,components 4/10,pupil_odor_z,response_width_z,0.5077092511013217,14
+244,m466,TH,superficial,TH superficial,groups,components 4/10,pupil_change_z,q10_z,-0.61784140969163,14
+244,m466,TH,superficial,TH superficial,groups,components 4/10,pupil_change_z,q90_z,0.5814977973568283,14
+244,m466,TH,superficial,TH superficial,groups,components 4/10,pupil_change_z,response_width_z,0.5748898678414096,14
+244,m466,TH,superficial,TH superficial,groups,components 4/10,running_speed,q10_z,-0.4315683804533579,14
+244,m466,TH,superficial,TH superficial,groups,components 4/10,running_speed,q90_z,0.7947039230854671,14
+244,m466,TH,superficial,TH superficial,groups,components 4/10,running_speed,response_width_z,0.8487879400732281,14
+244,m466,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_odor_z,q10_z,-0.7986001739057147,12
+244,m466,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_odor_z,q90_z,0.05253948512537597,12
+244,m466,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_odor_z,response_width_z,0.19264477879304523,12
+244,m466,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_change_z,q10_z,-0.3222421754356393,12
+244,m466,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_change_z,q90_z,0.6199659244794364,12
+244,m466,TH,superficial,TH superficial,groups,mixtures 17/18,pupil_change_z,response_width_z,0.5989501304292861,12
+244,m466,TH,superficial,TH superficial,groups,mixtures 17/18,running_speed,q10_z,-0.8143061348634796,13
+244,m466,TH,superficial,TH superficial,groups,mixtures 17/18,running_speed,q90_z,0.6767544228932972,13
+244,m466,TH,superficial,TH superficial,groups,mixtures 17/18,running_speed,response_width_z,0.8473185457363234,13
+244,m466,TH,superficial,TH superficial,groups,other,pupil_odor_z,q10_z,-0.47825449316811647,83
+244,m466,TH,superficial,TH superficial,groups,other,pupil_odor_z,q90_z,0.45932382729627247,83
+244,m466,TH,superficial,TH superficial,groups,other,pupil_odor_z,response_width_z,0.5436542087842983,83
+244,m466,TH,superficial,TH superficial,groups,other,pupil_change_z,q10_z,-0.34085721451960727,83
+244,m466,TH,superficial,TH superficial,groups,other,pupil_change_z,q90_z,0.46052343591738987,83
+244,m466,TH,superficial,TH superficial,groups,other,pupil_change_z,response_width_z,0.5183782446797015,83
+244,m466,TH,superficial,TH superficial,groups,other,running_speed,q10_z,-0.5716236007471036,84
+244,m466,TH,superficial,TH superficial,groups,other,running_speed,q90_z,0.5133019321108453,84
+244,m466,TH,superficial,TH superficial,groups,other,running_speed,response_width_z,0.6343117608048199,84
+244,m466,TH,superficial,TH superficial,somas,components 4/10,pupil_odor_z,q10_z,-0.3480176211453745,14
+244,m466,TH,superficial,TH superficial,somas,components 4/10,pupil_odor_z,q90_z,0.48788546255506615,14
+244,m466,TH,superficial,TH superficial,somas,components 4/10,pupil_odor_z,response_width_z,0.5407488986784142,14
+244,m466,TH,superficial,TH superficial,somas,components 4/10,pupil_change_z,q10_z,-0.6365638766519824,14
+244,m466,TH,superficial,TH superficial,somas,components 4/10,pupil_change_z,q90_z,0.5418502202643172,14
+244,m466,TH,superficial,TH superficial,somas,components 4/10,pupil_change_z,response_width_z,0.5506607929515419,14
+244,m466,TH,superficial,TH superficial,somas,components 4/10,running_speed,q10_z,-0.46909606571017154,14
+244,m466,TH,superficial,TH superficial,somas,components 4/10,running_speed,q90_z,0.7682137923159514,14
+244,m466,TH,superficial,TH superficial,somas,components 4/10,running_speed,response_width_z,0.7880813903930882,14
+244,m466,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_odor_z,q10_z,-0.8056054385890983,12
+244,m466,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_odor_z,q90_z,0.02802105873353385,12
+244,m466,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_odor_z,response_width_z,0.12959739664259406,12
+244,m466,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_change_z,q10_z,-0.37127902821932357,12
+244,m466,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_change_z,q90_z,0.5779343363791357,12
+244,m466,TH,superficial,TH superficial,somas,mixtures 17/18,pupil_change_z,response_width_z,0.378284292902707,12
+244,m466,TH,superficial,TH superficial,somas,mixtures 17/18,running_speed,q10_z,-0.8005509636664614,13
+244,m466,TH,superficial,TH superficial,somas,mixtures 17/18,running_speed,q90_z,0.4869330603744456,13
+244,m466,TH,superficial,TH superficial,somas,mixtures 17/18,running_speed,response_width_z,0.8170571691028833,13
+244,m466,TH,superficial,TH superficial,somas,other,pupil_odor_z,q10_z,-0.5149267391733287,83
+244,m466,TH,superficial,TH superficial,somas,other,pupil_odor_z,q90_z,0.3915775088510628,83
+244,m466,TH,superficial,TH superficial,somas,other,pupil_odor_z,response_width_z,0.5287222383161789,83
+244,m466,TH,superficial,TH superficial,somas,other,pupil_change_z,q10_z,-0.4487378073590434,83
+244,m466,TH,superficial,TH superficial,somas,other,pupil_change_z,q90_z,0.4367943355610761,83
+244,m466,TH,superficial,TH superficial,somas,other,pupil_change_z,response_width_z,0.4856310338997245,83
+244,m466,TH,superficial,TH superficial,somas,other,running_speed,q10_z,-0.6879717672708503,84
+244,m466,TH,superficial,TH superficial,somas,other,running_speed,q90_z,0.5243504785863529,84
+244,m466,TH,superficial,TH superficial,somas,other,running_speed,response_width_z,0.6826078022845835,84

@@ -9,7 +9,8 @@ from pathlib import Path
 
 import numpy as np
 
-from .benchmark_temporal_geometry import diagonal_crossnobis
+from analysis.figures.geometry import (cosine_centroid_distance,
+                                       diagonal_crossnobis)
 from ..paths import imaging_root, repo_path
 
 
@@ -19,14 +20,6 @@ MIXTURE_PAIRS = ((17, 18), (31, 32), (39, 40))
 def distance(x, labels, seed=0):
     _, rdm = diagonal_crossnobis(x, labels, repeats=60, seed=seed)
     return float(rdm[0, 1])
-
-
-def cosine_centroid_distance(x, labels):
-    levels = np.unique(labels)
-    a = np.nanmean(x[labels == levels[0]], axis=0)
-    b = np.nanmean(x[labels == levels[1]], axis=0)
-    denominator = np.linalg.norm(a) * np.linalg.norm(b)
-    return float(1 - np.dot(a, b) / denominator) if denominator > 0 else np.nan
 
 
 def null_z(x, labels, observed, *, permutations=30, seed=0):
