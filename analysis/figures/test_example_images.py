@@ -510,3 +510,41 @@ def test_example_records_its_own_provenance(session):
     assert example.window_s == (2., 4.) and example.sigma_px == 1.5
     assert "late" in example.caption() and "sigma 1.5 px" in example.caption()
     assert example.stem().endswith("_odor1_2to4s_sigma1.5")
+
+
+def test_example_without_pixels_reports_only_the_levels_it_has(session):
+    context, _ = session
+    example = build_example(context, block="pre", odor_id=1, pixel=False,
+                            progress=False)
+    assert not example.has_pixel_level
+    assert example.available_levels == ("fluorescence", "roi_outline", "roi_z")
+
+
+def test_rendering_a_missing_pixel_level_is_refused_not_faked(session):
+    """An all-NaN map over the anatomy would look like a real z map at zero."""
+    context, _ = session
+    example = build_example(context, block="pre", odor_id=1, pixel=False,
+                            progress=False)
+    with pytest.raises(ValueError, match="no pixel z"):
+        render_level(example, "pixel_z")
+
+
+def test_export_of_a_roi_only_example_omits_the_pixel_panel(session, tmp_path):
+    from .example_images import export_example
+
+    context, _ = session
+    example = build_example(context, block="pre", odor_id=1, pixel=False,
+                            progress=False)
+    written = export_example(tmp_path / "roi_only", example)
+    assert "pixel_z" not in written
+    assert Path(written["roi_z"]).exists() and Path(written["ladder"]).exists()
+
+
+def test_full_example_still_exports_all_four_levels(session, tmp_path):
+    from .example_images import export_example
+
+    context, _ = session
+    example = build_example(context, block="pre", odor_id=1, progress=False)
+    assert example.available_levels == LEVELS
+    written = export_example(tmp_path / "full", example)
+    assert all(Path(written[level]).exists() for level in LEVELS)

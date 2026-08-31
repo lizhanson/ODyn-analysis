@@ -27,6 +27,17 @@ __pycache__/
 .ipynb_checkpoints/
 *.egg-info
 
+# Figure/analysis outputs. These regenerate from source data via the
+# scripts that produce them, so they must never be tracked.
+analysis/figures/*_outputs/
+analysis/figures/*_outputs_*/
+analysis/figures/*_smoke/
+analysis/figures/spatial_maps_10x/
+analysis/figures/figure*/outputs/
+analysis/results/
+analysis/eda/report/deck_figures/
+qc_preview_20x*/
+
 # System / IDE
 .DS_Store
 .vscode/

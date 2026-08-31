@@ -1,3 +1,0 @@
-group_id,mouse,line,depth_class,cohort,compartment,n_units,n_awake_trials,median_pupil_coverage,population_f0_vs_pupil_rho,population_f0_vs_speed_rho,population_f0_vs_respiration_rho
-202,m496,DAT,superficial,DAT superficial,somas,214,78,0.531578947368421,-0.12869565217391304,-0.016397453435590636,0.12960829493087558
-202,m496,DAT,superficial,DAT superficial,groups,305,78,0.531578947368421,-0.1417391304347826,0.00034293667138725575,0.1168394777265745

@@ -26,14 +26,16 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
-from analysis.figures.paths import imaging_root, repo_path
+from analysis.figures.paths import imaging_root, output_root, repo_path
 from analysis.figures.population_metrics import _source_path
 from analysis.figures.session_data import available_sessions
+from analysis.session.h5io import open_h5
 
 LEVELS = ("fluorescence", "roi_outline", "pixel_z", "roi_z")
 
@@ -199,12 +201,10 @@ def _pixel_scale(handle) -> float | None:
 
 def load_context(row, root, *, population=None) -> SessionContext:
     """Open one session's grouped product and the extraction round behind it."""
-    import h5py
-
     grouped_path = Path(row["grouped_path"])
     objective = str(row["objective"]).lower()
     population = population or DEFAULT_POPULATION[objective]
-    with h5py.File(grouped_path, "r") as grouped:
+    with open_h5(grouped_path) as grouped:
         source_path = _source_path(grouped_path, grouped)
         if population not in grouped:
             raise KeyError(f"{grouped_path.name} has no '{population}' population; "
@@ -216,7 +216,7 @@ def load_context(row, root, *, population=None) -> SessionContext:
         members = [np.asarray(value, np.int64) for value in unit["member_roi_ids"][:]]
         unit_ids = np.asarray(_decode(unit["unit_id"][:]))
         z = unit["z"][:]
-    with h5py.File(source_path, "r") as source:
+    with open_h5(source_path) as source:
         # The 20x grouped product stores positional indices in /trial_id; the
         # source round always carries the database ids in the same trial order.
         trial_ids = source["trials/trial_id"][:]
@@ -279,8 +279,6 @@ def _movie_paths(context, indices) -> list[Path]:
     root, so it travels between workstations. The extraction round records the
     absolute path it actually read, which is used only as a fallback.
     """
-    import h5py
-
     wanted = [int(context.trial_ids[index]) for index in indices]
     database = Path(context.root) / ".odyn" / "odyn.db"
     found = {}
@@ -298,7 +296,7 @@ def _movie_paths(context, indices) -> list[Path]:
         if trial in found:
             paths.append(Path(context.root) / str(found[trial]).replace("\\", "/"))
             continue
-        with h5py.File(context.source_path, "r") as source:
+        with open_h5(context.source_path) as source:
             if "trials/mcor_path" not in source:
                 raise FileNotFoundError(
                     f"no approved motion-corrected file for trial {trial}")
@@ -312,11 +310,19 @@ def _movie_paths(context, indices) -> list[Path]:
     return paths
 
 
-def _frame_count(path) -> int:
-    import tifffile
+class WindowOutsideAcquisition(ValueError):
+    """The requested window does not fit inside the recording."""
 
-    with tifffile.TiffFile(path) as handle:
-        return len(handle.pages)
+
+def _check_spans(path, n_frame, response_span, baseline_span):
+    for name, (first, last) in (("response", response_span),
+                                ("baseline", baseline_span)):
+        if first < 0 or last > n_frame:
+            raise WindowOutsideAcquisition(
+                f"{Path(path).name}: the {name} window needs frames "
+                f"{first}-{last} but the acquisition has {n_frame}. Choose a "
+                f"window inside the recording or pass window_s=None to use the "
+                f"recorded valve frames.")
 
 
 def _read_trial_windows(path, response_span, baseline_span):
@@ -325,28 +331,25 @@ def _read_trial_windows(path, response_span, baseline_span):
     The requested spans are checked against the acquisition first. A window
     that runs off the end of the recording would otherwise be silently
     truncated by the slice, and a post-odor window on a short acquisition would
-    quietly become a shorter window than the one in the caption.
+    quietly become a shorter window than the one in the caption. The frame
+    count comes from the handle already being opened, because on a network
+    share a second open to ask how long the file is costs as much as the read.
     """
     import tifffile
 
-    n_frame = _frame_count(path)
-    for name, (first, last) in (("response", response_span),
-                                ("baseline", baseline_span)):
-        if first < 0 or last > n_frame:
-            raise ValueError(
-                f"{Path(path).name}: the {name} window needs frames "
-                f"{first}-{last} but the acquisition has {n_frame}. Choose a "
-                f"window inside the recording or pass window_s=None to use the "
-                f"recorded valve frames.")
     # Memory mapping avoids loading the frames outside both windows. Some
     # mounted filesystems disallow mmap; page reads are a portable fallback.
     try:
         movie = tifffile.memmap(path)
+        _check_spans(path, movie.shape[0], response_span, baseline_span)
         baseline = np.asarray(movie[baseline_span[0]:baseline_span[1]], np.float32)
         response = np.asarray(movie[response_span[0]:response_span[1]], np.float32)
+    except WindowOutsideAcquisition:
+        raise
     except (OSError, ValueError):
         with tifffile.TiffFile(path) as handle:
             pages = handle.pages
+            _check_spans(path, len(pages), response_span, baseline_span)
             baseline = np.stack([page.asarray()
                                  for page in pages[baseline_span[0]:baseline_span[1]]])
             response = np.stack([page.asarray()
@@ -448,9 +451,14 @@ def pixel_level(context, indices, *, window_s=DEFAULT_WINDOW_S,
         responses.append(raw_response)
         maps.append(z)
     reduce = {"median": np.nanmedian, "mean": np.nanmean}[reducer]
-    return (reduce(np.stack(baselines), axis=0).astype(np.float32),
-            reduce(np.stack(responses), axis=0).astype(np.float32),
-            reduce(np.stack(maps), axis=0).astype(np.float32))
+    # A pixel excluded on every trial -- an uncovered corner, or one the SD
+    # floor rejects throughout -- reduces to NaN, which is the right answer and
+    # not worth a warning. The renderers draw those pixels as missing.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        return (reduce(np.stack(baselines), axis=0).astype(np.float32),
+                reduce(np.stack(responses), axis=0).astype(np.float32),
+                reduce(np.stack(maps), axis=0).astype(np.float32))
 
 
 def reference_image(context):
@@ -462,11 +470,9 @@ def reference_image(context):
     has already looked at, and costs no movie reads. Returns None when the
     session has no bundle, which is the usual case at 20x.
     """
-    import h5py
-
     pattern = f"group{int(context.row['group_id'])}_*_masks_processed_*.h5"
     for bundle in sorted(context.source_path.parent.glob(pattern), reverse=True):
-        with h5py.File(bundle, "r") as handle:
+        with open_h5(bundle) as handle:
             if "reference" in handle:
                 return np.asarray(handle["reference"][:], np.float32)
     return None
@@ -548,6 +554,24 @@ class ExampleImages:
     @property
     def window_label(self) -> str:
         return window_label(self.window_s)
+
+    @property
+    def has_pixel_level(self) -> bool:
+        """False when the movies were not read, so `pixel_z` is entirely NaN."""
+        return bool(np.any(np.isfinite(self.pixel_z)))
+
+    @property
+    def available_levels(self) -> tuple[str, ...]:
+        """The levels this example actually has data for.
+
+        A `pixel=False` example has no pixel z. Rendering it anyway would
+        composite an all-NaN map over the anatomy and produce a panel that
+        looks like a real z map reading zero everywhere, which is exactly the
+        sort of thing that ends up on a slide.
+        """
+        if self.has_pixel_level:
+            return LEVELS
+        return tuple(level for level in LEVELS if level != "pixel_z")
 
     def caption(self) -> str:
         """Everything a reader needs to know the panel was made honestly."""
@@ -755,6 +779,11 @@ def render_level(example, level, *, crop=None, background=True, limits=(-2.0, 4.
     """Render one of `LEVELS` from a built example as an 8-bit RGB image."""
     if level not in LEVELS:
         raise ValueError(f"level must be one of {LEVELS}, got {level!r}")
+    if level == "pixel_z" and not example.has_pixel_level:
+        raise ValueError(
+            "this example has no pixel z: it was built with pixel=False, so the "
+            "motion-corrected movies were never read. Rebuild with pixel=True, "
+            "or render only example.available_levels.")
     grey = {"percentiles": percentiles, "gamma": gamma}
     fluorescence = crop_image(example.fluorescence, crop)
     labels = crop_image(example.unit_labels if unit_outlines else example.labels, crop)
@@ -815,9 +844,14 @@ def _scale_bar(ax, um_per_px, *, length_um=100, color="white"):
     return length_um
 
 
-def ladder_figure(path, example, *, levels=LEVELS, crop=None, limits=(-2.0, 4.0),
+def ladder_figure(path, example, *, levels=None, crop=None, limits=(-2.0, 4.0),
                   background=True, scale_bar_um=100, dpi=300, **render):
-    """One row showing the same field at each requested level of processing."""
+    """One row showing the same field at each requested level of processing.
+
+    Defaults to the levels the example actually has, so a `pixel=False` run
+    produces a three-panel ladder rather than a blank panel labelled as data.
+    """
+    levels = example.available_levels if levels is None else levels
     import matplotlib.pyplot as plt
     from matplotlib.colors import TwoSlopeNorm
     from matplotlib.cm import ScalarMappable
@@ -851,7 +885,7 @@ def ladder_figure(path, example, *, levels=LEVELS, crop=None, limits=(-2.0, 4.0)
     return path
 
 
-def export_example(output_dir, example, *, levels=LEVELS, crop=None,
+def export_example(output_dir, example, *, levels=None, crop=None,
                    limits=(-2.0, 4.0), background=True, ladder=True,
                    save_arrays=True, dpi=300, **render) -> dict:
     """Write one bare PNG per level, the labelled ladder, and the raw arrays.
@@ -860,6 +894,7 @@ def export_example(output_dir, example, *, levels=LEVELS, crop=None,
     slide; the arrays are kept so the same example can be re-rendered with
     different limits without rereading any movie.
     """
+    levels = example.available_levels if levels is None else levels
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     stem = example.stem()
@@ -899,15 +934,18 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--groups", nargs="+", type=int, required=True)
     parser.add_argument("--blocks", nargs="+", default=["pre"],
-                        help="state levels; pre is awake, post is ket/xyl")
-    parser.add_argument("--odors", nargs="+", type=int, required=True)
+                        help="state levels; pre is awake, post is ket/xyl. "
+                             "'all' uses every block the session contains")
+    parser.add_argument("--odors", nargs="+", required=True,
+                        help="odor_id values, or 'all' for every odor present "
+                             "in that session and block")
     parser.add_argument("--population", default=None,
                         help="10x: units. 20x: groups, somas, or processes")
     parser.add_argument("--manifest", type=Path, default=repo_path(
         "analysis", "stage0", "ketxyl_16odor_session_manifest.csv"))
     parser.add_argument("--imaging-root", type=Path, default=None)
-    parser.add_argument("--output-dir", type=Path, default=repo_path(
-        "analysis", "figures", "example_images_outputs"))
+    parser.add_argument("--output-dir", type=Path,
+                        default=output_root() / "example_images")
     parser.add_argument("--reducer", choices=("median", "mean"), default="median")
     parser.add_argument("--limits", nargs=2, type=float, default=(-2.0, 4.0))
     parser.add_argument("--window", default="odor",
@@ -951,8 +989,12 @@ def main(argv=None):
         if not row["available"]:
             raise FileNotFoundError(f"group {group_id} has no grouped product")
         context = load_context(row, root, population=args.population)
-        for block in args.blocks:
-            for odor_id in args.odors:
+        blocks = (available_blocks(context) if args.blocks == ["all"]
+                  else args.blocks)
+        for block in blocks:
+            odors = (available_odors(context, block) if args.odors == ["all"]
+                     else [int(value) for value in args.odors])
+            for odor_id in odors:
                 example = build_example(
                     context, block=block, odor_id=odor_id, window_s=window,
                     baseline_s=baseline, sigma_px=args.sigma_px,

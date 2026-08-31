@@ -24,6 +24,7 @@ from analysis.figures.session_data import available_sessions
 
 ODOR_ORDER = (0, 1, 2, 3, 4, 10, 12, 17, 18, 21, 22, 30, 31, 32, 39, 40)
 MIXTURE_PAIRS = ((17, 18), (31, 32), (39, 40))
+SLIDE_ODORS = (4, 10, 17, 18, 39, 40)
 
 
 def _decode(values):
@@ -141,7 +142,7 @@ def session_roi_maps(row, *, reducer="median"):
     return maps, counts
 
 
-def plot_odor_page(path, maps, counts, row, *, state="pre", limits=(-1.5, 3.0),
+def plot_odor_page(path, maps, counts, row, *, state="pre", limits=(-3.0, 3.0),
                    map_source="pixel"):
     import matplotlib.pyplot as plt
     from matplotlib.colors import TwoSlopeNorm
@@ -193,6 +194,45 @@ def plot_mixture_differences(path, maps, counts, row, *, limits=(-1.5, 1.5),
     plt.close(fig)
 
 
+def plot_cross_line_examples(path, examples, *, state="pre",
+                             odors=SLIDE_ODORS, limits=(-3., 3.),
+                             map_source="pixel"):
+    """Matched-format examples across animals; no spatial registration implied."""
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import TwoSlopeNorm
+
+    fig, axes = plt.subplots(len(examples), len(odors),
+                             figsize=(2.25*len(odors), 2.3*len(examples)),
+                             squeeze=False, constrained_layout=True)
+    norm = TwoSlopeNorm(vmin=limits[0], vcenter=0, vmax=limits[1])
+    image = None
+    for row_index, (row, maps, counts) in enumerate(examples):
+        for column, odor in enumerate(odors):
+            ax = axes[row_index, column]
+            values = maps.get((state, odor))
+            if values is None:
+                ax.axis("off")
+                continue
+            image = ax.imshow(values, cmap="RdBu_r", norm=norm,
+                              interpolation="nearest")
+            if row_index == 0:
+                ax.set_title(f"odor {odor}")
+            if column == 0:
+                line = row["population"].split("-")[0]
+                ax.set_ylabel(f"{line} — {row['mouse']}\ngroup {row['group_id']}")
+            ax.text(.02, .98, f"n={counts[(state, odor)]}", va="top",
+                    transform=ax.transAxes, fontsize=7,
+                    bbox={"facecolor": "white", "edgecolor": "none", "alpha": .65})
+            ax.set(xticks=[], yticks=[])
+    label = "awake" if state == "pre" else "ket/xyl"
+    fig.suptitle(f"10x signed odor maps — {label}\n"
+                 "matched display scale; separate animals and unregistered fields")
+    if image is not None:
+        fig.colorbar(image, ax=axes, label="odor-period z", shrink=.72)
+    fig.savefig(path, dpi=220, bbox_inches="tight")
+    plt.close(fig)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--groups", nargs="+", type=int, default=[214, 215, 219])
@@ -214,6 +254,7 @@ def main(argv=None):
     missing = sorted(set(args.groups) - set(selected))
     if missing:
         raise ValueError(f"groups absent from 10x manifest: {missing}")
+    examples = []
     for group_id in args.groups:
         row = selected[group_id]
         if not row["available"]:
@@ -231,6 +272,11 @@ def main(argv=None):
         plot_mixture_differences(
             args.output_dir / f"{stem}_{args.map_source}_reciprocal_mixture_differences.png",
             maps, counts, row, map_source=args.map_source)
+        examples.append((row, maps, counts))
+    if len(examples) > 1:
+        plot_cross_line_examples(
+            args.output_dir / f"cross_line_awake_selected_odors_{args.map_source}.png",
+            examples, state="pre", map_source=args.map_source)
     return 0
 
 

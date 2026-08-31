@@ -1,2 +1,0 @@
-mouse,date,exp,group_id,population,objective,depth_class,depth_um,depth_raw,protocol,treatment,log_file,objective_log,metadata_flag,inclusion_status,exclusion_reason,postprocessing_qc,grouped_path,available
-m496,20260728,e1,202,DAT-GCaMP,20x,superficial,,,"16 odor passive, 4s odors",pre/post ket/xyl,20260728/m496/20260728_m496_Log_in_vivo.xlsx,,depth_not_recorded,,,,/Volumes/MossLab/ImagingData/20260728/m496/e1/processed/python/group202_20260728_m496_e1_processed_20260826_pertrial_median_20x_grouped.h5,True
